@@ -30,8 +30,7 @@ export async function POST(request: Request) {
         { status: result.code || 500 }
       );
     }
-
-    const isRegistered = !!result.data; // 根据API的返回结果判断是否注册
+    const isRegistered = result.data['Registration Time']; // 根据API的返回结果判断是否注册
     const whoisData = result.data; // 直接返回API的data，包含详细信息
 
     return NextResponse.json({

@@ -4,8 +4,10 @@ import { Button } from '@heroui/button';
 import { Checkbox } from '@heroui/checkbox';
 import { Select, SelectItem } from '@heroui/select';
 import { WhoisResponse } from './domain-checker';
-import { FixedSizeList as List } from 'react-window';
+// import { FixedSizeList} from 'react-window';
+import { FixedSizeList as _FixedSizeList } from "react-window";
 
+const FixedSizeList = _FixedSizeList as any;
 interface PositionConfig {
     type: 'number' | 'letter' | 'input';
     value?: string;
@@ -25,10 +27,12 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
          */
         useConsecutive: boolean;
         useAABB: boolean;
+        useAABBCC: boolean;
     }>({
         positions: [{ type: 'number' }],
         useConsecutive: false,
         useAABB: false,
+        useAABBCC: false,
     });
     const [previewDomains, setPreviewDomains] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
@@ -69,6 +73,24 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         return false;
     }
 
+    const generateAABBCC = (num: string): string => {
+        if (num.length !== 6) return '';
+        return num;
+    }
+
+    const hasAABBCC = (str: string): boolean => {
+        if (str.length < 6) return false;
+        for (let i = 0; i <= str.length - 6; i++) {
+            const sub = str.substring(i, i + 6);
+            if (
+                sub[0] === sub[1] &&
+                sub[2] === sub[3] &&
+                sub[4] === sub[5]
+            ) return true;
+        }
+        return false;
+    }
+
 
     // 生成域名组合
     const generateDomains = useCallback(() => { // 使用 useCallback 优化
@@ -85,6 +107,11 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 }
                 if (isAllNumbers() && batchConfig.useAABB) {
                     if (!hasAABB(current)) {
+                        return;
+                    }
+                }
+                if (isAllNumbers() && batchConfig.useAABBCC) {
+                    if (!hasAABBCC(current)) {
                         return;
                     }
                 }
@@ -163,17 +190,19 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     const listHeight = Math.min(previewDomains.length * rowHeight, maxListHeight);
 
 
+    // Separate available and registered domains
+    const availableDomains = batchResults.filter(result => !result.isRegistered && !result.error);
+    const registeredDomains = batchResults.filter(result => result.isRegistered || result.error);
+
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
                 {batchConfig.positions.map((pos, index) => (
                     <div key={index} className="flex gap-2 items-center">
-                        {pos.type}
                         <Select
-                            selectedKeys={pos.type}
+                            selectedKeys={pos.type ? [pos.type] : []} // 将类型转换为字符串数组，以匹配 selectedKeys 的类型
                             onChange={(e) => {
-                                const value = e.target.value
-                                console.log('onChange',value)
+                                const value = e.target.value;
                                 const newPositions = [...batchConfig.positions];
                                 newPositions[index] = { ...pos, type: value as 'number' | 'letter' | 'input', value: '' };
                                 setBatchConfig({ ...batchConfig, positions: newPositions });
@@ -193,6 +222,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                                     newPositions[index] = { ...pos, value: e.target.value };
                                     setBatchConfig({ ...batchConfig, positions: newPositions });
                                 }}
+                                className="w-24"
                                 placeholder="输入内容"
                                 disabled={loading}
                             />
@@ -257,6 +287,18 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 </div>
             )}
 
+            {isAllNumbers() && (
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        checked={batchConfig.useAABBCC}
+                        onChange={(e) =>
+                            setBatchConfig({ ...batchConfig, useAABBCC: e.target.checked })
+                        }
+                    />
+                    <span className="text-sm text-gray-600">使用AABBCC</span>
+                </div>
+            )}
+
             <Button
                 onClick={handleBatchQuery}
                 color="primary"
@@ -272,14 +314,15 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-sm">
                     <div className="font-medium mb-2 text-gray-700">将要查询的域名列表：</div>
                     <div className="bg-gray-800 p-3 rounded">
-                        <List
+                        <FixedSizeList
                             height={listHeight} // 使用计算后的高度
-                            itemCount={previewDomains.length}
+                            itemCount={previewDomains.length || 0}
                             itemSize={rowHeight}
+                            overscanCount={10}
                             width="100%"
                         >
                             {renderDomainRow}
-                        </List>
+                        </FixedSizeList>
                     </div>
                 </div>
             )}
@@ -300,20 +343,42 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 </div>
             )}
 
-            {batchResults.length > 0 && (
+            {/* Display results, available domains first, then registered domains */}
+            {(availableDomains.length > 0 || registeredDomains.length > 0) && (
                 <div className="space-y-4">
-                    {batchResults.map((result, index) => (
-                        <div key={index} className="p-4 bg-gray-800 rounded-lg shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <span className="font-medium">{result.domain}</span>
-                                <span
-                                    className={`px-2 py-1 text-sm rounded ${result.isRegistered || result.error? 'bg-red-800 text-red-200' : 'bg-green-800 text-green-200'}`}
-                                >
-                                    {result.error?result.error:(result.isRegistered ? '已被注册' : '可以注册')}
-                                </span>
+                    {availableDomains.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold mb-2">可以注册的域名</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">  {/* 1 column on small screens, 2 on medium+ */}
+                                {availableDomains.map((result, index) => (
+                                    <div key={`available-${index}`} className="p-4 bg-green-800 rounded-lg shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium">{result.domain}</span>
+                                            <span className="px-2 py-1 text-sm rounded bg-green-200 text-green-800">可以注册</span>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    ))}
+                    )}
+
+                    {registeredDomains.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold mb-2">已被注册的域名</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">  {/* 1 column on small screens, 2 on medium+ */}
+                                {registeredDomains.map((result, index) => (
+                                    <div key={`registered-${index}`} className="p-4 bg-red-800 rounded-lg shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium">{result.domain}</span>
+                                            <span className="px-2 py-1 text-sm rounded text-red-200">
+                                                {result.error ? result.error : '已被注册'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
