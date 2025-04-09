@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from '@heroui/input';
 import { Button } from '@heroui/button';
-import { Checkbox } from '@heroui/checkbox';
 import { Select, SelectItem } from '@heroui/select';
 import { WhoisResponse } from './domain-checker';
 // import { FixedSizeList} from 'react-window';
 import { FixedSizeList as _FixedSizeList } from "react-window";
-import {NumberInput} from "@heroui/number-input";
+import { NumberInput } from "@heroui/number-input";
 const FixedSizeList = _FixedSizeList as any;
 interface PositionConfig {
     type: 'number' | 'letter' | 'input';
@@ -29,12 +28,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         useAABB: boolean;
         useAABBCC: boolean;
         threadCount: number; // 新增：线程数量
+        domainFilters: string[]; // 新增：域名筛选条件
     }>({
         positions: [{ type: 'number' }],
         useConsecutive: false,
         useAABB: false,
         useAABBCC: false,
         threadCount: 1, // 默认线程数
+        domainFilters: [], // 初始化筛选条件
     });
     const [previewDomains, setPreviewDomains] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
@@ -43,6 +44,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
     const rowHeight = 24; // 每行的高度，可以调整
     const maxListHeight = 160; //  定义最大列表高度
+
+    const domainFilterOptions = [
+        { key: 'AABB', label: 'AABB' },
+        { key: 'ABCDEE', label: 'ABCDEE' },
+        { key: 'useConsecutive', label: '顺子' },
+        { key: 'useAABB', label: 'AABB' },
+        { key: 'useAABBCC', label: 'AABBCC' },
+    ];
 
     // 检查是否所有位置都是数字
     const isAllNumbers = () => batchConfig.positions.every(pos => pos.type === 'number' || (pos.type === 'input' && /^\d+$/.test(pos.value || '')));
@@ -93,6 +102,21 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         return false;
     }
 
+    const generateABCDEE = (num: string): string => {
+        if (num.length !== 6) return '';
+        return num;
+    }
+
+    const hasABCDEE = (str: string): boolean => {
+        if (str.length < 6) return false;
+        return (
+            str[0].charCodeAt(0) + 1 === str[1].charCodeAt(0) &&
+            str[1].charCodeAt(0) + 1 === str[2].charCodeAt(0) &&
+            str[2].charCodeAt(0) + 1 === str[3].charCodeAt(0) &&
+            str[3].charCodeAt(0) + 1 === str[4].charCodeAt(0) &&
+            str[4] === str[5]
+        );
+    }
 
     // 生成域名组合
     const generateDomains = useCallback(() => { // 使用 useCallback 优化
@@ -101,22 +125,21 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
         const generateCombinations = (current: string, index: number) => {
             if (index === positions.length) {
-                if (isAllNumbers() && useConsecutive ) {
-                    // 检查是否有至少3个连续数字
-                    if (!hasConsecutiveNumbers(current)) {
-                        return;
-                    }
+                if (isAllNumbers() && batchConfig.domainFilters.includes('useConsecutive') && !hasConsecutiveNumbers(current)) {
+                    return;
                 }
-                if (isAllNumbers() && batchConfig.useAABB) {
-                    if (!hasAABB(current)) {
-                        return;
-                    }
+
+                if (isAllNumbers() && batchConfig.domainFilters.includes('useAABB') && !hasAABB(current)) {
+                    return;
                 }
-                if (isAllNumbers() && batchConfig.useAABBCC) {
-                    if (!hasAABBCC(current)) {
-                        return;
-                    }
+
+                if (isAllNumbers() && batchConfig.domainFilters.includes('useAABBCC') && !hasAABBCC(current)) {
+                    return;
                 }
+                if (isAllNumbers() && batchConfig.domainFilters.includes('ABCDEE') && !hasABCDEE(current)) {
+                    return;
+                }
+
                 domains.push(`${current}.${suffix}`);
                 return;
             }
@@ -284,73 +307,38 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 )}
             </div>
 
-            {isAllNumbers() && ( // 只有当所有位置都是数字或者自定义输入是数字时，才显示顺子号选项
+            {/* 域名筛选 */}
+            {isAllNumbers() && (
                 <div className="flex items-center gap-2">
-                    <Checkbox
-                        type="checkbox"
-                        checked={batchConfig.useConsecutive}
-                        onChange={(e) =>
-                            setBatchConfig({ ...batchConfig, useConsecutive: e.target.checked })
-                        }
+                    <Select
+                        label="筛选条件"
+                        placeholder="请选择筛选条件"
+                        selectionMode="multiple"
+                        // selectedKeys={batchConfig.domainFilters}
+                        onChange={(e) => {
+                            console.log('onChange',e,e.target.value)
+                            setBatchConfig({
+                                ...batchConfig,
+                                domainFilters: e.target.value.split(','),
+                            });
+                        }}
                         disabled={loading}
-                    />
-                    <span className="text-sm text-gray-600">使用顺子号</span>
+                        className="max-w-xs"
+                    >
+                        {domainFilterOptions.map(option => (
+                            <SelectItem key={option.key}>{option.label}</SelectItem>
+                        ))}
+                    </Select>
                 </div>
             )}
 
-            {isAllNumbers() && (
-                <div className="flex items-center gap-2">
-                    <Checkbox
-                        checked={batchConfig.useAABB}
-                        onChange={(e) =>
-                            setBatchConfig({ ...batchConfig, useAABB: e.target.checked })
-                        }
-                    />
-                    <span className="text-sm text-gray-600">使用AABB</span>
-                </div>
-            )}
-
-            {isAllNumbers() && (
-                <div className="flex items-center gap-2">
-                    <Checkbox
-                        checked={batchConfig.useAABBCC}
-                        onChange={(e) =>
-                            setBatchConfig({ ...batchConfig, useAABBCC: e.target.checked })
-                        }
-                    />
-                    <span className="text-sm text-gray-600">使用AABBCC</span>
-                </div>
-            )}
-
-            {/* 新增：线程选择 */}
-            <div className="flex items-center gap-2">
-                <span>线程数:</span>
-                <NumberInput
-                    value={batchConfig.threadCount}
-                    onChange={(value) => {
-                        setBatchConfig({ ...batchConfig, threadCount:value as number });
-                    }}
-                    minValue={1}
-                    maxValue={10}
-                    className="w-20"
-                    disabled={loading}
-                />
-            </div>
-
-            <Button
-                onClick={handleBatchQuery}
-                color="primary"
-                isLoading={loading}
-                disabled={!suffix || loading}
-                className="w-full"
-            >
-                开始批量查询
-            </Button>
 
             {/* 域名预览列表 */}
             {previewDomains.length > 0 && (
                 <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-sm">
-                    <div className="font-medium mb-2 text-gray-700">将要查询的域名列表：</div>
+                    <div className="font-medium mb-2 text-gray-700">
+                        将要查询的域名列表：({previewDomains.length} 个)
+                    </div>
                     <div className="bg-gray-800 p-3 rounded">
                         <FixedSizeList
                             height={listHeight} // 使用计算后的高度
