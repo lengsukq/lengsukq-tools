@@ -332,7 +332,29 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 </div>
             )}
 
-
+            {/* 新增：线程选择 */}
+            <div className="flex items-center gap-2">
+                <span>线程数:</span>
+                <NumberInput
+                    value={batchConfig.threadCount}
+                    onChange={(value) => {
+                        setBatchConfig({ ...batchConfig, threadCount:value as number });
+                    }}
+                    minValue={1}
+                    maxValue={10}
+                    className="w-20"
+                    disabled={loading}
+                />
+            </div>
+            <Button
+                onClick={handleBatchQuery}
+                color="primary"
+                isLoading={loading}
+                disabled={!suffix || loading}
+                className="w-full"
+            >
+                开始批量查询
+            </Button>
             {/* 域名预览列表 */}
             {previewDomains.length > 0 && (
                 <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-sm">
