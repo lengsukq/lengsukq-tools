@@ -155,6 +155,26 @@
     "@react-aria/utils" "3.28.1"
     "@react-types/shared" "3.28.0"
 
+"@heroui/checkbox@^2.3.16":
+  version "2.3.16"
+  resolved "https://registry.yarnpkg.com/@heroui/checkbox/-/checkbox-2.3.16.tgz#6b27c47f349bee4f39e4b1b9f6160190fad0e4e4"
+  integrity sha512-OJh6x2Z3BV7Z6syniDBPBqFhTdTyuDAei48RZ04wGwahy3lJDAIk44Mj6f/HACgorrVRLvFhemVyQJvP8h1PEA==
+  dependencies:
+    "@heroui/form" "2.1.16"
+    "@heroui/react-utils" "2.1.8"
+    "@heroui/shared-utils" "2.1.7"
+    "@heroui/use-callback-ref" "2.1.6"
+    "@heroui/use-safe-layout-effect" "2.1.6"
+    "@react-aria/checkbox" "3.15.3"
+    "@react-aria/focus" "3.20.1"
+    "@react-aria/interactions" "3.24.1"
+    "@react-aria/utils" "3.28.1"
+    "@react-aria/visually-hidden" "3.8.21"
+    "@react-stately/checkbox" "3.6.12"
+    "@react-stately/toggle" "3.8.2"
+    "@react-types/checkbox" "3.9.2"
+    "@react-types/shared" "3.28.0"
+
 "@heroui/code@2.2.12":
   version "2.2.12"
   resolved "https://registry.npmmirror.com/@heroui/code/-/code-2.2.12.tgz#f0b0c1ada292c25815bdcb3b8bc460e965d2b1d9"
@@ -530,6 +550,13 @@
     "@react-types/select" "3.9.10"
     "@react-types/shared" "3.28.0"
 
+"@heroui/use-callback-ref@2.1.6":
+  version "2.1.6"
+  resolved "https://registry.yarnpkg.com/@heroui/use-callback-ref/-/use-callback-ref-2.1.6.tgz#6dc54c8087a26a0c5707daeba4ee99c150bcc63d"
+  integrity sha512-icFp4WBWTZhypBcyu+5kir7nZLtvtQq7DDvGwkTtxsGnFHgGDc6sXXcOU6AcCdoGefmsiVp5c3D3lZ2pMlGHmA==
+  dependencies:
+    "@heroui/use-safe-layout-effect" "2.1.6"
+
 "@heroui/use-clipboard@2.1.7":
   version "2.1.7"
   resolved "https://registry.npmmirror.com/@heroui/use-clipboard/-/use-clipboard-2.1.7.tgz#61a1e205cea88bf601d1453ad33f90e62b8fceb0"
@@ -889,6 +916,23 @@
     "@react-types/shared" "^3.28.0"
     "@swc/helpers" "^0.5.0"
 
+"@react-aria/checkbox@3.15.3":
+  version "3.15.3"
+  resolved "https://registry.yarnpkg.com/@react-aria/checkbox/-/checkbox-3.15.3.tgz#247a310e7879100d6285afc9a584f91e7dee9ce7"
+  integrity sha512-/m5JYoGsi5L0NZnacgqEcMqBo6CcTmsJ9nAY/07MDCUJBcL/Xokd8cL/1K21n6K69MiCPcxORbSBdxJDm9dR0A==
+  dependencies:
+    "@react-aria/form" "^3.0.14"
+    "@react-aria/interactions" "^3.24.1"
+    "@react-aria/label" "^3.7.16"
+    "@react-aria/toggle" "^3.11.1"
+    "@react-aria/utils" "^3.28.1"
+    "@react-stately/checkbox" "^3.6.12"
+    "@react-stately/form" "^3.1.2"
+    "@react-stately/toggle" "^3.8.2"
+    "@react-types/checkbox" "^3.9.2"
+    "@react-types/shared" "^3.28.0"
+    "@swc/helpers" "^0.5.0"
+
 "@react-aria/dialog@3.5.23":
   version "3.5.23"
   resolved "https://registry.npmmirror.com/@react-aria/dialog/-/dialog-3.5.23.tgz#54a475b59cb4777bfad26d424307570fe2b0c19b"
@@ -1137,6 +1181,17 @@
     "@react-types/shared" "^3.28.0"
     "@swc/helpers" "^0.5.0"
 
+"@react-stately/checkbox@3.6.12", "@react-stately/checkbox@^3.6.12":
+  version "3.6.12"
+  resolved "https://registry.yarnpkg.com/@react-stately/checkbox/-/checkbox-3.6.12.tgz#bc1745ed078c2fabb42551f7dc17b0601c04112f"
+  integrity sha512-gMxrWBl+styUD+2ntNIcviVpGt2Y+cHUGecAiNI3LM8/K6weI7938DWdLdK7i0gDmgSJwhoNRSavMPI1W6aMZQ==
+  dependencies:
+    "@react-stately/form" "^3.1.2"
+    "@react-stately/utils" "^3.10.5"
+    "@react-types/checkbox" "^3.9.2"
+    "@react-types/shared" "^3.28.0"
+    "@swc/helpers" "^0.5.0"
+
 "@react-stately/collections@3.12.2", "@react-stately/collections@^3.12.2":
   version "3.12.2"
   resolved "https://registry.npmmirror.com/@react-stately/collections/-/collections-3.12.2.tgz#95cce481bd6ff69aa4694a8b47015360dc4de84e"
@@ -1262,7 +1317,7 @@
     "@internationalized/date" "^3.7.0"
     "@react-types/shared" "^3.28.0"
 
-"@react-types/checkbox@^3.9.2":
+"@react-types/checkbox@3.9.2", "@react-types/checkbox@^3.9.2":
   version "3.9.2"
   resolved "https://registry.npmmirror.com/@react-types/checkbox/-/checkbox-3.9.2.tgz#3bf842a19b424d8fda06d575cd4a492959b0863a"
   integrity sha512-BruOLjr9s0BS2+G1Q2ZZ0ubnSTG54hZWr59lCHXaLxMdA/+KVsR6JVMQuYKsW0P8RDDlQXE/QGz3n9yB/Ara4A==

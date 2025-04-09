@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from '@heroui/input';
 import { Button } from '@heroui/button';
+import { Checkbox } from '@heroui/checkbox';
 import { Select, SelectItem } from '@heroui/select';
 import { WhoisResponse } from './domain-checker';
 import { FixedSizeList as List } from 'react-window';
@@ -19,12 +20,15 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     const [batchConfig, setBatchConfig] = useState<{
         positions: PositionConfig[];
         /**
+         * 是否使用AABB
          * 是否使用连续数字，只有当所有position都是数字时才生效
          */
         useConsecutive: boolean;
+        useAABB: boolean;
     }>({
         positions: [{ type: 'number' }],
         useConsecutive: false,
+        useAABB: false,
     });
     const [previewDomains, setPreviewDomains] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
@@ -51,6 +55,21 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         return false;
     };
 
+    const generateAABB = (num: string): string => {
+        if (num.length !== 2) return '';
+        return num + num;
+    }
+
+    const hasAABB = (str: string): boolean => {
+        if (str.length < 4) return false;
+        for (let i = 0; i <= str.length - 4; i++) {
+            const sub = str.substring(i, i + 4);
+            if (sub[0] === sub[1] && sub[2] === sub[3]) return true;
+        }
+        return false;
+    }
+
+
     // 生成域名组合
     const generateDomains = useCallback(() => { // 使用 useCallback 优化
         const domains: string[] = [];
@@ -58,9 +77,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
         const generateCombinations = (current: string, index: number) => {
             if (index === positions.length) {
-                if (isAllNumbers() && useConsecutive) {
+                if (isAllNumbers() && useConsecutive ) {
                     // 检查是否有至少3个连续数字
                     if (!hasConsecutiveNumbers(current)) {
+                        return;
+                    }
+                }
+                if (isAllNumbers() && batchConfig.useAABB) {
+                    if (!hasAABB(current)) {
                         return;
                     }
                 }
@@ -157,9 +181,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                             disabled={loading}
                             className="w-24"
                         >
-                            <SelectItem key="number">数字</SelectItem>
-                            <SelectItem key="letter">字母</SelectItem>
-                            <SelectItem key="input">自定义</SelectItem>
+                            <SelectItem key={"number"}>数字</SelectItem>
+                            <SelectItem key={"letter"}>字母</SelectItem>
+                            <SelectItem key={"input"}>自定义</SelectItem>
                         </Select>
                         {pos.type === 'input' && (
                             <Input
@@ -209,16 +233,27 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
             {isAllNumbers() && ( // 只有当所有位置都是数字或者自定义输入是数字时，才显示顺子号选项
                 <div className="flex items-center gap-2">
-                    <input
+                    <Checkbox
                         type="checkbox"
                         checked={batchConfig.useConsecutive}
                         onChange={(e) =>
                             setBatchConfig({ ...batchConfig, useConsecutive: e.target.checked })
                         }
                         disabled={loading}
-                        className="form-checkbox h-4 w-4 text-blue-600"
                     />
                     <span className="text-sm text-gray-600">使用顺子号</span>
+                </div>
+            )}
+
+            {isAllNumbers() && (
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        checked={batchConfig.useAABB}
+                        onChange={(e) =>
+                            setBatchConfig({ ...batchConfig, useAABB: e.target.checked })
+                        }
+                    />
+                    <span className="text-sm text-gray-600">使用AABB</span>
                 </div>
             )}
 
