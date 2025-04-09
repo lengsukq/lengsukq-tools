@@ -6,7 +6,7 @@ import { Select, SelectItem } from '@heroui/select';
 import { WhoisResponse } from './domain-checker';
 // import { FixedSizeList} from 'react-window';
 import { FixedSizeList as _FixedSizeList } from "react-window";
-
+import {NumberInput} from "@heroui/number-input";
 const FixedSizeList = _FixedSizeList as any;
 interface PositionConfig {
     type: 'number' | 'letter' | 'input';
@@ -28,11 +28,13 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         useConsecutive: boolean;
         useAABB: boolean;
         useAABBCC: boolean;
+        threadCount: number; // 新增：线程数量
     }>({
         positions: [{ type: 'number' }],
         useConsecutive: false,
         useAABB: false,
         useAABBCC: false,
+        threadCount: 1, // 默认线程数
     });
     const [previewDomains, setPreviewDomains] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
@@ -160,22 +162,43 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         setBatchResults([]);
         setProgress(0);
         const domains = previewDomains;
+        const totalDomains = domains.length;
+        const threadCount = Math.min(Math.max(1, batchConfig.threadCount), 10); // 限制线程数量在1-10之间
+        const domainsPerThread = Math.floor(totalDomains / threadCount);
+        const remainingDomains = totalDomains % threadCount;
+        // let results: WhoisResponse[] = [];  // 移除该行，不再使用 results 数组
+        let completedCount = 0;
 
-        // 逐个查询域名
-        for (let i = 0; i < domains.length; i++) {
-            const domain = domains[i];
-            try {
-                const result = await onQuery([domain]); // 查询单个域名
-                // 确保 result 是一个数组，即使 onQuery 只返回一个结果
-                const finalResult = Array.isArray(result) ? result : [result];
-                setBatchResults(prevResults => [...prevResults, ...finalResult]); // 更新结果
-            } catch (error) {
-                console.log(`查询 ${domain} 出错`, error);
+        const queryInChunks = async (startIndex: number, endIndex: number) => {
+            const chunkDomains = domains.slice(startIndex, endIndex);
+            for (let i = 0; i < chunkDomains.length; i++) {
+                const domain = chunkDomains[i];
+                try {
+                    const result = await onQuery([domain]);
+                    const finalResult = Array.isArray(result) ? result : [result];
+                    setBatchResults(prevResults => [...prevResults, ...finalResult]); // 每次查询到结果后，立即更新 batchResults
+                } catch (error) {
+                    console.log(`查询 ${domain} 出错`, error);
+                    // setBatchResults(prevResults => [...prevResults, { domain, error: String(error) }]); // 如果查询出错，也需要更新 batchResults，确保错误结果能被显示
+                }
+                completedCount++;
+                setProgress(((completedCount / totalDomains) * 100));
             }
-            setProgress(((i + 1) / domains.length) * 100); // 更新进度
+        };
+
+        const threadPromises = [];
+        let startIndex = 0;
+        for (let i = 0; i < threadCount; i++) {
+            const endIndex = startIndex + domainsPerThread + (i < remainingDomains ? 1 : 0);
+            threadPromises.push(queryInChunks(startIndex, endIndex));
+            startIndex = endIndex;
         }
+
+        await Promise.all(threadPromises);
+        // setBatchResults(results); // 移除这行，不再需要
         setLoading(false);
     };
+
 
     // 渲染单个域名
     const renderDomainRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
@@ -298,6 +321,21 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                     <span className="text-sm text-gray-600">使用AABBCC</span>
                 </div>
             )}
+
+            {/* 新增：线程选择 */}
+            <div className="flex items-center gap-2">
+                <span>线程数:</span>
+                <NumberInput
+                    value={batchConfig.threadCount}
+                    onChange={(value) => {
+                        setBatchConfig({ ...batchConfig, threadCount:value as number });
+                    }}
+                    minValue={1}
+                    maxValue={10}
+                    className="w-20"
+                    disabled={loading}
+                />
+            </div>
 
             <Button
                 onClick={handleBatchQuery}

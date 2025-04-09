@@ -302,6 +302,28 @@
     "@react-stately/toggle" "3.8.2"
     "@react-stately/utils" "3.10.5"
 
+"@heroui/number-input@^2.0.7":
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/@heroui/number-input/-/number-input-2.0.7.tgz#993504fb9eb71842a25ff8e028dd0194a121fb97"
+  integrity sha512-vMnJcmO/bfzrGFlgkFQ3ujVhtMWG0i+qBcjog0Q2qOAHK317wejsB6H4o/i0S58l48Q3rqgFnBa8cwtHW3G+ZQ==
+  dependencies:
+    "@heroui/button" "2.2.17"
+    "@heroui/form" "2.1.16"
+    "@heroui/react-utils" "2.1.8"
+    "@heroui/shared-icons" "2.1.6"
+    "@heroui/shared-utils" "2.1.7"
+    "@heroui/use-safe-layout-effect" "2.1.6"
+    "@react-aria/focus" "3.20.1"
+    "@react-aria/i18n" "3.12.7"
+    "@react-aria/interactions" "3.24.1"
+    "@react-aria/numberfield" "3.11.12"
+    "@react-aria/utils" "3.28.1"
+    "@react-stately/numberfield" "3.9.10"
+    "@react-stately/utils" "3.10.5"
+    "@react-types/button" "3.11.0"
+    "@react-types/numberfield" "3.8.9"
+    "@react-types/shared" "3.28.0"
+
 "@heroui/popover@2.3.17":
   version "2.3.17"
   resolved "https://registry.npmmirror.com/@heroui/popover/-/popover-2.3.17.tgz#195b6a7c92c38721ca2077ed679d562fc9fe670e"
@@ -1027,6 +1049,13 @@
     "@react-types/shared" "^3.28.0"
     "@swc/helpers" "^0.5.0"
 
+"@react-aria/live-announcer@^3.4.1":
+  version "3.4.1"
+  resolved "https://registry.yarnpkg.com/@react-aria/live-announcer/-/live-announcer-3.4.1.tgz#efedf706b23f6e1b526a3a35c14c202ac3e68487"
+  integrity sha512-4X2mcxgqLvvkqxv2l1n00jTzUxxe0kkLiapBGH1LHX/CxA1oQcHDqv8etJ2ZOwmS/MSBBiWnv3DwYHDOF6ubig==
+  dependencies:
+    "@swc/helpers" "^0.5.0"
+
 "@react-aria/menu@3.18.1":
   version "3.18.1"
   resolved "https://registry.npmmirror.com/@react-aria/menu/-/menu-3.18.1.tgz#5394b18a64026545baa487c88ccd981c07e97cc9"
@@ -1044,6 +1073,23 @@
     "@react-stately/tree" "^3.8.8"
     "@react-types/button" "^3.11.0"
     "@react-types/menu" "^3.9.15"
+    "@react-types/shared" "^3.28.0"
+    "@swc/helpers" "^0.5.0"
+
+"@react-aria/numberfield@3.11.12":
+  version "3.11.12"
+  resolved "https://registry.yarnpkg.com/@react-aria/numberfield/-/numberfield-3.11.12.tgz#bf37a0f92934083bc4ec9b7ea463c3cbeb28b179"
+  integrity sha512-VQ4dfaf+k7n2tbP8iB1OLFYTLCh9ReyV7dNLrDvH24V7ByaHakobZjwP8tF6CpvafNYaXPUflxnHpIgXvN3QYA==
+  dependencies:
+    "@react-aria/i18n" "^3.12.7"
+    "@react-aria/interactions" "^3.24.1"
+    "@react-aria/spinbutton" "^3.6.13"
+    "@react-aria/textfield" "^3.17.1"
+    "@react-aria/utils" "^3.28.1"
+    "@react-stately/form" "^3.1.2"
+    "@react-stately/numberfield" "^3.9.10"
+    "@react-types/button" "^3.11.0"
+    "@react-types/numberfield" "^3.8.9"
     "@react-types/shared" "^3.28.0"
     "@swc/helpers" "^0.5.0"
 
@@ -1074,6 +1120,18 @@
     "@react-aria/interactions" "^3.24.1"
     "@react-aria/utils" "^3.28.1"
     "@react-stately/selection" "^3.20.0"
+    "@react-types/shared" "^3.28.0"
+    "@swc/helpers" "^0.5.0"
+
+"@react-aria/spinbutton@^3.6.13":
+  version "3.6.13"
+  resolved "https://registry.yarnpkg.com/@react-aria/spinbutton/-/spinbutton-3.6.13.tgz#3ad948d8762f82d2220df54d8d30103dcda3df8d"
+  integrity sha512-phF7WU4mTryPY+IORqQC6eGvCdLItJ41KJ8ZWmpubnLkhqyyxBn8BirXlxWC5UIIvir9c3oohX2Vip/bE5WJiA==
+  dependencies:
+    "@react-aria/i18n" "^3.12.7"
+    "@react-aria/live-announcer" "^3.4.1"
+    "@react-aria/utils" "^3.28.1"
+    "@react-types/button" "^3.11.0"
     "@react-types/shared" "^3.28.0"
     "@swc/helpers" "^0.5.0"
 
@@ -1109,7 +1167,7 @@
     "@react-types/tabs" "^3.3.13"
     "@swc/helpers" "^0.5.0"
 
-"@react-aria/textfield@3.17.1":
+"@react-aria/textfield@3.17.1", "@react-aria/textfield@^3.17.1":
   version "3.17.1"
   resolved "https://registry.npmmirror.com/@react-aria/textfield/-/textfield-3.17.1.tgz#9908d99bab32412d5e7b1f041e31de3833d0da47"
   integrity sha512-W/4nBdyXTOFPQXJ8eRK+74QFIpGR+x24SRjdl+y3WO6gFJNiiopWj8+slSK/T8LoD3g3QlzrtX/ooVQHCG3uQw==
@@ -1234,6 +1292,17 @@
     "@react-stately/overlays" "^3.6.14"
     "@react-types/menu" "^3.9.15"
     "@react-types/shared" "^3.28.0"
+    "@swc/helpers" "^0.5.0"
+
+"@react-stately/numberfield@3.9.10", "@react-stately/numberfield@^3.9.10":
+  version "3.9.10"
+  resolved "https://registry.yarnpkg.com/@react-stately/numberfield/-/numberfield-3.9.10.tgz#9b1aa5d80e031d1aa7a74c24a55194635c9e5d9e"
+  integrity sha512-47ta1GyfLsSaDJIdH6A0ARttPV32nu8a5zUSE2hTfRqwgAd3ksWW5ZEf6qIhDuhnE9GtaIuacsctD8C7M3EOPw==
+  dependencies:
+    "@internationalized/number" "^3.6.0"
+    "@react-stately/form" "^3.1.2"
+    "@react-stately/utils" "^3.10.5"
+    "@react-types/numberfield" "^3.8.9"
     "@swc/helpers" "^0.5.0"
 
 "@react-stately/overlays@3.6.14", "@react-stately/overlays@^3.6.14":
@@ -1371,6 +1440,13 @@
     "@react-types/overlays" "^3.8.13"
     "@react-types/shared" "^3.28.0"
 
+"@react-types/numberfield@3.8.9", "@react-types/numberfield@^3.8.9":
+  version "3.8.9"
+  resolved "https://registry.yarnpkg.com/@react-types/numberfield/-/numberfield-3.8.9.tgz#d5483ae144ead926e32653418d88a34178a02d12"
+  integrity sha512-YqhawYUULiZnUba0/9Vaps8WAT2lto4V6CD/X7s048jiOrHiiIX03RDEAQuKOt1UYdzBJDHfSew9uGMyf/nC0g==
+  dependencies:
+    "@react-types/shared" "^3.28.0"
+
 "@react-types/overlays@3.8.13", "@react-types/overlays@^3.8.13":
   version "3.8.13"
   resolved "https://registry.npmmirror.com/@react-types/overlays/-/overlays-3.8.13.tgz#83e7769bf99b1c40ba1316f6e943dc48409b4b1f"
@@ -1491,6 +1567,13 @@
   version "18.3.0"
   resolved "https://registry.npmmirror.com/@types/react-dom/-/react-dom-18.3.0.tgz#0cbc818755d87066ab6ca74fbedb2547d74a82b0"
   integrity sha512-EhwApuTmMBmXuFOikhQLIBUn6uFg81SwLMOAUgodJF14SOBOCMdU04gDoYi0WOJJHD144TL32z4yDqCW3dnkQg==
+  dependencies:
+    "@types/react" "*"
+
+"@types/react-window@^1.8.8":
+  version "1.8.8"
+  resolved "https://registry.yarnpkg.com/@types/react-window/-/react-window-1.8.8.tgz#c20645414d142364fbe735818e1c1e0a145696e3"
+  integrity sha512-8Ls660bHR1AUA2kuRvVG9D/4XpRC6wjAaPT9dil7Ckc76eP9TKWZwwmgfq8Q1LANX3QNDnoU4Zp48A3w+zK69Q==
   dependencies:
     "@types/react" "*"
 
