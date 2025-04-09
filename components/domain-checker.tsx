@@ -37,13 +37,12 @@ export function DomainChecker() {
 
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || '查询失败');
+          throw new Error(data.message || '查询失败');
         }
 
         results.push(data);
         await new Promise(resolve => setTimeout(resolve, 1000)); // 添加延迟
       } catch (err) {
-        console.error(`查询域名 ${domain} 失败:`, err);
         results.push({
           domain: domain,
           isRegistered: false,
@@ -71,12 +70,12 @@ export function DomainChecker() {
         body: JSON.stringify({ domain }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || '查询失败');
+        const data = await response.json(); // 解析响应体
+        throw new Error(data.message || '查询失败'); // 使用 data.message
       }
 
+      const data = await response.json();
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : '查询失败，请稍后重试');

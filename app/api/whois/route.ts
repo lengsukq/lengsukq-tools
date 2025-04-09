@@ -6,7 +6,7 @@ export async function POST(request: Request) {
 
     if (!domain) {
       return NextResponse.json(
-        { error: '请输入域名' },
+        { message: '请输入域名' },
         { status: 400 }
       );
     }
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
     if (!domainRegex.test(domain)) {
       return NextResponse.json(
-        { error: '无效的域名格式' },
+        { message: '无效的域名格式' },
         { status: 400 }
       );
     }
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     if (result.code !== 200) {
       return NextResponse.json(
-        { error: result.msg || '查询失败' },
+        { message: result.msg || '查询失败' },
         { status: result.code || 500 }
       );
     }
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('WHOIS查询错误:', error);
     return NextResponse.json(
-      { error: '查询失败，请稍后重试' },
+      { message: '查询失败，请稍后重试' },
       { status: 500 }
     );
   }

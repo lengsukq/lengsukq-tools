@@ -18,6 +18,9 @@ interface BatchQueryProps {
 export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     const [batchConfig, setBatchConfig] = useState<{
         positions: PositionConfig[];
+        /**
+         * 是否使用连续数字，只有当所有position都是数字时才生效
+         */
         useConsecutive: boolean;
     }>({
         positions: [{ type: 'number' }],
@@ -32,7 +35,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     const maxListHeight = 160; //  定义最大列表高度
 
     // 检查是否所有位置都是数字
-    const isAllNumbers = () => batchConfig.positions.every(pos => pos.type === 'number');
+    const isAllNumbers = () => batchConfig.positions.every(pos => pos.type === 'number' || (pos.type === 'input' && /^\d+$/.test(pos.value || '')));
 
     // 检查是否有任意三个连续的数字
     const hasConsecutiveNumbers = (str: string): boolean => {
@@ -107,16 +110,20 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         setProgress(0);
         const domains = previewDomains;
 
-        try {
-            const results = await onQuery(domains);
-            setBatchResults(results);
-            setProgress(100);
-        } catch (error) {
-            console.error("批量查询出错", error);
-            // 处理错误
-        } finally {
-            setLoading(false);
+        // 逐个查询域名
+        for (let i = 0; i < domains.length; i++) {
+            const domain = domains[i];
+            try {
+                const result = await onQuery([domain]); // 查询单个域名
+                // 确保 result 是一个数组，即使 onQuery 只返回一个结果
+                const finalResult = Array.isArray(result) ? result : [result];
+                setBatchResults(prevResults => [...prevResults, ...finalResult]); // 更新结果
+            } catch (error) {
+                console.log(`查询 ${domain} 出错`, error);
+            }
+            setProgress(((i + 1) / domains.length) * 100); // 更新进度
         }
+        setLoading(false);
     };
 
     // 渲染单个域名
@@ -137,9 +144,12 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             <div className="flex flex-wrap gap-2">
                 {batchConfig.positions.map((pos, index) => (
                     <div key={index} className="flex gap-2 items-center">
+                        {pos.type}
                         <Select
-                            value={pos.type}
-                            onValueChange={(value) => {
+                            selectedKeys={pos.type}
+                            onChange={(e) => {
+                                const value = e.target.value
+                                console.log('onChange',value)
                                 const newPositions = [...batchConfig.positions];
                                 newPositions[index] = { ...pos, type: value as 'number' | 'letter' | 'input', value: '' };
                                 setBatchConfig({ ...batchConfig, positions: newPositions });
@@ -147,9 +157,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                             disabled={loading}
                             className="w-24"
                         >
-                            <SelectItem value="number">数字</SelectItem>
-                            <SelectItem value="letter">字母</SelectItem>
-                            <SelectItem value="input">自定义</SelectItem>
+                            <SelectItem key="number">数字</SelectItem>
+                            <SelectItem key="letter">字母</SelectItem>
+                            <SelectItem key="input">自定义</SelectItem>
                         </Select>
                         {pos.type === 'input' && (
                             <Input
@@ -197,7 +207,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 )}
             </div>
 
-            {isAllNumbers() && (
+            {isAllNumbers() && ( // 只有当所有位置都是数字或者自定义输入是数字时，才显示顺子号选项
                 <div className="flex items-center gap-2">
                     <input
                         type="checkbox"
@@ -224,10 +234,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
             {/* 域名预览列表 */}
             {previewDomains.length > 0 && (
-                <div className="p-4 bg-gray-100 border border-gray-200 rounded-lg shadow-sm">
+                <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-sm">
                     <div className="font-medium mb-2 text-gray-700">将要查询的域名列表：</div>
-                    {/* 移除外层div的 overflow-y-auto,  并且List 组件指定高度 */}
-                    <div className="bg-white p-3 rounded">
+                    <div className="bg-gray-800 p-3 rounded">
                         <List
                             height={listHeight} // 使用计算后的高度
                             itemCount={previewDomains.length}
@@ -259,13 +268,13 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             {batchResults.length > 0 && (
                 <div className="space-y-4">
                     {batchResults.map((result, index) => (
-                        <div key={index} className="p-4 bg-gray-50 rounded-lg shadow-sm">
+                        <div key={index} className="p-4 bg-gray-800 rounded-lg shadow-sm">
                             <div className="flex items-center justify-between">
                                 <span className="font-medium">{result.domain}</span>
                                 <span
-                                    className={`px-2 py-1 text-sm rounded ${result.isRegistered ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
+                                    className={`px-2 py-1 text-sm rounded ${result.isRegistered || result.error? 'bg-red-800 text-red-200' : 'bg-green-800 text-green-200'}`}
                                 >
-                                    {result.isRegistered ? '已被注册' : '可以注册'}
+                                    {result.error?result.error:(result.isRegistered ? '已被注册' : '可以注册')}
                                 </span>
                             </div>
                         </div>
