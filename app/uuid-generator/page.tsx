@@ -8,10 +8,10 @@ import { Input } from '@heroui/input';
 
 export default function UUIDGenerator() {
   const [uuids, setUuids] = useState<string[]>([]);
-  const [count, setCount] = useState<number>(1);
+  const [count, setCount] = useState<string>('1');
 
   const generateUUIDs = () => {
-    const newUuids = Array.from({ length: count }, () => uuidv4());
+    const newUuids = Array.from({ length: Number(count) }, () => uuidv4());
     setUuids(newUuids);
   };
 
@@ -37,7 +37,7 @@ export default function UUIDGenerator() {
               min={1}
               max={100}
               value={count}
-              onChange={(e) => setCount(parseInt(e.target.value) || 1)}
+              onValueChange={(value) => setCount(value)}
               placeholder="生成数量"
               className="w-32"
             />

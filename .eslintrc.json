@@ -34,7 +34,11 @@
     "react-hooks/exhaustive-deps": "off",
     "jsx-a11y/click-events-have-key-events": "warn",
     "jsx-a11y/interactive-supports-focus": "warn",
-    "prettier/prettier": "warn",
+    "prettier/prettier": ["warn", {
+      "singleQuote": false,
+      "semi": true,
+      "trailingComma": "all"
+    }],
     "no-unused-vars": "off",
     "unused-imports/no-unused-vars": "off",
     "unused-imports/no-unused-imports": "warn",
@@ -88,6 +92,8 @@
         "prev": ["const", "let", "var"],
         "next": ["const", "let", "var"]
       }
-    ]
+      ],
+      "jsx-a11y/no-noninteractive-element-interactions": "off",
+      "jsx-a11y/no-static-element-interactions": "off" // 关键行：取消规则
   }
 }

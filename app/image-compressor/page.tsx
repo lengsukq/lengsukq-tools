@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Card, CardBody } from '@heroui/card';
 import { Button } from '@heroui/button';
 import { Slider } from '@heroui/slider';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone } from "react-dropzone";
 
 // 防抖hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -28,7 +28,7 @@ export default function ImageCompressor() {
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [compressedImage, setCompressedImage] = useState<string | null>(null);
-  const [imageInfo, setImageInfo] = useState<{ original: { size: number; dimensions: string } | null, compressed: { size: number; dimensions: string } | null }>(null);
+  const [imageInfo, setImageInfo] = useState<{ original: { size: number; dimensions: string } | null, compressed: { size: number; dimensions: string } | null } | null>(null);
   const [previewModal, setPreviewModal] = useState<{ isOpen: boolean; image: string | null }>({ isOpen: false, image: null });
 
   // 清理URL对象
@@ -159,9 +159,9 @@ export default function ImageCompressor() {
               <p className="mb-2">压缩质量: {quality}%</p>
               <Slider
                 value={quality}
-                onChange={handleQualityChange}
-                min={1}
-                max={100}
+                onChangeEnd={(val)=>handleQualityChange(val as number)}
+                minValue={1}
+                maxValue={100}
                 step={1}
                 className="w-full"
               />
@@ -217,7 +217,7 @@ export default function ImageCompressor() {
           <Button
             color="primary"
             className="w-full"
-            onClick={handleDownload}
+            onPressEnd={handleDownload}
             disabled={!compressedImage}
           >
             下载压缩后的图片
