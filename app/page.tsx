@@ -13,6 +13,16 @@ const tools = [
     title: "JSON格式化",
     description: "在线JSON格式化、压缩、语法验证工具",
     href: "/json-formatter"
+  },
+  {
+    title: "UUID生成器",
+    description: "生成随机的UUID (v4版本)，支持批量生成",
+    href: "/uuid-generator"
+  },
+  {
+    title: "图片压缩",
+    description: "支持PNG和JPG格式的图片压缩，可自定义压缩质量",
+    href: "/image-compressor"
   }
 ];
 
