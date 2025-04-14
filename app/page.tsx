@@ -8,6 +8,11 @@ const tools = [
     description: "快速查询域名是否已被注册，并获取详细的 WHOIS 信息",
     // icon: <SearchIcon className="w-6 h-6 text-primary" />,
     href: "/domain-checker"
+  },
+  {
+    title: "JSON格式化",
+    description: "在线JSON格式化、压缩、语法验证工具",
+    href: "/json-formatter"
   }
 ];
 
