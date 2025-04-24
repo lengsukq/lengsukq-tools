@@ -7,18 +7,18 @@
     <style>
         /* --- 全局与基础样式 --- */
         :root {
-            --primary-color: #007AFF; /* 类似苹果的蓝色 */
+            --primary-color: #007AFF;
             --background-color: #f8f8f8;
             --card-background: #ffffff;
             --text-color: #333;
             --subtle-gray: #e5e5e5;
             --shadow-color: rgba(0, 0, 0, 0.1);
-            --transition-duration-normal: 0.4s; /* 调整为 0.4s 可能更接近iOS */
+            --transition-duration-normal: 0.4s;
             --transition-duration-fast: 0.2s;
             --transition-duration-slow: 0.8s;
-            --timing-function-smooth: cubic-bezier(0.4, 0, 0.2, 1); /* 平滑缓动 */
-            --timing-function-apple: cubic-bezier(0.32, 0.72, 0, 1); /* 类似iOS的缓动 */
-            --timing-function-bounce: cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 轻微回弹 */
+            --timing-function-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+            --timing-function-apple: cubic-bezier(0.32, 0.72, 0, 1);
+            --timing-function-bounce: cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         * {
@@ -28,8 +28,8 @@
         }
 
         html {
-            /* 防止放大动画时页面跳动 */
-            overflow: auto;
+            /* 不在这里设置 overflow: hidden; 由 JS 动态控制 */
+            /* 默认 overflow: auto; */
         }
 
         body {
@@ -41,19 +41,16 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* 允许 body 内部滚动 */
             overflow-x: hidden;
-            overflow-y: auto;
-            /* 给body一个最小高度，防止内容过少时图标位置计算错误 */
+            overflow-y: auto; /* 默认允许 Y 轴滚动 */
             min-height: 100vh;
-            position: relative; /* 用于动画 */
+            position: relative;
         }
 
-        /* 当全屏覆盖层打开时，禁止 body 滚动 */
+        /* 当全屏覆盖层打开时，禁止 body 滚动 (虽然控制了html, 保留这个作为双重保险或特定情况处理) */
         body.fullscreen-open {
             overflow: hidden;
         }
-
 
         h1, h2 {
             text-align: center;
@@ -76,7 +73,7 @@
             gap: 30px;
             justify-content: center;
             width: 100%;
-            max-width: 1000px; /* 限制最大宽度 */
+            max-width: 1000px;
         }
 
         .showcase-section {
@@ -84,15 +81,15 @@
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 4px 15px var(--shadow-color);
-            flex: 1 1 400px; /* Flex布局，基础宽度400px，可伸缩 */
-            min-width: 300px; /* 最小宽度 */
+            flex: 1 1 400px;
+            min-width: 300px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            overflow: hidden; /* 避免内部动画溢出 */
+            overflow: hidden;
         }
 
-        /* --- 1. 图标点击放大到全屏 (iPhone-like App Open Animation) --- */
+        /* --- 1. 图标点击放大到全屏 --- */
         .app-icons-container {
             display: flex;
             gap: 20px;
@@ -105,7 +102,7 @@
             width: 80px;
             height: 80px;
             background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
-            border-radius: 18px; /* 类似iOS图标圆角 */
+            border-radius: 18px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -114,8 +111,7 @@
             cursor: pointer;
             transition: transform var(--transition-duration-fast) ease;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            will-change: transform; /* 优化点击缩放 */
-            /* 添加 position relative 便于计算相对于 viewport 的位置 */
+            will-change: transform;
             position: relative;
         }
         .app-icon.icon-2 { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
@@ -125,74 +121,55 @@
             transform: scale(0.9);
         }
 
-        /* 全屏覆盖层 */
         .fullscreen-overlay {
-            position: fixed; /* 使用 fixed 定位 */
+            position: fixed;
             z-index: 1100;
-            display: flex; /* 使用 flex 布局内容 */
+            display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            overflow: hidden; /* 隐藏溢出内容 */
-            pointer-events: none; /* 默认不可交互 */
-            opacity: 0; /* 默认透明 */
-            /* 以下属性将在 JS 中根据点击的图标动态设置初始值 */
-            top: 0;
-            left: 0;
-            width: 0;
-            height: 0;
+            overflow: hidden;
+            pointer-events: none;
+            opacity: 0;
+            top: 0; left: 0; width: 0; height: 0;
             border-radius: 0;
-            background: transparent; /* 初始背景透明 */
-            /* 添加 transform 以便硬件加速 */
+            background: transparent;
             transform: translate3d(0, 0, 0);
-            /* 过渡效果 - 注意：具体过渡属性和时间由JS在动画开始时设置 */
             will-change: top, left, width, height, border-radius, opacity, background-color;
         }
 
-        /* 动画进行中或完成后可交互 */
         .fullscreen-overlay.opening,
         .fullscreen-overlay.closing,
         .fullscreen-overlay.open {
             pointer-events: auto;
         }
 
-        /* 打开状态 (这个类主要用于标识状态，具体样式由JS动画设置) */
         .fullscreen-overlay.open {
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            top: 0; left: 0; width: 100vw; height: 100vh;
             border-radius: 0px;
             opacity: 1;
-            background-color: var(--card-background); /* 确保打开后背景色正确 */
+            background-color: var(--card-background);
         }
 
-        /* 全屏内容 */
         .fullscreen-content {
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
             padding: 40px;
-            opacity: 0; /* 初始透明 */
-            transition: opacity 0.2s ease-in 0.2s; /* 延迟淡入 */
+            opacity: 0;
+            transition: opacity 0.2s ease-in 0.2s;
             text-align: center;
-            overflow-y: auto; /* 内容溢出时滚动 */
+            overflow-y: auto;
             will-change: opacity;
-            /* 确保内容在背景之上 */
             position: relative;
             z-index: 1;
         }
-        /* 打开状态下内容可见 */
         .fullscreen-overlay.open .fullscreen-content {
             opacity: 1;
         }
 
-        /* 关闭按钮 */
         .fullscreen-close-btn {
-            position: absolute; /* 绝对定位 */
-            top: 20px;
-            right: 20px;
-            width: 40px;
-            height: 40px;
+            position: absolute;
+            top: 20px; right: 20px;
+            width: 40px; height: 40px;
             background-color: rgba(0, 0, 0, 0.1);
             border: none;
             border-radius: 50%;
@@ -203,344 +180,87 @@
             justify-content: center;
             align-items: center;
             line-height: 1;
-            opacity: 0; /* 初始透明 */
-            transform: scale(0.8); /* 初始缩小 */
-            transition: opacity 0.3s ease 0.2s, transform 0.3s ease 0.2s, background-color 0.3s ease; /* 延迟出现 */
-            z-index: 1110; /* 确保在最前面 */
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.3s ease 0.2s, transform 0.3s ease 0.2s, background-color 0.3s ease;
+            z-index: 1110;
             will-change: opacity, transform;
-            pointer-events: none; /* 初始不可点击 */
+            pointer-events: none;
         }
-        /* 打开状态下按钮可见且可点击 */
         .fullscreen-overlay.open .fullscreen-close-btn {
             opacity: 1;
             transform: scale(1);
-            pointer-events: auto; /* 可点击 */
+            pointer-events: auto;
         }
-
         .fullscreen-close-btn:hover {
             background-color: rgba(0, 0, 0, 0.2);
-            transform: scale(1.1); /* 悬浮放大 */
+            transform: scale(1.1);
         }
 
+        /* --- 其他样式 (Card Flip, Content Switch, Modal, Buttons, Hover Effects, Responsive) 保持不变 --- */
         /* --- 2. 卡片翻转效果 (Card Flip) --- */
-        .card-container {
-            width: 250px;
-            height: 350px;
-            perspective: 1000px; /* 设置透视效果 */
-            cursor: pointer;
-        }
-
-        .card {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transform-style: preserve-3d;
-            transition: transform var(--transition-duration-slow) var(--timing-function-smooth);
-            will-change: transform;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-        }
-
-        .card.is-flipped {
-            transform: rotateY(180deg);
-        }
-
-        .card-face {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            text-align: center;
-            font-size: 1.2em;
-            will-change: transform, opacity; /* 考虑性能 */
-        }
-
-        .card-front {
-            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
-            color: white;
-        }
-
-        .card-back {
-            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
-            color: #334;
-            transform: rotateY(180deg);
-        }
+        .card-container { width: 250px; height: 350px; perspective: 1000px; cursor: pointer; }
+        .card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform var(--transition-duration-slow) var(--timing-function-smooth); will-change: transform; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); }
+        .card.is-flipped { transform: rotateY(180deg); }
+        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; font-size: 1.2em; will-change: transform, opacity; }
+        .card-front { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: white; }
+        .card-back { background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%); color: #334; transform: rotateY(180deg); }
         .card-face h3 { margin-bottom: 15px; }
         .card-face p { font-size: 0.9em; }
 
-        /* --- 3. 内容切换效果 (Content Switch - Fade & Slide) --- */
-        .content-switch-container {
-            width: 100%;
-            max-width: 400px;
-            overflow: hidden; /* 隐藏滑出内容 */
-            position: relative;
-            min-height: 150px;
-            border: 1px solid var(--subtle-gray);
-            border-radius: 8px;
-        }
-        .content-switch-buttons {
-            display: flex;
-            border-bottom: 1px solid var(--subtle-gray);
-        }
-        .switch-btn {
-            flex: 1;
-            padding: 12px 15px;
-            background-color: #f0f0f0;
-            border: none;
-            cursor: pointer;
-            font-size: 0.95em;
-            font-weight: 500;
-            transition: background-color 0.3s ease, color 0.3s ease;
-            color: #555;
-            position: relative;
-            outline: none;
-        }
+        /* --- 3. 内容切换效果 --- */
+        .content-switch-container { width: 100%; max-width: 400px; overflow: hidden; position: relative; min-height: 150px; border: 1px solid var(--subtle-gray); border-radius: 8px; }
+        .content-switch-buttons { display: flex; border-bottom: 1px solid var(--subtle-gray); }
+        .switch-btn { flex: 1; padding: 12px 15px; background-color: #f0f0f0; border: none; cursor: pointer; font-size: 0.95em; font-weight: 500; transition: background-color 0.3s ease, color 0.3s ease; color: #555; position: relative; outline: none; }
         .switch-btn:first-child { border-top-left-radius: 7px; }
         .switch-btn:last-child { border-top-right-radius: 7px; }
+        .switch-btn:not(:last-child) { border-right: 1px solid var(--subtle-gray); }
+        .switch-btn.active { background-color: var(--card-background); color: var(--primary-color); font-weight: 600; }
+        .switch-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 3px; background-color: var(--primary-color); transition: transform var(--transition-duration-normal) var(--timing-function-smooth); transform-origin: center; }
+        .content-panes { position: relative; padding: 20px; min-height: 100px; }
+        .content-pane { opacity: 0; transform: translateX(20px); transition: opacity var(--transition-duration-normal) var(--timing-function-smooth), transform var(--transition-duration-normal) var(--timing-function-smooth), visibility 0s linear var(--transition-duration-normal); visibility: hidden; position: absolute; top: 20px; left: 20px; right: 20px; will-change: opacity, transform, visibility; }
+        .content-pane.active { opacity: 1; transform: translateX(0); visibility: visible; position: relative; top: auto; left: auto; right: auto; transition-delay: 0s; transition: opacity var(--transition-duration-normal) var(--timing-function-smooth), transform var(--transition-duration-normal) var(--timing-function-smooth), visibility 0s; }
 
-        .switch-btn:not(:last-child) {
-            border-right: 1px solid var(--subtle-gray);
-        }
-
-        .switch-btn.active {
-            background-color: var(--card-background);
-            color: var(--primary-color);
-            font-weight: 600;
-        }
-        .switch-btn.active::after {
-            content: '';
-            position: absolute;
-            bottom: -1px;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background-color: var(--primary-color);
-            transition: transform var(--transition-duration-normal) var(--timing-function-smooth);
-            transform-origin: center;
-        }
-
-        .content-panes {
-            position: relative;
-            padding: 20px;
-            min-height: 100px;
-        }
-
-        .content-pane {
-            opacity: 0;
-            transform: translateX(20px);
-            transition: opacity var(--transition-duration-normal) var(--timing-function-smooth),
-            transform var(--transition-duration-normal) var(--timing-function-smooth),
-            visibility 0s linear var(--transition-duration-normal); /* 延迟隐藏 */
-            visibility: hidden;
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            right: 20px;
-            will-change: opacity, transform, visibility;
-        }
-
-
-        .content-pane.active {
-            opacity: 1;
-            transform: translateX(0);
-            visibility: visible;
-            position: relative; /* 激活时撑开父容器高度 */
-            top: auto;
-            left: auto;
-            right: auto;
-            transition-delay: 0s; /* 立即显示 */
-            transition: opacity var(--transition-duration-normal) var(--timing-function-smooth),
-            transform var(--transition-duration-normal) var(--timing-function-smooth),
-            visibility 0s; /* visibility立即生效 */
-        }
-
-        /* --- 4. 模态弹窗效果 (Modal/Popup) --- */
-        .modal-trigger-btn {
-            padding: 10px 20px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-        }
-        .modal-trigger-btn:hover {
-            background-color: #0056b3;
-            transform: translateY(-2px);
-        }
-        .modal-trigger-btn:active {
-            transform: translateY(0px) scale(0.98);
-        }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6); /* 半透明黑色遮罩 */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity var(--transition-duration-normal) var(--timing-function-smooth),
-            visibility 0s linear var(--transition-duration-normal); /* 延迟隐藏 */
-            z-index: 1000;
-            will-change: opacity, visibility;
-        }
-
-        .modal-overlay.open {
-            opacity: 1;
-            visibility: visible;
-            transition-delay: 0s; /* 立即显示 */
-        }
-
-        .modal-content {
-            background-color: var(--card-background);
-            padding: 30px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            transform: scale(0.95) translateY(10px); /* 初始状态 */
-            opacity: 0;
-            transition: transform var(--transition-duration-normal) var(--timing-function-bounce),
-            opacity var(--transition-duration-normal) var(--timing-function-smooth);
-            position: relative;
-            will-change: transform, opacity;
-        }
-
-        .modal-overlay.open .modal-content {
-            transform: scale(1) translateY(0); /* 打开状态 */
-            opacity: 1;
-        }
-
-        .modal-close-btn {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            background: none;
-            border: none;
-            font-size: 24px;
-            font-weight: bold;
-            color: #aaa;
-            cursor: pointer;
-            padding: 5px;
-            line-height: 1;
-            transition: color 0.3s ease, transform 0.3s ease;
-            z-index: 1010; /* 确保在内容之上 */
-        }
-
-        .modal-close-btn:hover {
-            color: #333;
-            transform: rotate(90deg) scale(1.1);
-        }
+        /* --- 4. 模态弹窗效果 --- */
+        .modal-trigger-btn { padding: 10px 20px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; transition: background-color 0.3s ease, transform 0.2s ease; }
+        .modal-trigger-btn:hover { background-color: #0056b3; transform: translateY(-2px); }
+        .modal-trigger-btn:active { transform: translateY(0px) scale(0.98); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity var(--transition-duration-normal) var(--timing-function-smooth), visibility 0s linear var(--transition-duration-normal); z-index: 1000; will-change: opacity, visibility; }
+        .modal-overlay.open { opacity: 1; visibility: visible; transition-delay: 0s; }
+        .modal-content { background-color: var(--card-background); padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); transform: scale(0.95) translateY(10px); opacity: 0; transition: transform var(--transition-duration-normal) var(--timing-function-bounce), opacity var(--transition-duration-normal) var(--timing-function-smooth); position: relative; will-change: transform, opacity; }
+        .modal-overlay.open .modal-content { transform: scale(1) translateY(0); opacity: 1; }
+        .modal-close-btn { position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 24px; font-weight: bold; color: #aaa; cursor: pointer; padding: 5px; line-height: 1; transition: color 0.3s ease, transform 0.3s ease; z-index: 1010; }
+        .modal-close-btn:hover { color: #333; transform: rotate(90deg) scale(1.1); }
         .modal-content h3 { margin-bottom: 15px; }
 
-        /* --- 5. 按钮点击与悬浮效果 (Button Click & Hover) --- */
-        .button-effects-container {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 1em;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.3s var(--timing-function-smooth);
-            outline: none;
-        }
-
-        /* 效果1: 缩放 */
+        /* --- 5. 按钮点击与悬浮效果 --- */
+        .button-effects-container { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 1em; cursor: pointer; border: 1px solid transparent; transition: all 0.3s var(--timing-function-smooth); outline: none; }
         .btn-scale { background-color: #6f42c1; color: white; }
         .btn-scale:hover { transform: scale(1.08); box-shadow: 0 4px 12px rgba(111, 66, 193, 0.4); }
         .btn-scale:active { transform: scale(0.95); transition-duration: var(--transition-duration-fast); }
-
-        /* 效果2: 颜色渐变 + 轻微上移 */
         .btn-color-shift { background-color: #28a745; color: white; }
         .btn-color-shift:hover { background-color: #218838; transform: translateY(-3px); box-shadow: 0 6px 15px rgba(40, 167, 69, 0.3); }
         .btn-color-shift:active { transform: translateY(0px) scale(0.98); transition-duration: var(--transition-duration-fast); }
-
-        /* 效果3: 边框显现 */
         .btn-border-reveal { background-color: #f0f0f0; color: #333; border: 1px solid #ccc; }
         .btn-border-reveal:hover { border-color: var(--primary-color); color: var(--primary-color); transform: scale(1.03); }
         .btn-border-reveal:active { background-color: #e0e0e0; transform: scale(0.97); transition-duration: var(--transition-duration-fast); }
-
-        /* 效果4: 脉冲 (持续动画示例，这里改为hover触发) */
         .btn-pulse { background-color: #fd7e14; color: white; overflow: hidden; position: relative; will-change: transform, box-shadow; }
         .btn-pulse:hover { animation: pulse-effect 1.2s infinite ease-in-out; }
-        @keyframes pulse-effect {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(253, 126, 20, 0.5); }
-            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(253, 126, 20, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(253, 126, 20, 0); }
-        }
+        @keyframes pulse-effect { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(253, 126, 20, 0.5); } 70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(253, 126, 20, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(253, 126, 20, 0); } }
         .btn-pulse:active { transform: scale(0.95); animation: none; transition-duration: var(--transition-duration-fast); }
 
-        /* --- 6. 悬浮效果 (Hover Effects on Elements) --- */
-        .hover-effects-container {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .hover-box {
-            width: 120px;
-            height: 120px;
-            border-radius: 10px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            font-size: 0.9em;
-            transition: all var(--transition-duration-normal) var(--timing-function-smooth);
-            will-change: transform, box-shadow, background-color, color, border-color;
-        }
-
-        /* 效果1: 放大 + 阴影 */
+        /* --- 6. 悬浮效果 --- */
+        .hover-effects-container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .hover-box { width: 120px; height: 120px; border-radius: 10px; display: flex; justify-content: center; align-items: center; text-align: center; font-size: 0.9em; transition: all var(--transition-duration-normal) var(--timing-function-smooth); will-change: transform, box-shadow, background-color, color, border-color; }
         .hover-grow-shadow { background-color: #e9ecef; color: #495057; border: 1px solid #ced4da; }
         .hover-grow-shadow:hover { transform: scale(1.1) translateY(-5px); box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15); border-color: transparent; background-color: #f8f9fa; }
-
-        /* 效果2: 颜色填充 */
         .hover-fill-color { background-color: transparent; color: var(--primary-color); border: 2px solid var(--primary-color); }
         .hover-fill-color:hover { background-color: var(--primary-color); color: white; transform: scale(1.05); }
 
         /* --- 响应式调整 --- */
-        @media (max-width: 768px) {
-            body { padding: 20px; }
-            h1 { font-size: 1.8em; }
-            h2 { font-size: 1.3em; }
-            .container { gap: 20px; }
-            .showcase-section { flex-basis: 100%; padding: 20px; } /* 小屏上，每个部分占满一行 */
-            .card-container { width: 200px; height: 280px; }
-            .hover-box { width: 100px; height: 100px; }
-            .app-icon { width: 70px; height: 70px; border-radius: 16px; font-size: 26px; }
-            .fullscreen-close-btn { top: 15px; right: 15px; width: 35px; height: 35px; font-size: 18px;} /* 调整关闭按钮 */
-        }
-        @media (max-width: 480px) {
-            h1 { font-size: 1.5em; }
-            h2 { font-size: 1.1em; margin-top: 30px; margin-bottom: 15px; }
-            body { padding: 15px; }
-            .button-effects-container .btn, .modal-trigger-btn { width: 100%; margin-bottom: 10px; } /* 按钮堆叠 */
-            .button-effects-container { gap: 10px; }
-            .hover-effects-container { gap: 15px; }
-            .modal-content { padding: 20px; width: 95%; }
-            .modal-close-btn { font-size: 20px; top: 8px; right: 10px; }
-            .app-icon { width: 60px; height: 60px; border-radius: 14px; font-size: 24px; }
-            .fullscreen-close-btn { top: 15px; right: 15px; width: 35px; height: 35px; font-size: 18px;} /* 小屏关闭按钮调整 */
-            .fullscreen-content { padding: 30px 20px;} /* 调整小屏内容 padding */
-        }
+        @media (max-width: 768px) { body { padding: 20px; } h1 { font-size: 1.8em; } h2 { font-size: 1.3em; } .container { gap: 20px; } .showcase-section { flex-basis: 100%; padding: 20px; } .card-container { width: 200px; height: 280px; } .hover-box { width: 100px; height: 100px; } .app-icon { width: 70px; height: 70px; border-radius: 16px; font-size: 26px; } .fullscreen-close-btn { top: 15px; right: 15px; width: 35px; height: 35px; font-size: 18px;} }
+        @media (max-width: 480px) { h1 { font-size: 1.5em; } h2 { font-size: 1.1em; margin-top: 30px; margin-bottom: 15px; } body { padding: 15px; } .button-effects-container .btn, .modal-trigger-btn { width: 100%; margin-bottom: 10px; } .button-effects-container { gap: 10px; } .hover-effects-container { gap: 15px; } .modal-content { padding: 20px; width: 95%; } .modal-close-btn { font-size: 20px; top: 8px; right: 10px; } .app-icon { width: 60px; height: 60px; border-radius: 14px; font-size: 24px; } .fullscreen-close-btn { top: 15px; right: 15px; width: 35px; height: 35px; font-size: 18px;} .fullscreen-content { padding: 30px 20px;} }
 
     </style>
 </head>
@@ -552,42 +272,31 @@
 </p>
 
 <div class="container">
-
-    <!-- 1. 图标点击放大区 -->
+    <!-- Section 1: App Open Animation -->
     <div class="showcase-section">
-        <h2>1. App 打开动画 (App Open Animation)</h2>
-        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击下方的图标，体验类似 iPhone 打开 App 的放大动画。</p>
+        <h2>1. App 打开动画</h2>
+        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击图标体验放大动画。</p>
         <div class="app-icons-container">
-            <div class="app-icon" data-app-id="app1" title="点击打开 App 1">📱</div>
-            <div class="app-icon icon-2" data-app-id="app2" title="点击打开 App 2">⭐</div>
-            <div class="app-icon icon-3" data-app-id="app3" title="点击打开 App 3">💡</div>
+            <div class="app-icon" data-app-id="app1" title="打开 App 1">📱</div>
+            <div class="app-icon icon-2" data-app-id="app2" title="打开 App 2">⭐</div>
+            <div class="app-icon icon-3" data-app-id="app3" title="打开 App 3">💡</div>
         </div>
     </div>
-
-    <!-- 2. 卡片翻转区 -->
+    <!-- Section 2: Card Flip -->
     <div class="showcase-section">
-        <h2>2. 卡片翻转 (Card Flip)</h2>
-        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击下方的卡片进行翻转。</p>
+        <h2>2. 卡片翻转</h2>
+        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击卡片翻转。</p>
         <div class="card-container" id="flipCardContainer">
             <div class="card" id="flipCard">
-                <div class="card-face card-front">
-                    <h3>正面</h3>
-                    <p>点击我翻转到背面</p>
-                    <p>✨</p>
-                </div>
-                <div class="card-face card-back">
-                    <h3>背面</h3>
-                    <p>再次点击翻回去</p>
-                    <p>🚀</p>
-                </div>
+                <div class="card-face card-front"><h3>正面</h3><p>点击翻转</p>✨</div>
+                <div class="card-face card-back"><h3>背面</h3><p>再次点击</p>🚀</div>
             </div>
         </div>
     </div>
-
-    <!-- 3. 内容切换区 (淡入淡出/滑动) -->
+    <!-- Section 3: Content Switch -->
     <div class="showcase-section">
-        <h2>3. 内容切换 (Content Switch - Fade/Slide)</h2>
-        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击按钮切换下方内容，带有平滑过渡效果（淡入+位移）。</p>
+        <h2>3. 内容切换</h2>
+        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击按钮切换内容。</p>
         <div class="content-switch-container">
             <div class="content-switch-buttons">
                 <button class="switch-btn active" data-target="pane1">选项一</button>
@@ -595,72 +304,56 @@
                 <button class="switch-btn" data-target="pane3">选项三</button>
             </div>
             <div class="content-panes">
-                <div class="content-pane active" id="pane1">
-                    <h4>内容区域 1</h4>
-                    <p>这是第一个内容区域的描述文字。切换时会看到平滑的淡入淡出和位移效果。</p>
-                </div>
-                <div class="content-pane" id="pane2">
-                    <h4>内容区域 2</h4>
-                    <p>第二个区域展示不同的信息。动画让切换过程不那么生硬。</p>
-                </div>
-                <div class="content-pane" id="pane3">
-                    <h4>内容区域 3</h4>
-                    <p>最后是第三个内容区域。体验流畅的切换动画吧！</p>
-                </div>
+                <div class="content-pane active" id="pane1"><h4>内容 1</h4><p>区域一的描述。</p></div>
+                <div class="content-pane" id="pane2"><h4>内容 2</h4><p>区域二的描述。</p></div>
+                <div class="content-pane" id="pane3"><h4>内容 3</h4><p>区域三的描述。</p></div>
             </div>
         </div>
     </div>
-
-    <!-- 4. 模态弹窗区 -->
+    <!-- Section 4: Modal -->
     <div class="showcase-section">
-        <h2>4. 模态弹窗 (Modal - Scale & Fade)</h2>
-        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击按钮打开一个带有动画效果的模态弹窗。</p>
+        <h2>4. 模态弹窗</h2>
+        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">点击按钮打开弹窗。</p>
         <button class="modal-trigger-btn" id="openModalBtn">打开弹窗</button>
-
         <div class="modal-overlay" id="myModal">
             <div class="modal-content">
                 <button class="modal-close-btn" id="closeModalBtn">×</button>
-                <h3>这是一个模态弹窗</h3>
-                <p>这个弹窗使用了缩放和透明度动画。遮罩层也有淡入效果。</p>
-                <p>你可以点击右上角的关闭按钮，或者点击弹窗外部区域来关闭它。</p>
+                <h3>模态弹窗标题</h3><p>弹窗内容...</p>
             </div>
         </div>
     </div>
-
-    <!-- 5. 按钮效果区 -->
+    <!-- Section 5: Button Effects -->
     <div class="showcase-section">
-        <h2>5. 按钮交互效果</h2>
-        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">演示几种常见的按钮悬浮与点击动画。</p>
+        <h2>5. 按钮交互</h2>
+        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">按钮悬浮与点击效果。</p>
         <div class="button-effects-container">
-            <button class="btn btn-scale">缩放效果</button>
+            <button class="btn btn-scale">缩放</button>
             <button class="btn btn-color-shift">颜色&位移</button>
-            <button class="btn btn-border-reveal">边框显现</button>
+            <button class="btn btn-border-reveal">边框</button>
             <button class="btn btn-pulse">悬浮脉冲</button>
         </div>
     </div>
-
-    <!-- 6. 悬浮效果区 -->
+    <!-- Section 6: Hover Effects -->
     <div class="showcase-section">
-        <h2>6. 元素悬浮效果</h2>
-        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">鼠标悬浮在下方的方块上查看效果。</p>
+        <h2>6. 元素悬浮</h2>
+        <p style="margin-bottom: 15px; font-size: 0.9em; color: #666; text-align: center;">悬浮方块查看效果。</p>
         <div class="hover-effects-container">
-            <div class="hover-box hover-grow-shadow">放大 & 阴影</div>
+            <div class="hover-box hover-grow-shadow">放大&阴影</div>
             <div class="hover-box hover-fill-color">填充颜色</div>
         </div>
     </div>
-
 </div>
 
-<!-- 全屏放大动画的容器 -->
+<!-- Fullscreen Overlay -->
 <div class="fullscreen-overlay" id="fullscreenOverlay">
     <button class="fullscreen-close-btn" id="fullscreenCloseBtn">×</button>
-    <div class="fullscreen-content" id="fullscreenContent">
-        <!-- 内容将由JS填充 -->
-    </div>
+    <div class="fullscreen-content" id="fullscreenContent"></div>
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const htmlEl = document.documentElement; // 获取 <html> 元素
+        const bodyEl = document.body; // 获取 <body> 元素
 
         // --- 1. 图标点击放大到全屏 ---
         const icons = document.querySelectorAll('.app-icon');
@@ -668,82 +361,63 @@
         const fullscreenContent = document.getElementById('fullscreenContent');
         const fullscreenCloseBtn = document.getElementById('fullscreenCloseBtn');
         let currentIcon = null;
-        let isAnimating = false; // 动画状态锁
-
-        // 用于处理 transitionend 事件的函数引用
+        let isAnimating = false;
         let transitionEndHandler = null;
 
         icons.forEach(icon => {
             icon.addEventListener('click', () => {
                 if (isAnimating || fullscreenOverlay.classList.contains('open')) return;
                 isAnimating = true;
-                document.body.classList.add('fullscreen-open'); // 禁止 body 滚动
+
+                // **关键代码：开始打开动画时，隐藏滚动条**
+                bodyEl.classList.add('fullscreen-open'); // 控制 body 滚动 (可选, 但推荐保留)
+                htmlEl.style.overflow = 'hidden';     // 控制 html 滚动 (主要)
 
                 currentIcon = icon;
                 const iconRect = icon.getBoundingClientRect();
                 const iconComputedStyle = window.getComputedStyle(icon);
 
-                // 1. 设置初始状态 (在图标位置)
-                fullscreenOverlay.style.transition = 'none'; // 禁用过渡立即应用
+                // 1. 设置初始状态
+                fullscreenOverlay.style.transition = 'none';
                 fullscreenOverlay.style.top = `${iconRect.top}px`;
                 fullscreenOverlay.style.left = `${iconRect.left}px`;
                 fullscreenOverlay.style.width = `${iconRect.width}px`;
                 fullscreenOverlay.style.height = `${iconRect.height}px`;
                 fullscreenOverlay.style.borderRadius = iconComputedStyle.borderRadius;
-                // 确保背景是图标的背景，且背景颜色是透明的
                 fullscreenOverlay.style.background = iconComputedStyle.background;
                 fullscreenOverlay.style.backgroundColor = 'transparent';
-                fullscreenOverlay.style.opacity = '1'; // 设为可见，准备动画
+                fullscreenOverlay.style.opacity = '1';
                 fullscreenOverlay.classList.remove('open', 'closing');
                 fullscreenOverlay.classList.add('opening');
 
                 // 准备内容
                 const appId = icon.getAttribute('data-app-id');
-                fullscreenContent.innerHTML = `
-                    <h2>App ${appId} 内容</h2>
-                    <p>这是 ${appId} 放大后展示的详细内容。</p>
-                    <p>动画模拟了从图标 (${icon.textContent}) 展开的效果。</p>
-                    <img src="https://via.placeholder.com/300x200.png?text=${appId}+Image" alt="${appId} Image" style="margin-top: 20px; max-width: 100%; border-radius: 8px;">
-                `;
-                fullscreenContent.style.opacity = '0'; // 内容初始透明
+                fullscreenContent.innerHTML = `<h2>App ${appId}</h2><p>这是 ${appId} 的内容。</p><img src="https://via.placeholder.com/300x200.png?text=${appId}" alt="${appId}" style="margin-top: 20px; max-width: 100%; border-radius: 8px;">`;
+                fullscreenContent.style.opacity = '0';
 
                 // 2. 强制重绘
                 void fullscreenOverlay.offsetHeight;
 
-                // 3. 启用过渡并设置目标状态 (全屏)
-                fullscreenOverlay.style.transition = `
-                    top var(--transition-duration-normal) var(--timing-function-apple),
-                    left var(--transition-duration-normal) var(--timing-function-apple),
-                    width var(--transition-duration-normal) var(--timing-function-apple),
-                    height var(--transition-duration-normal) var(--timing-function-apple),
-                    border-radius var(--transition-duration-normal) var(--timing-function-apple),
-                    background-color var(--transition-duration-normal) var(--timing-function-apple),
-                    opacity var(--transition-duration-normal) var(--timing-function-apple)
-                `;
+                // 3. 启用过渡并设置目标状态
+                fullscreenOverlay.style.transition = `top var(--transition-duration-normal) var(--timing-function-apple), left var(--transition-duration-normal) var(--timing-function-apple), width var(--transition-duration-normal) var(--timing-function-apple), height var(--transition-duration-normal) var(--timing-function-apple), border-radius var(--transition-duration-normal) var(--timing-function-apple), background-color var(--transition-duration-normal) var(--timing-function-apple), opacity var(--transition-duration-normal) var(--timing-function-apple)`;
                 fullscreenOverlay.style.top = '0px';
                 fullscreenOverlay.style.left = '0px';
                 fullscreenOverlay.style.width = '100vw';
                 fullscreenOverlay.style.height = '100vh';
                 fullscreenOverlay.style.borderRadius = '0px';
-                fullscreenOverlay.style.backgroundColor = 'var(--card-background)'; // 背景色过渡
+                fullscreenOverlay.style.backgroundColor = 'var(--card-background)';
 
-                // 4. 动画结束后处理 (只监听一次)
+                // 4. 动画结束后处理
                 transitionEndHandler = (event) => {
-                    // 确保是 overlay 本身的 transition 结束，且是关键属性之一结束
                     if (event.target === fullscreenOverlay && ['width', 'opacity'].includes(event.propertyName)) {
                         fullscreenOverlay.classList.remove('opening');
                         fullscreenOverlay.classList.add('open');
-                        // 内容淡入（通过 CSS transition-delay 实现）
-                        // fullscreenContent.style.opacity = '1'; // 这行现在由CSS控制
                         isAnimating = false;
-                        fullscreenOverlay.removeEventListener('transitionend', transitionEndHandler); // 移除监听器
+                        fullscreenOverlay.removeEventListener('transitionend', transitionEndHandler);
                         transitionEndHandler = null;
-                        console.log("Open animation finished.");
                     }
                 };
                 fullscreenOverlay.addEventListener('transitionend', transitionEndHandler);
-
-                console.log("Starting open animation...");
             });
         });
 
@@ -751,142 +425,105 @@
         function closeFullscreen() {
             if (isAnimating || !fullscreenOverlay.classList.contains('open') || !currentIcon) return;
             isAnimating = true;
-            console.log("Starting close animation...");
 
             const iconRect = currentIcon.getBoundingClientRect();
             const iconComputedStyle = window.getComputedStyle(currentIcon);
 
-            // 1. 移除 open 类，添加 closing 类，内容/按钮先淡出 (通过 CSS transition)
+            // 1. 移除 open 类，添加 closing 类
             fullscreenOverlay.classList.remove('open');
             fullscreenOverlay.classList.add('closing');
-            // fullscreenContent.style.opacity = '0'; // 由 CSS .open 移除触发
 
-            // 2. 设置动画目标状态 (回到图标位置)
-            // 确保过渡已启用 (与打开时设置的相同)
-            fullscreenOverlay.style.transition = `
-                top var(--transition-duration-normal) var(--timing-function-apple),
-                left var(--transition-duration-normal) var(--timing-function-apple),
-                width var(--transition-duration-normal) var(--timing-function-apple),
-                height var(--transition-duration-normal) var(--timing-function-apple),
-                border-radius var(--transition-duration-normal) var(--timing-function-apple),
-                background-color var(--transition-duration-normal) var(--timing-function-apple),
-                opacity var(--transition-duration-normal) var(--timing-function-apple)
-            `;
+            // 2. 设置动画目标状态
+            fullscreenOverlay.style.transition = `top var(--transition-duration-normal) var(--timing-function-apple), left var(--transition-duration-normal) var(--timing-function-apple), width var(--transition-duration-normal) var(--timing-function-apple), height var(--transition-duration-normal) var(--timing-function-apple), border-radius var(--transition-duration-normal) var(--timing-function-apple), background-color var(--transition-duration-normal) var(--timing-function-apple), opacity var(--transition-duration-normal) var(--timing-function-apple)`;
             fullscreenOverlay.style.top = `${iconRect.top}px`;
             fullscreenOverlay.style.left = `${iconRect.left}px`;
             fullscreenOverlay.style.width = `${iconRect.width}px`;
             fullscreenOverlay.style.height = `${iconRect.height}px`;
             fullscreenOverlay.style.borderRadius = iconComputedStyle.borderRadius;
-            fullscreenOverlay.style.background = iconComputedStyle.background; // 背景立即变回图标背景（或也可以过渡）
-            fullscreenOverlay.style.backgroundColor = 'transparent'; // 背景色过渡回透明
+            fullscreenOverlay.style.background = iconComputedStyle.background;
+            fullscreenOverlay.style.backgroundColor = 'transparent';
 
             // 3. 动画结束后处理
             transitionEndHandler = (event) => {
                 if (event.target === fullscreenOverlay && ['width', 'opacity'].includes(event.propertyName)) {
                     fullscreenOverlay.classList.remove('closing');
-                    fullscreenOverlay.style.opacity = '0'; // 动画结束，彻底隐藏
+                    fullscreenOverlay.style.opacity = '0';
                     fullscreenOverlay.style.pointerEvents = 'none';
-                    document.body.classList.remove('fullscreen-open'); // 恢复 body 滚动
+
+                    // **关键代码：结束关闭动画时，恢复滚动条**
+                    bodyEl.classList.remove('fullscreen-open'); // 恢复 body 滚动
+                    htmlEl.style.overflow = ''; // 恢复 html 滚动 (设为空字符串，移除内联样式)
+
                     currentIcon = null;
                     isAnimating = false;
                     fullscreenOverlay.removeEventListener('transitionend', transitionEndHandler);
                     transitionEndHandler = null;
-                    console.log("Close animation finished.");
                 }
             };
             fullscreenOverlay.addEventListener('transitionend', transitionEndHandler);
         }
 
-        // 绑定关闭按钮事件
+        // 绑定关闭事件
         fullscreenCloseBtn.addEventListener('click', closeFullscreen);
-
-        // 按 Esc 键关闭
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && fullscreenOverlay.classList.contains('open') && !isAnimating) {
                 closeFullscreen();
             }
         });
 
-
         // --- 2. 卡片翻转 ---
         const flipCardContainer = document.getElementById('flipCardContainer');
         const flipCard = document.getElementById('flipCard');
         if (flipCardContainer && flipCard) {
-            flipCardContainer.addEventListener('click', () => {
-                flipCard.classList.toggle('is-flipped');
-            });
+            flipCardContainer.addEventListener('click', () => flipCard.classList.toggle('is-flipped'));
         }
 
         // --- 3. 内容切换 ---
         const switchButtons = document.querySelectorAll('.switch-btn');
         const contentPanes = document.querySelectorAll('.content-pane');
         const contentSwitchContainer = document.querySelector('.content-switch-container');
-
         if (switchButtons.length > 0 && contentPanes.length > 0 && contentSwitchContainer) {
             switchButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     if (button.classList.contains('active')) return;
-
                     const targetPaneId = button.getAttribute('data-target');
                     const targetPane = document.getElementById(targetPaneId);
-
                     switchButtons.forEach(btn => btn.classList.remove('active'));
                     const currentActivePane = contentSwitchContainer.querySelector('.content-pane.active');
-                    if(currentActivePane) {
-                        currentActivePane.classList.remove('active');
-                    }
-
+                    if(currentActivePane) currentActivePane.classList.remove('active');
                     button.classList.add('active');
-                    if (targetPane) {
-                        // 直接添加 active 类，让 CSS 处理过渡
-                        targetPane.classList.add('active');
-                    }
+                    if (targetPane) targetPane.classList.add('active');
                 });
             });
         }
-
 
         // --- 4. 模态弹窗 ---
         const openModalBtn = document.getElementById('openModalBtn');
         const closeModalBtn = document.getElementById('closeModalBtn');
         const modalOverlay = document.getElementById('myModal');
-
         if (openModalBtn && closeModalBtn && modalOverlay) {
-            openModalBtn.addEventListener('click', () => {
+            function openModal() {
                 modalOverlay.classList.add('open');
-                // 可选：禁止背景滚动，如果放大动画没打开的话
-                // if (!document.body.classList.contains('fullscreen-open')) {
-                //     document.body.style.overflow = 'hidden';
-                // }
-            });
-
-            function closeModal() {
-                modalOverlay.classList.remove('open');
-                // 可选：恢复背景滚动，如果放大动画没打开的话
-                // if (!document.body.classList.contains('fullscreen-open')) {
-                //     document.body.style.overflow = '';
+                // 也可在此处控制滚动，但 fullscreen 的控制优先
+                // if (!bodyEl.classList.contains('fullscreen-open')) {
+                //     htmlEl.style.overflow = 'hidden';
                 // }
             }
-
+            function closeModal() {
+                modalOverlay.classList.remove('open');
+                // 恢复滚动，同样需检查 fullscreen 状态
+                // if (!bodyEl.classList.contains('fullscreen-open')) {
+                //     htmlEl.style.overflow = '';
+                // }
+            }
+            openModalBtn.addEventListener('click', openModal);
             closeModalBtn.addEventListener('click', closeModal);
-
-            modalOverlay.addEventListener('click', (event) => {
-                if (event.target === modalOverlay) {
-                    closeModal();
-                }
-            });
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && modalOverlay.classList.contains('open')) {
-                    closeModal();
-                }
-            });
+            modalOverlay.addEventListener('click', (event) => { if (event.target === modalOverlay) closeModal(); });
+            document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && modalOverlay.classList.contains('open')) closeModal(); });
         }
 
-        // --- 5 & 6. 按钮和悬浮效果 (CSS Driven) ---
-
-        console.log("DOM fully loaded and parsed, event listeners attached.");
-
+        // --- 5 & 6. CSS Driven Effects ---
+        console.log("DOM ready, listeners attached.");
     });
 </script>
 
