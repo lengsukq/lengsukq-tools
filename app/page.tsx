@@ -23,6 +23,11 @@ const tools = [
     title: "图片压缩",
     description: "支持PNG和JPG格式的图片压缩，可自定义压缩质量",
     href: "/image-compressor"
+  },
+  {
+    title: "动画展示", // 新增标题
+    description: "展示一些 CSS 或 JS 动画效果", // 新增描述
+    href: "/animation-showcase.html" // 新增链接，指向 HTML 文件
   }
 ];
 
