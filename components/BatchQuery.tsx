@@ -96,7 +96,11 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   const hasAAA = (str: string): boolean => {
     if (str.length < 3) return false;
     for (let i = 0; i <= str.length - 3; i++) {
-      if (str[i] === str[i + 1] && str[i + 1] === str[i + 2] && /^\d$/.test(str[i])) {
+      if (
+        str[i] === str[i + 1] &&
+        str[i + 1] === str[i + 2] &&
+        /^\d$/.test(str[i])
+      ) {
         return true;
       }
     }
@@ -107,7 +111,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   const hasABBBA = (str: string): boolean => {
     if (str.length < 5) return false; // ABBBA 至少需要5个字符
     for (let i = 0; i <= str.length - 5; i++) {
-      const char0 = str[i];     // A
+      const char0 = str[i]; // A
       const char1 = str[i + 1]; // B
       const char2 = str[i + 2]; // B
       const char3 = str[i + 3]; // B
@@ -122,7 +126,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         /^\d$/.test(char4) &&
         char0 === char4 && // 第一个和第五个字符相同
         char1 === char2 && // 第二个和第三个字符相同
-        char2 === char3    // 第三个和第四个字符相同
+        char2 === char3 // 第三个和第四个字符相同
       ) {
         return true;
       }
@@ -134,7 +138,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   const hasABCABC = (str: string): boolean => {
     if (str.length < 6) return false; // ABCABC 至少需要6个字符
     for (let i = 0; i <= str.length - 6; i++) {
-      const char0 = str[i];     // A
+      const char0 = str[i]; // A
       const char1 = str[i + 1]; // B
       const char2 = str[i + 2]; // C
       const char3 = str[i + 3]; // A
@@ -151,7 +155,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         /^\d$/.test(char5) &&
         char0 === char3 && // 第一个和第四个字符相同
         char1 === char4 && // 第二个和第五个字符相同
-        char2 === char5    // 第三个和第六个字符相同
+        char2 === char5 // 第三个和第六个字符相同
       ) {
         return true;
       }
@@ -163,7 +167,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   const hasABBBBA = (str: string): boolean => {
     if (str.length < 6) return false; // ABBBBA 至少需要6个字符
     for (let i = 0; i <= str.length - 6; i++) {
-      const char0 = str[i];     // A
+      const char0 = str[i]; // A
       const char1 = str[i + 1]; // B
       const char2 = str[i + 2]; // B
       const char3 = str[i + 3]; // B
@@ -181,7 +185,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         char0 === char5 && // 第一个和第六个字符相同
         char1 === char2 && // 第二个和第三个字符相同
         char2 === char3 && // 第三和第四个字符相同
-        char3 === char4    // 第四和第五个字符相同
+        char3 === char4 // 第四和第五个字符相同
       ) {
         return true;
       }
@@ -553,7 +557,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       for (let i = 0; i < chunkDomains.length; i++) {
         // 在每次查询前检查停止标志
         if (isStopped) {
-          console.log(`Thread stopped proactively before querying: ${chunkDomains[i]}`);
+          console.log(
+            `Thread stopped proactively before querying: ${chunkDomains[i]}`,
+          );
           return; // 退出当前线程
         }
         const domain = chunkDomains[i];
@@ -563,7 +569,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           const result = await onQuery([domain]); // 执行查询
           // 再次检查，防止长时间等待的查询完成时isStopped已经为true
           if (isStopped) {
-            console.log(`Query for ${domain} completed but stop signal received.`);
+            console.log(
+              `Query for ${domain} completed but stop signal received.`,
+            );
             return; // 立即返回，不再处理后续域名
           }
           const finalResult = Array.isArray(result) ? result : [result];
@@ -574,7 +582,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           }
         } catch (error) {
           console.error(`查询 ${domain} 出错`, error);
-          if (!isStopped) { // 只有在没有停止的情况下才记录错误结果
+          if (!isStopped) {
+            // 只有在没有停止的情况下才记录错误结果
             // setBatchResults(prevResults => [...prevResults, { domain, error: String(error), isRegistered: false }]);
           }
         }
@@ -598,7 +607,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       }
       const endIndex = startIndex + currentThreadDomains;
 
-      if (startIndex < totalDomains) { // 避免创建空线程
+      if (startIndex < totalDomains) {
+        // 避免创建空线程
         threadPromises.push(queryInChunks(startIndex, endIndex));
         startIndex = endIndex;
       }
@@ -620,13 +630,15 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         description: "批量查询已全部完成！",
         color: "success", // 使用 Success 类型
       });
-    } else if (isStopped) { // 如果是用户主动停止
+    } else if (isStopped) {
+      // 如果是用户主动停止
       addToast({
         title: "操作提示",
         description: "批量查询已中止。",
         color: "default", // 使用 Default 类型
       });
-    } else { // 可能是部分完成（例如，因为某些错误提前中断，但未被isStopped捕获导致并非全部完成）
+    } else {
+      // 可能是部分完成（例如，因为某些错误提前中断，但未被isStopped捕获导致并非全部完成）
       addToast({
         title: "查询结果",
         description: "批量查询已部分完成。",
@@ -645,6 +657,34 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     });
     // 不在此处直接设置 setLoading(false) 或 setProgress(0)，
     // 因为停止是一个异步过程，这些UI状态的更新应在 handleBatchQuery 的最终完成处。
+  };
+
+  /** 处理复制预览域名列表的逻辑 */
+  const handleCopyPreviewDomains = async () => {
+    if (previewDomains.length === 0) {
+      addToast({
+        title: "复制失败",
+        description: "预览域名列表为空，无法复制。",
+        color: "warning",
+      });
+      return;
+    }
+    try {
+      const domainsText = previewDomains.join("\n"); // 使用换行符连接所有域名
+      await navigator.clipboard.writeText(domainsText);
+      addToast({
+        title: "复制成功",
+        description: `已复制 ${previewDomains.length} 个域名到剪贴板。`,
+        color: "success",
+      });
+    } catch (err) {
+      console.error("Failed to copy domains: ", err);
+      addToast({
+        title: "复制失败",
+        description: "无法访问剪贴板，请检查浏览器权限。",
+        color: "danger",
+      });
+    }
   };
 
   /** 渲染预览域名列表中的每一行 */
@@ -845,8 +885,20 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       {/* 预览域名列表显示 */}
       {previewDomains.length > 0 && (
         <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-sm">
-          <div className="font-medium mb-2 text-gray-700">
-            将要查询的域名列表：({previewDomains.length} 个)
+          <div className="flex items-center gap-2 mb-2">
+            {" "}
+            {/* 使用flex布局将标题和按钮放在一行 */}
+            <div className="font-medium text-gray-700">
+              将要查询的域名列表：({previewDomains.length} 个)
+            </div>
+            <Button
+              size={"sm"}
+              className="px-2 py-1 text-sm"
+              disabled={loading || previewDomains.length === 0} // 查询时禁用，且列表为空时禁用
+              onClick={handleCopyPreviewDomains}
+            >
+              复制
+            </Button>
           </div>
           <div className="bg-gray-800 p-3 rounded">
             <FixedSizeList
