@@ -39,17 +39,11 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   // 批量查询配置状态
   const [batchConfig, setBatchConfig] = useState<{
     positions: PositionConfig[]; // 域名生成位置配置
-    // 以下布尔值字段将不再直接使用，因为改为单选过滤器
-    // useConsecutive: boolean;
-    // useAABB: boolean;
-    // useAABBCC: boolean;
-    // useABA: boolean;
-    // useABCBA: boolean;
     threadCount: number; // 查询线程数
     domainFilter: string | null; // 域名过滤条件，改为单选，存储 key 或 null
   }>({
     positions: [{ type: "number" }],
-    threadCount: 1,
+    threadCount: 10, // 默认线程数改为 10
     domainFilter: null, // 初始值为空
   });
   const [previewDomains, setPreviewDomains] = useState<string[]>([]); // 预览生成的域名列表
@@ -57,7 +51,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   const [progress, setProgress] = useState(0); // 查询进度
   const [batchResults, setBatchResults] = useState<WhoisResponse[]>([]); // 批量查询结果
 
-  const [isStopped, setIsStopped] = useState(false); // 查询停止标志
+  const [isStopped, setIsStopped] = useState(false); // 查询停止标志，用于控制线程中断
+
   const [filterKeyword, setFilterKeyword] = useState(""); // 结果过滤关键词
 
   const rowHeight = 24;
@@ -65,7 +60,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
   // 所有的域名过滤选项
   const domainFilterOptions = [
-    { key: "none", label: "无" }, // 新增一个“无”选项，表示不应用任何过滤器
+    { key: "none", label: "无" }, // 表示不应用任何过滤器
+    { key: "AAA", label: "AAA" }, // 新增 AAA
+    { key: "ABBBA", label: "ABBBA" }, // 新增 ABBBA
     { key: "AA", label: "AA" },
     { key: "ABCDEE", label: "ABCDEE" },
     { key: "useConsecutive", label: "顺子" },
@@ -73,8 +70,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     { key: "useAABBCC", label: "AABBCC" },
     { key: "useABA", label: "ABA" },
     { key: "useABCBA", label: "ABCBA" },
-    { key: "useABCCBA", label: "ABCCBA" }, // 新增 ABCCBA
-    { key: "useABCCAB", label: "ABCCAB" }, // 新增 ABCCAB
+    { key: "useABCCBA", label: "ABCCBA" },
+    { key: "useABCCAB", label: "ABCCAB" },
   ];
 
   /**
@@ -91,7 +88,46 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     [batchConfig.positions],
   );
 
-  // 以下是各种域名数字组合的辅助函数（顺子、AA、AABB、AABBCC、ABA、ABCBA、ABCCBA、ABCCAB、ABCDEE）
+  // 以下是各种域名数字组合的辅助函数（AAA、ABBBA、顺子、AA、AABB、AABBCC、ABA、ABCBA、ABCCBA、ABCCAB、ABCDEE）
+
+  // 检查是否包含 AAA 模式
+  const hasAAA = (str: string): boolean => {
+    if (str.length < 3) return false;
+    for (let i = 0; i <= str.length - 3; i++) {
+      if (str[i] === str[i + 1] && str[i + 1] === str[i + 2] && /^\d$/.test(str[i])) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 检查是否包含 ABBBA 模式
+  const hasABBBA = (str: string): boolean => {
+    if (str.length < 5) return false; // ABBBA 至少需要5个字符
+    for (let i = 0; i <= str.length - 5; i++) {
+      const char0 = str[i];     // A
+      const char1 = str[i + 1]; // B
+      const char2 = str[i + 2]; // B
+      const char3 = str[i + 3]; // B
+      const char4 = str[i + 4]; // A
+
+      // 确保所有字符都是数字，并且 A==A, B==B==B
+      if (
+        /^\d$/.test(char0) &&
+        /^\d$/.test(char1) &&
+        /^\d$/.test(char2) &&
+        /^\d$/.test(char3) &&
+        /^\d$/.test(char4) &&
+        char0 === char4 && // 第一个和第五个字符相同
+        char1 === char2 && // 第二个和第三个字符相同
+        char2 === char3    // 第三个和第四个字符相同
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const hasConsecutiveNumbers = (str: string): boolean => {
     if (str.length < 3) return false;
     for (let i = 0; i <= str.length - 3; i++) {
@@ -190,7 +226,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     return false;
   };
 
-  // 新增 hasABCCBA 辅助函数
+  // 检查是否包含 ABCCBA 模式
   const hasABCCBA = (str: string): boolean => {
     if (str.length < 6) return false; // ABCCBA 至少需要6个字符
     for (let i = 0; i <= str.length - 6; i++) {
@@ -219,7 +255,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     return false;
   };
 
-  // 新增 hasABCCAB 辅助函数
+  // 检查是否包含 ABCCAB 模式
   const hasABCCAB = (str: string): boolean => {
     if (str.length < 6) return false; // ABCCAB 至少需要6个字符
     for (let i = 0; i <= str.length - 6; i++) {
@@ -298,6 +334,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             case "AA":
               if (!hasAA(current)) return;
               break;
+            case "AAA": // 新增过滤器应用
+              if (!hasAAA(current)) return;
+              break;
             case "useAABB":
               if (!hasAABB(current)) return;
               break;
@@ -310,11 +349,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             case "useABCBA":
               if (!hasABCBA(current)) return;
               break;
-            case "useABCCBA": // 新增过滤器应用
+            case "useABCCBA":
               if (!hasABCCBA(current)) return;
               break;
-            case "useABCCAB": // 新增过滤器应用
+            case "useABCCAB":
               if (!hasABCCAB(current)) return;
+              break;
+            case "ABBBA": // 新增过滤器应用
+              if (!hasABBBA(current)) return;
               break;
             case "ABCDEE":
               if (!hasABCDEE(current)) return;
@@ -434,7 +476,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     setLoading(true);
     setBatchResults([]);
     setProgress(0);
-    setIsStopped(false);
+    setIsStopped(false); // 确保在开始查询时重置停止标志
 
     const domains = previewDomains;
     const totalDomains = domains.length;
@@ -445,27 +487,31 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     );
     let completedCount = 0;
 
-    // 并发查询函数，处理域名分块
+    // 使用 Promise.race 实现停止逻辑：当 isStopped 变为 true 时，所有进行中的查询线程都应该尽快停止
     const queryInChunks = async (startIndex: number, endIndex: number) => {
       const chunkDomains = domains.slice(startIndex, endIndex);
 
       for (let i = 0; i < chunkDomains.length; i++) {
+        // 在每次查询前检查停止标志
         if (isStopped) {
-          // 检查停止标志
-          console.log("查询已停止");
-
+          console.log(`Thread stopped proactively before querying: ${chunkDomains[i]}`);
           return; // 退出当前线程
         }
         const domain = chunkDomains[i];
 
         try {
+          // 每个查询都可能耗时，所以需要在查询完成后再次检查 isStopped
           const result = await onQuery([domain]); // 执行查询
+          // 再次检查，防止长时间等待的查询完成时isStopped已经为true
+          if (isStopped) {
+            console.log(`Query for ${domain} completed but stop signal received.`);
+            return; // 立即返回，不再处理后续域名
+          }
           const finalResult = Array.isArray(result) ? result : [result];
 
           setBatchResults((prevResults) => [...prevResults, ...finalResult]);
         } catch (error) {
           console.error(`查询 ${domain} 出错`, error);
-          // 记录查询错误，即使出错也显示在结果中
           // setBatchResults(prevResults => [...prevResults, { domain, error: String(error), isRegistered: false }]);
         }
         completedCount++;
@@ -475,9 +521,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     };
 
     // 创建并等待所有线程完成
-    const threadPromises = [];
+    const threadPromises: Promise<void>[] = []; // 明确 Promise 数组的类型
     let startIndex = 0;
-    // 计算每个线程处理的域名数量，确保均匀分配
     const baseDomainsPerThread = Math.floor(totalDomains / threadCount);
     let remainder = totalDomains % threadCount;
 
@@ -489,34 +534,35 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       }
       const endIndex = startIndex + currentThreadDomains;
 
-      if (startIndex < totalDomains) {
-        // 避免创建空线程
+      if (startIndex < totalDomains) { // 避免创建空线程
         threadPromises.push(queryInChunks(startIndex, endIndex));
         startIndex = endIndex;
       }
     }
 
-    await Promise.all(threadPromises); // 等待所有查询线程完成
+    // 等待所有查询线程完成，或等待停止信号
+    // 使用 Promise.allSettled 确保所有 Promise 都处理完毕（无论成功或失败），
+    // 这样可以避免 Promise.all 在某个 Promise 拒绝时立即中断。
+    // 但是，为了停止逻辑的响应性，我们仍然依赖 isStopped 标志在循环内部中断。
+    await Promise.allSettled(threadPromises);
+
     setLoading(false);
-    setIsStopped(false); // 重置停止标志
+    // setIsStopped(false); // 不在这里重置，因为 isStopped 是控制中断的开关，它在查询结束后自然会变为false
 
     // 根据最终进度判断查询结果
-    if (completedCount === totalDomains) {
-      // 确认所有域名都已处理
+    if (completedCount === totalDomains) { // 确认所有域名都已处理
       addToast({
         title: "查询结果",
         description: "批量查询已全部完成！",
         color: "success", // 使用 Success 类型
       });
-    } else if (isStopped) {
-      // 如果是用户主动停止
+    } else if (isStopped) { // 如果是用户主动停止
       addToast({
         title: "操作提示",
         description: "批量查询已中止。",
         color: "default", // 使用 Default 类型
       });
-    } else {
-      // 可能是部分完成（例如，因为某些错误提前中断）
+    } else { // 可能是部分完成（例如，因为某些错误提前中断，但未被isStopped捕获）
       addToast({
         title: "查询结果",
         description: "批量查询已部分完成。",
@@ -527,15 +573,15 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
   /** 处理停止查询的逻辑 */
   const handleStopQuery = () => {
-    setIsStopped(true); // 设置停止标志
-    // 立即更新 UI 状态，给用户反馈
-    // setLoading(false); // 这一行应该在所有线程实际停止后执行
-    // setProgress(0); // 这一行也应该在所有线程实际停止后执行
+    setIsStopped(true); // 设置停止标志，这将通知所有正在运行的查询线程停止
     addToast({
       title: "操作提示",
       description: "查询已请求停止，正在中止中...",
       color: "default", // 使用 Default 类型
     });
+    // 注意：setLoading(false) 和 setProgress(0) 不应立即在此处调用，
+    // 而应在所有查询线程实际停止（即 Promise.allSettled 完成）后在 handleBatchQuery 中调用，
+    // 否则UI可能会过早地恢复交互，但后台查询还在进行中。
   };
 
   /** 渲染预览域名列表中的每一行 */
@@ -596,7 +642,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           <div key={index} className="flex gap-2 items-center">
             <Select
               className="w-24"
-              disabled={loading}
+              disabled={loading} // 查询时禁用
               selectedKeys={pos.type ? [pos.type] : []}
               onChange={(e) => {
                 const value = e.target.value;
@@ -617,7 +663,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             {pos.type === "input" && (
               <Input
                 className="w-24"
-                disabled={loading}
+                disabled={loading} // 查询时禁用
                 placeholder="输入内容"
                 value={pos.value || ""}
                 onChange={(e) => {
@@ -635,7 +681,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         {batchConfig.positions.length < 6 && ( // 限制最多6个位置
           <Button
             className="px-2 py-1"
-            disabled={loading}
+            disabled={loading} // 查询时禁用
             onClick={() =>
               setBatchConfig({
                 ...batchConfig,
@@ -650,7 +696,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         {batchConfig.positions.length > 1 && ( // 至少保留一个位置
           <Button
             className="px-2 py-1"
-            disabled={loading}
+            disabled={loading} // 查询时禁用
             onClick={() =>
               setBatchConfig({
                 ...batchConfig,
@@ -668,20 +714,17 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         <div className="flex items-center gap-2">
           <Select
             className="max-w-xs"
-            disabled={loading}
+            disabled={loading} // 查询时禁用
             label="生成条件"
             placeholder="请选择生成条件"
-            // selectedKeys 现在是单个值或空数组
             selectedKeys={
               batchConfig.domainFilter ? [batchConfig.domainFilter] : []
             }
-            // selectionMode 移除，默认为单选
             onChange={(e) => {
-              // 对于单选，e.target.value 直接就是选中的 key
               const value = e.target.value;
               setBatchConfig({
                 ...batchConfig,
-                domainFilter: value === "none" ? null : (value as string), // 如果是'none'则设为null
+                domainFilter: value === "none" ? null : (value as string),
               });
             }}
           >
@@ -697,12 +740,12 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         <span>线程数:</span>
         <NumberInput
           className="w-20"
-          disabled={loading}
+          disabled={loading} // 查询时禁用
           maxValue={30}
-          minValue={1}
+          minValue={5}
+          step={5} // 步距为 5
           value={batchConfig.threadCount}
           onChange={(value) => {
-            // 确保线程数在 1 到 30 之间
             const numValue = Math.min(
               Math.max(1, Math.floor(value as number)),
               30,
@@ -781,6 +824,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             placeholder="在结果中模糊查询域名"
             value={filterKeyword}
             onChange={(e) => setFilterKeyword(e.target.value)}
+            disabled={loading} // 查询时禁用
           />
         </div>
       )}
