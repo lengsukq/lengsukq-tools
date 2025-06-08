@@ -7,28 +7,28 @@ const tools = [
     title: "域名查询",
     description: "快速查询域名是否已被注册，并获取详细的 WHOIS 信息",
     // icon: <SearchIcon className="w-6 h-6 text-primary" />,
-    href: "/domain-checker"
+    href: "/domain-checker",
   },
   {
     title: "JSON格式化",
     description: "在线JSON格式化、压缩、语法验证工具",
-    href: "/json-formatter"
+    href: "/json-formatter",
   },
   {
     title: "UUID生成器",
     description: "生成随机的UUID (v4版本)，支持批量生成",
-    href: "/uuid-generator"
+    href: "/uuid-generator",
   },
   {
     title: "图片压缩",
     description: "支持PNG和JPG格式的图片压缩，可自定义压缩质量",
-    href: "/image-compressor"
+    href: "/image-compressor",
   },
   {
     title: "动画展示", // 新增标题
     description: "展示一些 CSS 或 JS 动画效果", // 新增描述
-    href: "/animation-showcase.html" // 新增链接，指向 HTML 文件
-  }
+    href: "/animation-showcase.html", // 新增链接，指向 HTML 文件
+  },
 ];
 
 export default function Home() {

@@ -1,17 +1,18 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import { Card, CardBody, CardHeader } from '@heroui/card';
-import { Button } from '@heroui/button';
-import { Input } from '@heroui/input';
+import { useState } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
 
 export default function UUIDGenerator() {
   const [uuids, setUuids] = useState<string[]>([]);
-  const [count, setCount] = useState<string>('1');
+  const [count, setCount] = useState<string>("1");
 
   const generateUUIDs = () => {
     const newUuids = Array.from({ length: Number(count) }, () => uuidv4());
+
     setUuids(newUuids);
   };
 
@@ -19,7 +20,7 @@ export default function UUIDGenerator() {
     try {
       await navigator.clipboard.writeText(text);
     } catch (err) {
-      console.error('Failed to copy text: ', err);
+      console.error("Failed to copy text: ", err);
     }
   };
 
@@ -33,13 +34,13 @@ export default function UUIDGenerator() {
         <CardBody>
           <div className="flex gap-4 mb-6">
             <Input
-              type="number"
-              min={1}
+              className="w-32"
               max={100}
+              min={1}
+              placeholder="生成数量"
+              type="number"
               value={count}
               onValueChange={(value) => setCount(value)}
-              placeholder="生成数量"
-              className="w-32"
             />
             <Button color="primary" onClick={generateUUIDs}>
               生成UUID
