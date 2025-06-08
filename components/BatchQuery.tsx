@@ -5,6 +5,9 @@ import { Select, SelectItem } from '@heroui/select';
 import { WhoisResponse } from './domain-checker';
 import { FixedSizeList as _FixedSizeList } from "react-window";
 import { NumberInput } from "@heroui/number-input";
+// 导入 addToast 函数，现在明确它接受一个 color 属性
+import { addToast } from "@heroui/toast";
+
 const FixedSizeList = _FixedSizeList as any;
 
 interface PositionConfig {
@@ -17,14 +20,28 @@ interface BatchQueryProps {
     onQuery: (domains: string[]) => Promise<WhoisResponse[]>;
 }
 
+/**
+ * 校验单个域名标签（label）是否合法。
+ * 例如 "example.com" 中的 "example" 或 "com"。
+ * 遵循 RFC 952 和 RFC 1123 规范，长度1-63，只能包含字母、数字、连字符，
+ * 且不能以连字符开头或结尾。
+ */
+const isValidDomainPart = (part: string): boolean => {
+    if (!part || part.length === 0 || part.length > 63) {
+        return false;
+    }
+    return /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(part);
+};
+
 export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
+    // 批量查询配置状态
     const [batchConfig, setBatchConfig] = useState<{
-        positions: PositionConfig[];
+        positions: PositionConfig[]; // 域名生成位置配置
         useConsecutive: boolean;
         useAABB: boolean;
         useAABBCC: boolean;
-        threadCount: number;
-        domainFilters: string[];
+        threadCount: number; // 查询线程数
+        domainFilters: string[]; // 域名过滤条件
     }>({
         positions: [{ type: 'number' }],
         useConsecutive: false,
@@ -33,16 +50,13 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         threadCount: 1,
         domainFilters: [],
     });
-    const [previewDomains, setPreviewDomains] = useState<string[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [progress, setProgress] = useState(0);
-    const [batchResults, setBatchResults] = useState<WhoisResponse[]>([]);
+    const [previewDomains, setPreviewDomains] = useState<string[]>([]); // 预览生成的域名列表
+    const [loading, setLoading] = useState(false); // 查询加载状态
+    const [progress, setProgress] = useState(0); // 查询进度
+    const [batchResults, setBatchResults] = useState<WhoisResponse[]>([]); // 批量查询结果
 
-    // 新增：停止查询的标志
-    const [isStopped, setIsStopped] = useState(false);
-
-    // 新增：关键字模糊查询的状态
-    const [filterKeyword, setFilterKeyword] = useState('');
+    const [isStopped, setIsStopped] = useState(false); // 查询停止标志
+    const [filterKeyword, setFilterKeyword] = useState(''); // 结果过滤关键词
 
     const rowHeight = 24;
     const maxListHeight = 160;
@@ -55,10 +69,15 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         { key: 'useAABBCC', label: 'AABBCC' },
     ];
 
-    // 检查是否所有位置都是数字
-    const isAllNumbers = useCallback(() => batchConfig.positions.every(pos => pos.type === 'number' || (pos.type === 'input' && /^\d+$/.test(pos.value || ''))), [batchConfig.positions]);
+    /**
+     * 判断所有域名生成位置是否都为数字类型或自定义输入且内容为纯数字。
+     * 用于决定是否显示数字相关的筛选条件。
+     */
+    const isAllNumbers = useCallback(() =>
+        batchConfig.positions.every(pos => pos.type === 'number' || (pos.type === 'input' && /^\d+$/.test(pos.value || '')))
+      , [batchConfig.positions]);
 
-    // 检查是否有任意三个连续的数字
+    // 以下是各种域名数字组合的辅助函数（顺子、AA、AABB、AABBCC、ABCDEE）
     const hasConsecutiveNumbers = (str: string): boolean => {
         if (str.length < 3) return false;
         for (let i = 0; i <= str.length - 3; i++) {
@@ -72,7 +91,6 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         return false;
     };
 
-    // 检查是否包含连续两个相同字符（AA, 11, etc.）
     const hasAA = (str: string): boolean => {
         if (str.length < 2) return false;
         for (let i = 0; i <= str.length - 2; i++) {
@@ -131,36 +149,30 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         return false;
     }
 
-    // 生成域名组合
+    /**
+     * 根据当前配置生成预览域名列表。
+     * 使用递归方法生成所有组合，并应用数字过滤器。
+     */
     const generateDomains = useCallback(() => {
         const domains: string[] = [];
         const { positions, domainFilters } = batchConfig;
 
         const generateCombinations = (current: string, index: number) => {
+            // 所有位置都已处理，生成一个完整域名
             if (index === positions.length) {
-                // 筛选逻辑
+                // 如果是纯数字域名，才应用数字相关的过滤器
                 if (isAllNumbers()) {
-                    if (domainFilters.includes('useConsecutive') && !hasConsecutiveNumbers(current)) {
-                        return;
-                    }
-                    if (domainFilters.includes('AA') && !hasAA(current)) {
-                        return;
-                    }
-                    if (domainFilters.includes('useAABB') && !hasAABB(current)) {
-                        return;
-                    }
-                    if (domainFilters.includes('useAABBCC') && !hasAABBCC(current)) {
-                        return;
-                    }
-                    if (domainFilters.includes('ABCDEE') && !hasABCDEE(current)) {
-                        return;
-                    }
+                    if (domainFilters.includes('useConsecutive') && !hasConsecutiveNumbers(current)) return;
+                    if (domainFilters.includes('AA') && !hasAA(current)) return;
+                    if (domainFilters.includes('useAABB') && !hasAABB(current)) return;
+                    if (domainFilters.includes('useAABBCC') && !hasAABBCC(current)) return;
+                    if (domainFilters.includes('ABCDEE') && !hasABCDEE(current)) return;
                 }
-
                 domains.push(`${current}.${suffix}`);
                 return;
             }
 
+            // 处理当前位置
             const pos = positions[index];
             if (pos.type === 'number') {
                 for (let i = 0; i <= 9; i++) {
@@ -178,56 +190,111 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
         generateCombinations('', 0);
         return domains;
-    }, [batchConfig, suffix, isAllNumbers]); // 依赖项
+    }, [batchConfig, suffix, isAllNumbers]);
 
-    // 更新预览域名列表
+    /** 更新预览域名列表的副作用 */
     const updatePreviewDomains = useCallback(() => {
-        const domains = generateDomains();
-        setPreviewDomains(domains);
+        setPreviewDomains(generateDomains());
     }, [generateDomains]);
 
-    // 当配置改变时更新预览
     useEffect(() => {
         updatePreviewDomains();
     }, [updatePreviewDomains]);
 
+    /** 处理批量查询的主逻辑 */
     const handleBatchQuery = async () => {
+        // 1. 前置校验：域名后缀是否填写
         if (!suffix) {
-            alert('请填写域名后缀');
+            addToast({
+                title: "查询前提示",
+                description: "请填写域名后缀。",
+                color: "warning" // 使用 Warning 类型
+            });
             return;
         }
 
+        // 2. 校验域名后缀本身是否合法（作为一个域名标签）
+        if (!isValidDomainPart(suffix)) {
+            addToast({
+                title: "校验错误",
+                description: `域名后缀 '${suffix}' 不符合域名规范。`,
+                color: "danger" // 使用 Danger 类型
+            });
+            return;
+        }
+
+        // 3. 校验所有生成的完整域名是否合法
+        for (const fullDomain of previewDomains) {
+            const domainLabels = fullDomain.split('.');
+
+            // 至少需要一个主域名部分和一个后缀，所以至少两个标签
+            if (domainLabels.length < 2) {
+                addToast({
+                    title: "校验错误",
+                    description: `生成的域名 '${fullDomain}' 格式不完整，至少需要一个主域名和一个后缀。`,
+                    color: "danger" // 使用 Danger 类型
+                });
+                return;
+            }
+
+            // 遍历所有标签，确保每个标签都合法且非空
+            for (const label of domainLabels) {
+                // 检查是否存在空标签（例如 `..` 会导致 split 结果中出现空字符串）
+                if (label === '') {
+                    addToast({
+                        title: "校验错误",
+                        description: `域名 '${fullDomain}' 包含空的域名部分 (例如 '..')，不符合域名规范。`,
+                        color: "danger" // 使用 Danger 类型
+                    });
+                    return;
+                }
+                // 校验每个非空标签是否符合域名标签的规范
+                if (!isValidDomainPart(label)) {
+                    addToast({
+                        title: "校验错误",
+                        description: `域名 '${fullDomain}' 中的部分 '${label}' 不符合域名规范，请检查组合规则。`,
+                        color: "danger" // 使用 Danger 类型
+                    });
+                    return;
+                }
+            }
+        }
+
+        // 开始查询，设置加载状态和进度
         setLoading(true);
         setBatchResults([]);
         setProgress(0);
-        setIsStopped(false); // 重置停止状态
+        setIsStopped(false);
 
         const domains = previewDomains;
         const totalDomains = domains.length;
-        const threadCount = Math.min(Math.max(1, Math.floor(batchConfig.threadCount)), 10);
+        const threadCount = Math.min(Math.max(1, Math.floor(batchConfig.threadCount)), 10); // 线程数限制在 1 到 10
         let completedCount = 0;
 
+        // 并发查询函数，处理域名分块
         const queryInChunks = async (startIndex: number, endIndex: number) => {
             const chunkDomains = domains.slice(startIndex, endIndex);
             for (let i = 0; i < chunkDomains.length; i++) {
                 if (isStopped) { // 检查停止标志
                     console.log('查询已停止');
-                    return; // 提前退出当前线程的查询
+                    return; // 退出当前线程
                 }
                 const domain = chunkDomains[i];
                 try {
-                    const result = await onQuery([domain]);
+                    const result = await onQuery([domain]); // 执行查询
                     const finalResult = Array.isArray(result) ? result : [result];
                     setBatchResults(prevResults => [...prevResults, ...finalResult]);
                 } catch (error) {
                     console.error(`查询 ${domain} 出错`, error);
+                    // 记录查询错误，即使出错也显示在结果中
                     // setBatchResults(prevResults => [...prevResults, { domain, error: String(error), isRegistered: false }]);
                 }
                 completedCount++;
-                setProgress(((completedCount / totalDomains) * 100));
+                setProgress(((completedCount / totalDomains) * 100)); // 更新进度
             }
         };
 
+        // 创建并等待所有线程完成
         const threadPromises = [];
         let startIndex = 0;
         const domainsPerThread = Math.floor(totalDomains / threadCount);
@@ -239,19 +306,40 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             startIndex = endIndex;
         }
 
-        await Promise.all(threadPromises);
+        await Promise.all(threadPromises); // 等待所有查询线程完成
         setLoading(false);
-        setIsStopped(false); // 确保在查询完成时重置停止状态
+        setIsStopped(false);
+
+        // 根据最终进度判断查询结果
+        if (progress >= 99.9) { // 浮点数比较，用近似值判断是否完全完成
+            addToast({
+                title: "查询结果",
+                description: "批量查询已完成！",
+                color: "success" // 使用 Success 类型
+            });
+        } else {
+            addToast({
+                title: "查询结果",
+                description: "批量查询已停止或部分完成。",
+                color: "default" // 使用 Default 类型
+            });
+        }
     };
 
-    // 停止查询的回调
+    /** 处理停止查询的逻辑 */
     const handleStopQuery = () => {
-        setIsStopped(true);
-        setLoading(false); // 立即停止loading状态
-        setProgress(0); // 重置进度条
+        setIsStopped(true); // 设置停止标志
+        // 立即更新 UI 状态，给用户反馈
+        setLoading(false);
+        setProgress(0); // 清空进度条
+        addToast({
+            title: "操作提示",
+            description: "查询已请求停止，正在中止中...",
+            color: "default" // 使用 Default 类型
+        });
     };
 
-    // 渲染单个域名
+    /** 渲染预览域名列表中的每一行 */
     const renderDomainRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
         return (
           <div style={style} className="text-sm text-gray-600 hover:bg-gray-50 p-1 rounded">
@@ -260,10 +348,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         );
     }, [previewDomains]);
 
-    // 计算列表高度，确保不超过最大高度
     const listHeight = Math.min(previewDomains.length * rowHeight, maxListHeight);
 
-    // 使用 useMemo 进行过滤，避免不必要的重复计算
+    /** 过滤可注册的域名 */
     const filteredAvailableDomains = useMemo(() => {
         if (!filterKeyword) {
             return batchResults.filter(result => !result.isRegistered && !result.error);
@@ -276,6 +363,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         );
     }, [batchResults, filterKeyword]);
 
+    /** 过滤已被注册的域名或查询失败的域名 */
     const filteredRegisteredDomains = useMemo(() => {
         if (!filterKeyword) {
             return batchResults.filter(result => result.isRegistered || result.error);
@@ -289,6 +377,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
     return (
       <div className="space-y-4">
+          {/* 域名位置配置区域 */}
           <div className="flex flex-wrap gap-2">
               {batchConfig.positions.map((pos, index) => (
                 <div key={index} className="flex gap-2 items-center">
@@ -323,7 +412,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 </div>
               ))}
 
-              {batchConfig.positions.length < 6 && (
+              {/* 添加/移除位置按钮 */}
+              {batchConfig.positions.length < 6 && ( // 限制最多6个位置
                 <Button
                   onClick={() =>
                     setBatchConfig({
@@ -338,7 +428,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 </Button>
               )}
 
-              {batchConfig.positions.length > 1 && (
+              {batchConfig.positions.length > 1 && ( // 至少保留一个位置
                 <Button
                   onClick={() =>
                     setBatchConfig({
@@ -354,7 +444,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
               )}
           </div>
 
-          {/* 域名筛选 */}
+          {/* 数字域名生成条件筛选 */}
           {isAllNumbers() && (
             <div className="flex items-center gap-2">
                 <Select
@@ -379,13 +469,15 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             </div>
           )}
 
-          {/* 新增：线程选择 */}
+          {/* 线程数配置 */}
           <div className="flex items-center gap-2">
               <span>线程数:</span>
               <NumberInput
                 value={batchConfig.threadCount}
                 onChange={(value) => {
-                    setBatchConfig({ ...batchConfig, threadCount: value as number });
+                    // 确保线程数在 1 到 10 之间
+                    const numValue = Math.min(Math.max(1, Math.floor(value as number)), 10);
+                    setBatchConfig({ ...batchConfig, threadCount: numValue });
                 }}
                 minValue={1}
                 maxValue={10}
@@ -394,6 +486,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
               />
           </div>
 
+          {/* 操作按钮：开始查询 / 停止 */}
           <div className="flex gap-2">
               <Button
                 onClick={handleBatchQuery}
@@ -408,7 +501,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                 <Button
                   onClick={handleStopQuery}
                   color="secondary"
-                  disabled={!loading}
+                  disabled={!loading} // 只有在加载中才可点击停止
                   className="w-24"
                 >
                     停止
@@ -416,7 +509,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
               )}
           </div>
 
-          {/* 域名预览列表 */}
+          {/* 预览域名列表显示 */}
           {previewDomains.length > 0 && (
             <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-sm">
                 <div className="font-medium mb-2 text-gray-700">
@@ -436,6 +529,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             </div>
           )}
 
+          {/* 查询进度条显示 */}
           {loading && (
             <div className="relative pt-1">
                 <div className="flex mb-2 items-center justify-between">
@@ -452,7 +546,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             </div>
           )}
 
-          {/* 结果筛选输入框 */}
+          {/* 结果过滤输入框 */}
           {(batchResults.length > 0 || filterKeyword) && (
             <div className="flex items-center gap-2">
                 <Input
@@ -464,7 +558,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             </div>
           )}
 
-          {/* Display results, available domains first, then registered domains */}
+          {/* 查询结果显示：可注册/已被注册域名列表 */}
           {(filteredAvailableDomains.length > 0 || filteredRegisteredDomains.length > 0) && (
             <div className="space-y-4">
                 {filteredAvailableDomains.length > 0 && (
