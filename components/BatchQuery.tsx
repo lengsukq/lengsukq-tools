@@ -63,6 +63,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     { key: "none", label: "无" }, // 表示不应用任何过滤器
     { key: "AAA", label: "AAA" }, // 新增 AAA
     { key: "ABBBA", label: "ABBBA" }, // 新增 ABBBA
+    { key: "ABCABC", label: "ABCABC" }, // 新增 ABCABC
+    { key: "ABBBBA", label: "ABBBBA" }, // 新增 ABBBBA
     { key: "AA", label: "AA" },
     { key: "ABCDEE", label: "ABCDEE" },
     { key: "useConsecutive", label: "顺子" },
@@ -88,7 +90,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     [batchConfig.positions],
   );
 
-  // 以下是各种域名数字组合的辅助函数（AAA、ABBBA、顺子、AA、AABB、AABBCC、ABA、ABCBA、ABCCBA、ABCCAB、ABCDEE）
+  // 以下是各种域名数字组合的辅助函数（AAA、ABBBA、ABCABC、ABBBBA、顺子、AA、AABB、AABBCC、ABA、ABCBA、ABCCBA、ABCCAB、ABCDEE）
 
   // 检查是否包含 AAA 模式
   const hasAAA = (str: string): boolean => {
@@ -121,6 +123,65 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         char0 === char4 && // 第一个和第五个字符相同
         char1 === char2 && // 第二个和第三个字符相同
         char2 === char3    // 第三个和第四个字符相同
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 检查是否包含 ABCABC 模式
+  const hasABCABC = (str: string): boolean => {
+    if (str.length < 6) return false; // ABCABC 至少需要6个字符
+    for (let i = 0; i <= str.length - 6; i++) {
+      const char0 = str[i];     // A
+      const char1 = str[i + 1]; // B
+      const char2 = str[i + 2]; // C
+      const char3 = str[i + 3]; // A
+      const char4 = str[i + 4]; // B
+      const char5 = str[i + 5]; // C
+
+      // 确保所有字符都是数字，并且 A==A, B==B, C==C
+      if (
+        /^\d$/.test(char0) &&
+        /^\d$/.test(char1) &&
+        /^\d$/.test(char2) &&
+        /^\d$/.test(char3) &&
+        /^\d$/.test(char4) &&
+        /^\d$/.test(char5) &&
+        char0 === char3 && // 第一个和第四个字符相同
+        char1 === char4 && // 第二个和第五个字符相同
+        char2 === char5    // 第三个和第六个字符相同
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 检查是否包含 ABBBBA 模式
+  const hasABBBBA = (str: string): boolean => {
+    if (str.length < 6) return false; // ABBBBA 至少需要6个字符
+    for (let i = 0; i <= str.length - 6; i++) {
+      const char0 = str[i];     // A
+      const char1 = str[i + 1]; // B
+      const char2 = str[i + 2]; // B
+      const char3 = str[i + 3]; // B
+      const char4 = str[i + 4]; // B
+      const char5 = str[i + 5]; // A
+
+      // 确保所有字符都是数字，并且 A==A, B==B==B==B
+      if (
+        /^\d$/.test(char0) &&
+        /^\d$/.test(char1) &&
+        /^\d$/.test(char2) &&
+        /^\d$/.test(char3) &&
+        /^\d$/.test(char4) &&
+        /^\d$/.test(char5) &&
+        char0 === char5 && // 第一个和第六个字符相同
+        char1 === char2 && // 第二个和第三个字符相同
+        char2 === char3 && // 第三和第四个字符相同
+        char3 === char4    // 第四和第五个字符相同
       ) {
         return true;
       }
@@ -184,11 +245,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     return false;
   };
 
-  // 检查是否包含 ABA 模式
   const hasABA = (str: string): boolean => {
     if (str.length < 3) return false;
     for (let i = 0; i <= str.length - 3; i++) {
-      // 检查 'A' 和 'B' 是否是数字，并且第一个和第三个字符相同
       if (
         str[i] === str[i + 2] &&
         /^\d$/.test(str[i]) &&
@@ -200,25 +259,23 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     return false;
   };
 
-  // 检查是否包含 ABCBA 模式
   const hasABCBA = (str: string): boolean => {
-    if (str.length < 5) return false; // ABCBA 至少需要5个字符
+    if (str.length < 5) return false;
     for (let i = 0; i <= str.length - 5; i++) {
-      const char0 = str[i]; // A
-      const char1 = str[i + 1]; // B
-      const char2 = str[i + 2]; // C
-      const char3 = str[i + 3]; // B
-      const char4 = str[i + 4]; // A
+      const char0 = str[i];
+      const char1 = str[i + 1];
+      const char2 = str[i + 2];
+      const char3 = str[i + 3];
+      const char4 = str[i + 4];
 
-      // 确保所有字符都是数字，并且 A==A, B==B
       if (
         /^\d$/.test(char0) &&
         /^\d$/.test(char1) &&
         /^\d$/.test(char2) &&
         /^\d$/.test(char3) &&
         /^\d$/.test(char4) &&
-        char0 === char4 && // 第一个和第五个字符相同
-        char1 === char3 // 第二个和第四个字符相同
+        char0 === char4 &&
+        char1 === char3
       ) {
         return true;
       }
@@ -226,18 +283,16 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     return false;
   };
 
-  // 检查是否包含 ABCCBA 模式
   const hasABCCBA = (str: string): boolean => {
-    if (str.length < 6) return false; // ABCCBA 至少需要6个字符
+    if (str.length < 6) return false;
     for (let i = 0; i <= str.length - 6; i++) {
-      const char0 = str[i]; // A
-      const char1 = str[i + 1]; // B
-      const char2 = str[i + 2]; // C
-      const char3 = str[i + 3]; // C
-      const char4 = str[i + 4]; // B
-      const char5 = str[i + 5]; // A
+      const char0 = str[i];
+      const char1 = str[i + 1];
+      const char2 = str[i + 2];
+      const char3 = str[i + 3];
+      const char4 = str[i + 4];
+      const char5 = str[i + 5];
 
-      // 确保所有字符都是数字，并且 A==A, B==B, C==C (中间两位)
       if (
         /^\d$/.test(char0) &&
         /^\d$/.test(char1) &&
@@ -245,9 +300,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         /^\d$/.test(char3) &&
         /^\d$/.test(char4) &&
         /^\d$/.test(char5) &&
-        char0 === char5 && // 第一个和第六个字符相同
-        char1 === char4 && // 第二个和第五个字符相同
-        char2 === char3 // 第三个和第四个字符相同
+        char0 === char5 &&
+        char1 === char4 &&
+        char2 === char3
       ) {
         return true;
       }
@@ -255,18 +310,16 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     return false;
   };
 
-  // 检查是否包含 ABCCAB 模式
   const hasABCCAB = (str: string): boolean => {
-    if (str.length < 6) return false; // ABCCAB 至少需要6个字符
+    if (str.length < 6) return false;
     for (let i = 0; i <= str.length - 6; i++) {
-      const char0 = str[i]; // A
-      const char1 = str[i + 1]; // B
-      const char2 = str[i + 2]; // C
-      const char3 = str[i + 3]; // C
-      const char4 = str[i + 4]; // A
-      const char5 = str[i + 5]; // B
+      const char0 = str[i];
+      const char1 = str[i + 1];
+      const char2 = str[i + 2];
+      const char3 = str[i + 3];
+      const char4 = str[i + 4];
+      const char5 = str[i + 5];
 
-      // 确保所有字符都是数字，并且 A==A, B==B, C==C (中间两位)
       if (
         /^\d$/.test(char0) &&
         /^\d$/.test(char1) &&
@@ -274,9 +327,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         /^\d$/.test(char3) &&
         /^\d$/.test(char4) &&
         /^\d$/.test(char5) &&
-        char0 === char4 && // 第一个和第五个字符相同
-        char1 === char5 && // 第二个和第六个字符相同
-        char2 === char3 // 第三个和第四个字符相同
+        char0 === char4 &&
+        char1 === char5 &&
+        char2 === char3
       ) {
         return true;
       }
@@ -334,7 +387,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             case "AA":
               if (!hasAA(current)) return;
               break;
-            case "AAA": // 新增过滤器应用
+            case "AAA": // 过滤器应用
               if (!hasAAA(current)) return;
               break;
             case "useAABB":
@@ -355,8 +408,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             case "useABCCAB":
               if (!hasABCCAB(current)) return;
               break;
-            case "ABBBA": // 新增过滤器应用
+            case "ABBBA": // 过滤器应用
               if (!hasABBBA(current)) return;
+              break;
+            case "ABCABC": // 过滤器应用
+              if (!hasABCABC(current)) return;
+              break;
+            case "ABBBBA": // 过滤器应用
+              if (!hasABBBBA(current)) return;
               break;
             case "ABCDEE":
               if (!hasABCDEE(current)) return;
@@ -509,10 +568,15 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           }
           const finalResult = Array.isArray(result) ? result : [result];
 
-          setBatchResults((prevResults) => [...prevResults, ...finalResult]);
+          // 只有在没有停止的情况下才更新结果，避免停止后仍有结果写入
+          if (!isStopped) {
+            setBatchResults((prevResults) => [...prevResults, ...finalResult]);
+          }
         } catch (error) {
           console.error(`查询 ${domain} 出错`, error);
-          // setBatchResults(prevResults => [...prevResults, { domain, error: String(error), isRegistered: false }]);
+          if (!isStopped) { // 只有在没有停止的情况下才记录错误结果
+            // setBatchResults(prevResults => [...prevResults, { domain, error: String(error), isRegistered: false }]);
+          }
         }
         completedCount++;
         // 确保进度条更新是基于总域名数
@@ -540,17 +604,17 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       }
     }
 
-    // 等待所有查询线程完成，或等待停止信号
-    // 使用 Promise.allSettled 确保所有 Promise 都处理完毕（无论成功或失败），
-    // 这样可以避免 Promise.all 在某个 Promise 拒绝时立即中断。
-    // 但是，为了停止逻辑的响应性，我们仍然依赖 isStopped 标志在循环内部中断。
+    // 等待所有查询线程完成，无论成功或失败（包括因 isStopped 中断的）
     await Promise.allSettled(threadPromises);
 
-    setLoading(false);
-    // setIsStopped(false); // 不在这里重置，因为 isStopped 是控制中断的开关，它在查询结束后自然会变为false
+    setLoading(false); // 查询结束后解除加载状态
+    // isStopped 标志在 handleStopQuery 中设置，在 handleBatchQuery 结束时不用特意重置，
+    // 因为下一次点击开始查询时，它会被重置为 false。
 
     // 根据最终进度判断查询结果
-    if (completedCount === totalDomains) { // 确认所有域名都已处理
+    // 这里的 completedCount 是所有线程累加的，即使中断也会增加。
+    // 所以判断是否 "全部完成" 更精确的方式是检查 `completedCount` 是否等于 `totalDomains` 并且 `isStopped` 为 `false`
+    if (!isStopped && completedCount === totalDomains) {
       addToast({
         title: "查询结果",
         description: "批量查询已全部完成！",
@@ -562,7 +626,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         description: "批量查询已中止。",
         color: "default", // 使用 Default 类型
       });
-    } else { // 可能是部分完成（例如，因为某些错误提前中断，但未被isStopped捕获）
+    } else { // 可能是部分完成（例如，因为某些错误提前中断，但未被isStopped捕获导致并非全部完成）
       addToast({
         title: "查询结果",
         description: "批量查询已部分完成。",
@@ -579,9 +643,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       description: "查询已请求停止，正在中止中...",
       color: "default", // 使用 Default 类型
     });
-    // 注意：setLoading(false) 和 setProgress(0) 不应立即在此处调用，
-    // 而应在所有查询线程实际停止（即 Promise.allSettled 完成）后在 handleBatchQuery 中调用，
-    // 否则UI可能会过早地恢复交互，但后台查询还在进行中。
+    // 不在此处直接设置 setLoading(false) 或 setProgress(0)，
+    // 因为停止是一个异步过程，这些UI状态的更新应在 handleBatchQuery 的最终完成处。
   };
 
   /** 渲染预览域名列表中的每一行 */
