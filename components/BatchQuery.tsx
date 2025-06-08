@@ -42,6 +42,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     useConsecutive: boolean;
     useAABB: boolean;
     useAABBCC: boolean;
+    useABA: boolean;
+    useABCBA: boolean; // 新增 ABCBA 选项
     threadCount: number; // 查询线程数
     domainFilters: string[]; // 域名过滤条件
   }>({
@@ -49,6 +51,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     useConsecutive: false,
     useAABB: false,
     useAABBCC: false,
+    useABA: false,
+    useABCBA: false, // 初始值
     threadCount: 1,
     domainFilters: [],
   });
@@ -69,6 +73,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     { key: "useConsecutive", label: "顺子" },
     { key: "useAABB", label: "AABB" },
     { key: "useAABBCC", label: "AABBCC" },
+    { key: "useABA", label: "ABA" },
+    { key: "useABCBA", label: "ABCBA" }, // 新增 ABCBA 选项
   ];
 
   /**
@@ -85,7 +91,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     [batchConfig.positions],
   );
 
-  // 以下是各种域名数字组合的辅助函数（顺子、AA、AABB、AABBCC、ABCDEE）
+  // 以下是各种域名数字组合的辅助函数（顺子、AA、AABB、AABBCC、ABA、ABCBA、ABCDEE）
   const hasConsecutiveNumbers = (str: string): boolean => {
     if (str.length < 3) return false;
     for (let i = 0; i <= str.length - 3; i++) {
@@ -93,7 +99,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       const num2 = parseInt(str[i + 1]);
       const num3 = parseInt(str[i + 2]);
 
-      if (num2 === (num1 + 1) % 10 && num3 === (num2 + 1) % 10) {
+      // 检查是否是连续数字，考虑0-9的循环（例如901）
+      if (
+        !isNaN(num1) &&
+        !isNaN(num2) &&
+        !isNaN(num3) &&
+        num2 === (num1 + 1) % 10 &&
+        num3 === (num2 + 1) % 10
+      ) {
         return true;
       }
     }
@@ -132,6 +145,48 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         return true;
     }
 
+    return false;
+  };
+
+  // 检查是否包含 ABA 模式
+  const hasABA = (str: string): boolean => {
+    if (str.length < 3) return false;
+    for (let i = 0; i <= str.length - 3; i++) {
+      // 检查 'A' 和 'B' 是否是数字，并且第一个和第三个字符相同
+      if (
+        str[i] === str[i + 2] &&
+        /^\d$/.test(str[i]) &&
+        /^\d$/.test(str[i + 1])
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 新增 hasABCBA 辅助函数
+  const hasABCBA = (str: string): boolean => {
+    if (str.length < 5) return false; // ABCBA 至少需要5个字符
+    for (let i = 0; i <= str.length - 5; i++) {
+      const char0 = str[i]; // A
+      const char1 = str[i + 1]; // B
+      const char2 = str[i + 2]; // C
+      const char3 = str[i + 3]; // B
+      const char4 = str[i + 4]; // A
+
+      // 确保所有字符都是数字，并且 A==A, B==B
+      if (
+        /^\d$/.test(char0) &&
+        /^\d$/.test(char1) &&
+        /^\d$/.test(char2) &&
+        /^\d$/.test(char3) &&
+        /^\d$/.test(char4) &&
+        char0 === char4 && // 第一个和第五个字符相同
+        char1 === char3 // 第二个和第四个字符相同
+      ) {
+        return true;
+      }
+    }
     return false;
   };
 
@@ -187,7 +242,16 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           if (domainFilters.includes("useAABB") && !hasAABB(current)) return;
           if (domainFilters.includes("useAABBCC") && !hasAABBCC(current))
             return;
+          if (domainFilters.includes("useABA") && !hasABA(current)) return;
+          if (domainFilters.includes("useABCBA") && !hasABCBA(current))
+            // 新增 ABCBA 过滤器
+            return;
           if (domainFilters.includes("ABCDEE") && !hasABCDEE(current)) return;
+        }
+        // 对生成的域名标签部分进行校验
+        if (!isValidDomainPart(current)) {
+          // 如果生成的主域名部分不合法，则不添加到列表中
+          return;
         }
         domains.push(`${current}.${suffix}`);
 
@@ -298,10 +362,11 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
     const domains = previewDomains;
     const totalDomains = domains.length;
+    // 线程数限制在 1 到 10，并且是整数
     const threadCount = Math.min(
       Math.max(1, Math.floor(batchConfig.threadCount)),
       10,
-    ); // 线程数限制在 1 到 10
+    );
     let completedCount = 0;
 
     // 并发查询函数，处理域名分块
@@ -325,9 +390,11 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         } catch (error) {
           console.error(`查询 ${domain} 出错`, error);
           // 记录查询错误，即使出错也显示在结果中
+          // 可以选择在这里添加一个表示错误的WhoisResponse对象
           // setBatchResults(prevResults => [...prevResults, { domain, error: String(error), isRegistered: false }]);
         }
         completedCount++;
+        // 确保进度条更新是基于总域名数
         setProgress((completedCount / totalDomains) * 100); // 更新进度
       }
     };
@@ -335,33 +402,49 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     // 创建并等待所有线程完成
     const threadPromises = [];
     let startIndex = 0;
-    const domainsPerThread = Math.floor(totalDomains / threadCount);
-    const remainingDomains = totalDomains % threadCount;
+    // 计算每个线程处理的域名数量，确保均匀分配
+    const baseDomainsPerThread = Math.floor(totalDomains / threadCount);
+    let remainder = totalDomains % threadCount;
 
     for (let i = 0; i < threadCount; i++) {
-      const endIndex =
-        startIndex + domainsPerThread + (i < remainingDomains ? 1 : 0);
+      let currentThreadDomains = baseDomainsPerThread;
+      if (remainder > 0) {
+        currentThreadDomains++;
+        remainder--;
+      }
+      const endIndex = startIndex + currentThreadDomains;
 
-      threadPromises.push(queryInChunks(startIndex, endIndex));
-      startIndex = endIndex;
+      if (startIndex < totalDomains) {
+        // 避免创建空线程
+        threadPromises.push(queryInChunks(startIndex, endIndex));
+        startIndex = endIndex;
+      }
     }
 
     await Promise.all(threadPromises); // 等待所有查询线程完成
     setLoading(false);
-    setIsStopped(false);
+    setIsStopped(false); // 重置停止标志
 
     // 根据最终进度判断查询结果
-    if (progress >= 99.9) {
-      // 浮点数比较，用近似值判断是否完全完成
+    if (completedCount === totalDomains) {
+      // 确认所有域名都已处理
       addToast({
         title: "查询结果",
-        description: "批量查询已完成！",
+        description: "批量查询已全部完成！",
         color: "success", // 使用 Success 类型
       });
+    } else if (isStopped) {
+      // 如果是用户主动停止
+      addToast({
+        title: "操作提示",
+        description: "批量查询已中止。",
+        color: "default", // 使用 Default 类型
+      });
     } else {
+      // 可能是部分完成（例如，因为某些错误提前中断）
       addToast({
         title: "查询结果",
-        description: "批量查询已停止或部分完成。",
+        description: "批量查询已部分完成。",
         color: "default", // 使用 Default 类型
       });
     }
@@ -371,8 +454,8 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   const handleStopQuery = () => {
     setIsStopped(true); // 设置停止标志
     // 立即更新 UI 状态，给用户反馈
-    setLoading(false);
-    setProgress(0); // 清空进度条
+    // setLoading(false); // 这一行应该在所有线程实际停止后执行
+    // setProgress(0); // 这一行也应该在所有线程实际停止后执行
     addToast({
       title: "操作提示",
       description: "查询已请求停止，正在中止中...",
@@ -669,7 +752,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{result.domain}</span>
                       <span className="px-2 py-1 text-sm rounded text-red-200">
-                        {result.error ? result.error : "已被注册"}
+                        {result.error
+                          ? `查询失败: ${result.error}`
+                          : "已被注册"}
                       </span>
                     </div>
                   </div>
