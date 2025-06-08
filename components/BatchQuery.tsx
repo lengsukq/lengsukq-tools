@@ -39,22 +39,18 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   // 批量查询配置状态
   const [batchConfig, setBatchConfig] = useState<{
     positions: PositionConfig[]; // 域名生成位置配置
-    useConsecutive: boolean;
-    useAABB: boolean;
-    useAABBCC: boolean;
-    useABA: boolean;
-    useABCBA: boolean; // 新增 ABCBA 选项
+    // 以下布尔值字段将不再直接使用，因为改为单选过滤器
+    // useConsecutive: boolean;
+    // useAABB: boolean;
+    // useAABBCC: boolean;
+    // useABA: boolean;
+    // useABCBA: boolean;
     threadCount: number; // 查询线程数
-    domainFilters: string[]; // 域名过滤条件
+    domainFilter: string | null; // 域名过滤条件，改为单选，存储 key 或 null
   }>({
     positions: [{ type: "number" }],
-    useConsecutive: false,
-    useAABB: false,
-    useAABBCC: false,
-    useABA: false,
-    useABCBA: false, // 初始值
     threadCount: 1,
-    domainFilters: [],
+    domainFilter: null, // 初始值为空
   });
   const [previewDomains, setPreviewDomains] = useState<string[]>([]); // 预览生成的域名列表
   const [loading, setLoading] = useState(false); // 查询加载状态
@@ -67,14 +63,18 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
   const rowHeight = 24;
   const maxListHeight = 160;
 
+  // 所有的域名过滤选项
   const domainFilterOptions = [
+    { key: "none", label: "无" }, // 新增一个“无”选项，表示不应用任何过滤器
     { key: "AA", label: "AA" },
     { key: "ABCDEE", label: "ABCDEE" },
     { key: "useConsecutive", label: "顺子" },
     { key: "useAABB", label: "AABB" },
     { key: "useAABBCC", label: "AABBCC" },
     { key: "useABA", label: "ABA" },
-    { key: "useABCBA", label: "ABCBA" }, // 新增 ABCBA 选项
+    { key: "useABCBA", label: "ABCBA" },
+    { key: "useABCCBA", label: "ABCCBA" }, // 新增 ABCCBA
+    { key: "useABCCAB", label: "ABCCAB" }, // 新增 ABCCAB
   ];
 
   /**
@@ -91,7 +91,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     [batchConfig.positions],
   );
 
-  // 以下是各种域名数字组合的辅助函数（顺子、AA、AABB、AABBCC、ABA、ABCBA、ABCDEE）
+  // 以下是各种域名数字组合的辅助函数（顺子、AA、AABB、AABBCC、ABA、ABCBA、ABCCBA、ABCCAB、ABCDEE）
   const hasConsecutiveNumbers = (str: string): boolean => {
     if (str.length < 3) return false;
     for (let i = 0; i <= str.length - 3; i++) {
@@ -164,7 +164,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     return false;
   };
 
-  // 新增 hasABCBA 辅助函数
+  // 检查是否包含 ABCBA 模式
   const hasABCBA = (str: string): boolean => {
     if (str.length < 5) return false; // ABCBA 至少需要5个字符
     for (let i = 0; i <= str.length - 5; i++) {
@@ -183,6 +183,64 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         /^\d$/.test(char4) &&
         char0 === char4 && // 第一个和第五个字符相同
         char1 === char3 // 第二个和第四个字符相同
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 新增 hasABCCBA 辅助函数
+  const hasABCCBA = (str: string): boolean => {
+    if (str.length < 6) return false; // ABCCBA 至少需要6个字符
+    for (let i = 0; i <= str.length - 6; i++) {
+      const char0 = str[i]; // A
+      const char1 = str[i + 1]; // B
+      const char2 = str[i + 2]; // C
+      const char3 = str[i + 3]; // C
+      const char4 = str[i + 4]; // B
+      const char5 = str[i + 5]; // A
+
+      // 确保所有字符都是数字，并且 A==A, B==B, C==C (中间两位)
+      if (
+        /^\d$/.test(char0) &&
+        /^\d$/.test(char1) &&
+        /^\d$/.test(char2) &&
+        /^\d$/.test(char3) &&
+        /^\d$/.test(char4) &&
+        /^\d$/.test(char5) &&
+        char0 === char5 && // 第一个和第六个字符相同
+        char1 === char4 && // 第二个和第五个字符相同
+        char2 === char3 // 第三个和第四个字符相同
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 新增 hasABCCAB 辅助函数
+  const hasABCCAB = (str: string): boolean => {
+    if (str.length < 6) return false; // ABCCAB 至少需要6个字符
+    for (let i = 0; i <= str.length - 6; i++) {
+      const char0 = str[i]; // A
+      const char1 = str[i + 1]; // B
+      const char2 = str[i + 2]; // C
+      const char3 = str[i + 3]; // C
+      const char4 = str[i + 4]; // A
+      const char5 = str[i + 5]; // B
+
+      // 确保所有字符都是数字，并且 A==A, B==B, C==C (中间两位)
+      if (
+        /^\d$/.test(char0) &&
+        /^\d$/.test(char1) &&
+        /^\d$/.test(char2) &&
+        /^\d$/.test(char3) &&
+        /^\d$/.test(char4) &&
+        /^\d$/.test(char5) &&
+        char0 === char4 && // 第一个和第五个字符相同
+        char1 === char5 && // 第二个和第六个字符相同
+        char2 === char3 // 第三个和第四个字符相同
       ) {
         return true;
       }
@@ -226,27 +284,45 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
    */
   const generateDomains = useCallback(() => {
     const domains: string[] = [];
-    const { positions, domainFilters } = batchConfig;
+    const { positions, domainFilter } = batchConfig; // domainFilter 现在是单选值
 
     const generateCombinations = (current: string, index: number) => {
       // 所有位置都已处理，生成一个完整域名
       if (index === positions.length) {
-        // 如果是纯数字域名，才应用数字相关的过滤器
-        if (isAllNumbers()) {
-          if (
-            domainFilters.includes("useConsecutive") &&
-            !hasConsecutiveNumbers(current)
-          )
-            return;
-          if (domainFilters.includes("AA") && !hasAA(current)) return;
-          if (domainFilters.includes("useAABB") && !hasAABB(current)) return;
-          if (domainFilters.includes("useAABBCC") && !hasAABBCC(current))
-            return;
-          if (domainFilters.includes("useABA") && !hasABA(current)) return;
-          if (domainFilters.includes("useABCBA") && !hasABCBA(current))
-            // 新增 ABCBA 过滤器
-            return;
-          if (domainFilters.includes("ABCDEE") && !hasABCDEE(current)) return;
+        // 如果是纯数字域名，且选择了过滤器（非'none'），则应用数字相关的过滤器
+        if (isAllNumbers() && domainFilter && domainFilter !== "none") {
+          switch (domainFilter) {
+            case "useConsecutive":
+              if (!hasConsecutiveNumbers(current)) return;
+              break;
+            case "AA":
+              if (!hasAA(current)) return;
+              break;
+            case "useAABB":
+              if (!hasAABB(current)) return;
+              break;
+            case "useAABBCC":
+              if (!hasAABBCC(current)) return;
+              break;
+            case "useABA":
+              if (!hasABA(current)) return;
+              break;
+            case "useABCBA":
+              if (!hasABCBA(current)) return;
+              break;
+            case "useABCCBA": // 新增过滤器应用
+              if (!hasABCCBA(current)) return;
+              break;
+            case "useABCCAB": // 新增过滤器应用
+              if (!hasABCCAB(current)) return;
+              break;
+            case "ABCDEE":
+              if (!hasABCDEE(current)) return;
+              break;
+            default:
+              // 如果 domainFilter 是一个未知的键，不进行过滤
+              break;
+          }
         }
         // 对生成的域名标签部分进行校验
         if (!isValidDomainPart(current)) {
@@ -362,10 +438,10 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
     const domains = previewDomains;
     const totalDomains = domains.length;
-    // 线程数限制在 1 到 10，并且是整数
+    // 线程数限制在 1 到 30，并且是整数
     const threadCount = Math.min(
       Math.max(1, Math.floor(batchConfig.threadCount)),
-      10,
+      30,
     );
     let completedCount = 0;
 
@@ -390,7 +466,6 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         } catch (error) {
           console.error(`查询 ${domain} 出错`, error);
           // 记录查询错误，即使出错也显示在结果中
-          // 可以选择在这里添加一个表示错误的WhoisResponse对象
           // setBatchResults(prevResults => [...prevResults, { domain, error: String(error), isRegistered: false }]);
         }
         completedCount++;
@@ -588,7 +663,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         )}
       </div>
 
-      {/* 数字域名生成条件筛选 */}
+      {/* 数字域名生成条件筛选（改为单选） */}
       {isAllNumbers() && (
         <div className="flex items-center gap-2">
           <Select
@@ -596,18 +671,17 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             disabled={loading}
             label="生成条件"
             placeholder="请选择生成条件"
-            selectedKeys={batchConfig.domainFilters}
-            selectionMode="multiple"
+            // selectedKeys 现在是单个值或空数组
+            selectedKeys={
+              batchConfig.domainFilter ? [batchConfig.domainFilter] : []
+            }
+            // selectionMode 移除，默认为单选
             onChange={(e) => {
+              // 对于单选，e.target.value 直接就是选中的 key
               const value = e.target.value;
-
               setBatchConfig({
                 ...batchConfig,
-                domainFilters: Array.isArray(value)
-                  ? value
-                  : value
-                    ? value.split(",")
-                    : [],
+                domainFilter: value === "none" ? null : (value as string), // 如果是'none'则设为null
               });
             }}
           >
@@ -624,14 +698,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         <NumberInput
           className="w-20"
           disabled={loading}
-          maxValue={10}
+          maxValue={30}
           minValue={1}
           value={batchConfig.threadCount}
           onChange={(value) => {
-            // 确保线程数在 1 到 10 之间
+            // 确保线程数在 1 到 30 之间
             const numValue = Math.min(
               Math.max(1, Math.floor(value as number)),
-              10,
+              30,
             );
 
             setBatchConfig({ ...batchConfig, threadCount: numValue });
