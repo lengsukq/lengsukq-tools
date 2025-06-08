@@ -92,7 +92,7 @@ export function DomainChecker() {
   };
 
   return (
-      <div className="w-full max-w-xl mx-auto">
+      <div className="w-full max-w-4xl mx-auto">
         <Tabs key={queryType}>
           <Tab key="single" title="单个查询">
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
