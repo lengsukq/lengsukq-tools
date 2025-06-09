@@ -32,7 +32,7 @@ const isValidDomainPart = (part: string): boolean => {
     return false;
   }
 
-  return /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(part);
+  return /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,6}[a-zA-Z0-9])?$/.test(part);
 };
 
 export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
@@ -858,7 +858,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           className="w-20"
           disabled={loading} // 查询时禁用
           maxValue={30}
-          minValue={1}
+          minValue={5}
           step={5} // 步距为 5
           value={batchConfig.threadCount}
           onChange={(value) => {
