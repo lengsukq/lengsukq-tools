@@ -10,6 +10,11 @@ const tools = [
     href: "/domain-checker",
   },
   {
+    title: "电费计算器",
+    description: "快速简单的进行电费计算",
+    href: "/electricity-calculator",
+  },
+  {
     title: "JSON格式化",
     description: "在线JSON格式化、压缩、语法验证工具",
     href: "/json-formatter",

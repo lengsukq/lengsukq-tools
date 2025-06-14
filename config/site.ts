@@ -24,6 +24,14 @@ export const siteConfig = {
       label: "About",
       href: "/about",
     },
+    {
+      label: "Domain Checker",
+      href: "/domain-checker",
+    },
+    {
+      label: "电费计算器",
+      href: "/electricity-calculator",
+    },
   ],
   navMenuItems: [
     {
