@@ -45,13 +45,7 @@ export default function SalaryCalculatorPage() {
   const [averageMonthlySalary, setAverageMonthlySalary] = useState(0);
   
   // 公积金是否计入工资
-  const [includeHousingFund, setIncludeHousingFund] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const storedValue = localStorage.getItem('includeHousingFund');
-      return storedValue !== null ? storedValue === 'true' : false;
-    }
-    return false;
-  });
+  const [includeHousingFund, setIncludeHousingFund] = useState(false);
   
   // 生成唯一ID用于Switch组件
   const includeHousingFundSwitchId = useId();
@@ -97,6 +91,16 @@ export default function SalaryCalculatorPage() {
     setAnnualResult(annualTotal);
     setAverageMonthlySalary(annualTotal / 12);
   }, [salaryBase, pensionRate, medicalRate, unemploymentRate, housingFundRate, allowance, annualBonus, includeHousingFund, dailyWorkingHours, monthlyWorkingDays]);
+
+  useEffect(() => {
+    // 在客户端加载时从localStorage中读取保存的值
+    if (typeof window !== 'undefined') {
+      const storedIncludeHousingFund = localStorage.getItem('includeHousingFund');
+      if (storedIncludeHousingFund !== null) {
+        setIncludeHousingFund(storedIncludeHousingFund === 'true');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     calculateSalary();
