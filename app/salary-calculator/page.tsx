@@ -72,6 +72,7 @@ export default function SalaryCalculatorPage() {
     saveToStorage('allowance', allowance);
     saveToStorage('dailyWorkingHours', dailyWorkingHours);
     saveToStorage('monthlyWorkingDays', monthlyWorkingDays);
+    saveToStorage('baseRatio', baseRatio);
     saveToStorage('annualBonus', annualBonus);
     saveToStorage('annualAllowance', annualAllowance);
     saveToStorage('includeHousingFund', includeHousingFund.toString());
@@ -79,7 +80,7 @@ export default function SalaryCalculatorPage() {
 
     // 月薪计算
     const base = parseFloat(salaryBase) || 0;
-    const baseRatioValue = parseFloat(baseRatio) || 1; // 基数比例值
+    const baseRatioValue = parseFloat(baseRatio) || 1; // 基数比例值，空字符串或无效值时默认为1
     const adjustedBase = base * baseRatioValue; // 调整后的基数
     const pension = adjustedBase * parseFloat(pensionRate) || 0;
     const medical = adjustedBase * parseFloat(medicalRate) || 0;
@@ -114,7 +115,7 @@ export default function SalaryCalculatorPage() {
     
     setAnnualResult(annualTotal);
     setAverageMonthlySalary(annualTotal / 12);
-  }, [salaryBase, pensionRate, medicalRate, unemploymentRate, housingFundRate, allowance, annualBonus, annualAllowance, includeHousingFund, dailyWorkingHours, monthlyWorkingDays]);
+  }, [salaryBase, pensionRate, medicalRate, unemploymentRate, housingFundRate, allowance, annualBonus, annualAllowance, includeHousingFund, dailyWorkingHours, monthlyWorkingDays, baseRatio]);
 
   useEffect(() => {
     // 在客户端加载时从localStorage中读取保存的值
@@ -132,6 +133,11 @@ export default function SalaryCalculatorPage() {
       const storedAnnualAllowance = localStorage.getItem('annualAllowance');
       if (storedAnnualAllowance !== null) {
         setAnnualAllowance(storedAnnualAllowance);
+      }
+      
+      const storedBaseRatio = localStorage.getItem('baseRatio');
+      if (storedBaseRatio !== null) {
+        setBaseRatio(storedBaseRatio);
       }
     }
   }, []);
@@ -184,8 +190,15 @@ export default function SalaryCalculatorPage() {
                 type="number"
                 min="0"
                 max="100"
-                value={(parseFloat(baseRatio) * 100).toString()}
+                value={baseRatio === '' ? '' : (parseFloat(baseRatio) * 100).toString()}
                 onValueChange={(value) => {
+                  // 允许空字符串输入
+                  if (value === '') {
+                    setBaseRatio('');
+                    saveToStorage('baseRatio', '');
+                    return;
+                  }
+                  
                   // 限制输入范围在0-100之间
                   const numValue = parseFloat(value);
                   if (!isNaN(numValue)) {
@@ -193,10 +206,16 @@ export default function SalaryCalculatorPage() {
                     const ratioValue = (clampedValue / 100).toString();
                     setBaseRatio(ratioValue);
                     saveToStorage('baseRatio', ratioValue);
-                  } else {
+                  }
+                }}
+                onBlur={() => {
+                  // 失焦时如果为空，默认为100%
+                  if (baseRatio === '' || baseRatio === '0') {
                     setBaseRatio('1');
                     saveToStorage('baseRatio', '1');
                   }
+                  // 触发重新计算
+                  calculateSalary();
                 }}
               />
             )}
