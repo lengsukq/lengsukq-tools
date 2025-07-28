@@ -34,9 +34,12 @@ export default function SalaryCalculatorPage() {
   // 时薪计算相关状态
   const [dailyWorkingHours, setDailyWorkingHours] = useState(getStoredValue('dailyWorkingHours', '8')); // 日工作时间
   const [monthlyWorkingDays, setMonthlyWorkingDays] = useState(getStoredValue('monthlyWorkingDays', '21.75')); // 月平均工作日
+  const [baseRatio, setBaseRatio] = useState(getStoredValue('baseRatio', '1')); // 基数比例
+  const [showBaseRatio, setShowBaseRatio] = useState(false); // 是否显示基数比例输入框
   
   // 年薪计算相关状态
   const [annualBonus, setAnnualBonus] = useState(getStoredValue('annualBonus', ''));
+  const [annualAllowance, setAnnualAllowance] = useState(getStoredValue('annualAllowance', ''));
   
   // 计算结果
   const [monthlyResult, setMonthlyResult] = useState(0);
@@ -56,6 +59,8 @@ export default function SalaryCalculatorPage() {
   
   // 生成唯一ID用于Switch组件
   const includeHousingFundSwitchId = useId();
+  const baseRatioSwitchId = useId();
+  const showBaseRatioSwitchId = useId();
 
   const calculateSalary = useCallback(() => {
     // 保存当前值到localStorage
@@ -68,21 +73,25 @@ export default function SalaryCalculatorPage() {
     saveToStorage('dailyWorkingHours', dailyWorkingHours);
     saveToStorage('monthlyWorkingDays', monthlyWorkingDays);
     saveToStorage('annualBonus', annualBonus);
+    saveToStorage('annualAllowance', annualAllowance);
     saveToStorage('includeHousingFund', includeHousingFund.toString());
+    saveToStorage('showBaseRatio', showBaseRatio.toString());
 
     // 月薪计算
     const base = parseFloat(salaryBase) || 0;
-    const pension = base * parseFloat(pensionRate) || 0;
-    const medical = base * parseFloat(medicalRate) || 0;
-    const unemployment = base * parseFloat(unemploymentRate) || 0;
-    const housingFund = base * parseFloat(housingFundRate) || 0;
+    const baseRatioValue = parseFloat(baseRatio) || 1; // 基数比例值
+    const adjustedBase = base * baseRatioValue; // 调整后的基数
+    const pension = adjustedBase * parseFloat(pensionRate) || 0;
+    const medical = adjustedBase * parseFloat(medicalRate) || 0;
+    const unemployment = adjustedBase * parseFloat(unemploymentRate) || 0;
+    const housingFund = adjustedBase * parseFloat(housingFundRate) || 0;
     
     // 根据开关状态决定是否将公积金计入扣除项
     const insuranceTotal = pension + medical + unemployment + (includeHousingFund ? 0 : housingFund);
     const allowanceAmount = parseFloat(allowance) || 0;
     
     // 计算税后工资，如果公积金计入工资，则加上个人和公司缴纳的公积金
-    const monthlyTakeHome = base - insuranceTotal + allowanceAmount + (includeHousingFund ? housingFund * 2 : 0);
+    const monthlyTakeHome = adjustedBase - insuranceTotal + allowanceAmount + (includeHousingFund ? housingFund * 2 : 0);
     setMonthlyResult(monthlyTakeHome);
     
     // 保存五险一金扣除详情用于展示
@@ -100,11 +109,12 @@ export default function SalaryCalculatorPage() {
     
     // 年薪计算
     const bonus = parseFloat(annualBonus) || 0;
-    const annualTotal = monthlyTakeHome * 12 + bonus;
+    const annualAllowanceAmount = parseFloat(annualAllowance) || 0;
+    const annualTotal = monthlyTakeHome * 12 + bonus + annualAllowanceAmount;
     
     setAnnualResult(annualTotal);
     setAverageMonthlySalary(annualTotal / 12);
-  }, [salaryBase, pensionRate, medicalRate, unemploymentRate, housingFundRate, allowance, annualBonus, includeHousingFund, dailyWorkingHours, monthlyWorkingDays]);
+  }, [salaryBase, pensionRate, medicalRate, unemploymentRate, housingFundRate, allowance, annualBonus, annualAllowance, includeHousingFund, dailyWorkingHours, monthlyWorkingDays]);
 
   useEffect(() => {
     // 在客户端加载时从localStorage中读取保存的值
@@ -112,6 +122,16 @@ export default function SalaryCalculatorPage() {
       const storedIncludeHousingFund = localStorage.getItem('includeHousingFund');
       if (storedIncludeHousingFund !== null) {
         setIncludeHousingFund(storedIncludeHousingFund === 'true');
+      }
+      
+      const storedShowBaseRatio = localStorage.getItem('showBaseRatio');
+      if (storedShowBaseRatio !== null) {
+        setShowBaseRatio(storedShowBaseRatio === 'true');
+      }
+      
+      const storedAnnualAllowance = localStorage.getItem('annualAllowance');
+      if (storedAnnualAllowance !== null) {
+        setAnnualAllowance(storedAnnualAllowance);
       }
     }
   }, []);
@@ -136,6 +156,50 @@ export default function SalaryCalculatorPage() {
               value={salaryBase}
               onValueChange={setSalaryBase}
             />
+            {/* 基数比例是否展示开关 */}
+            <div className="flex items-center justify-between">
+              <label
+                className="text-sm font-medium text-gray-700"
+                htmlFor={showBaseRatioSwitchId}
+              >
+                是否使用基数比例
+              </label>
+              <Switch
+                id={showBaseRatioSwitchId}
+                isSelected={showBaseRatio}
+                onValueChange={(value) => {
+                  setShowBaseRatio(value);
+                  // 如果关闭开关，重置基数比例为100%
+                  if (!value) {
+                    setBaseRatio('1');
+                    saveToStorage('baseRatio', '1');
+                  }
+                }}
+              />
+            </div>
+            {showBaseRatio && (
+              <Input
+                label="基数比例 (%)"
+                placeholder="例如: 100"
+                type="number"
+                min="0"
+                max="100"
+                value={(parseFloat(baseRatio) * 100).toString()}
+                onValueChange={(value) => {
+                  // 限制输入范围在0-100之间
+                  const numValue = parseFloat(value);
+                  if (!isNaN(numValue)) {
+                    const clampedValue = Math.min(100, Math.max(0, numValue));
+                    const ratioValue = (clampedValue / 100).toString();
+                    setBaseRatio(ratioValue);
+                    saveToStorage('baseRatio', ratioValue);
+                  } else {
+                    setBaseRatio('1');
+                    saveToStorage('baseRatio', '1');
+                  }
+                }}
+              />
+            )}
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="养老保险比例"
@@ -254,6 +318,13 @@ export default function SalaryCalculatorPage() {
               type="number"
               value={annualBonus}
               onValueChange={setAnnualBonus}
+            />
+            <Input
+              label="年福利补贴 (元)"
+              placeholder="例如: 5000"
+              type="number"
+              value={annualAllowance}
+              onValueChange={setAnnualAllowance}
             />
             <div className="pt-2 space-y-1">
               <p className="text-lg">年薪总额: <span className="font-bold">¥{annualResult.toFixed(2)}</span></p>
