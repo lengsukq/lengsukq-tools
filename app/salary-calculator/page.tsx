@@ -44,6 +44,13 @@ export default function SalaryCalculatorPage() {
   const [annualResult, setAnnualResult] = useState(0);
   const [averageMonthlySalary, setAverageMonthlySalary] = useState(0);
   
+  // 五险一金扣除详情
+  const [pensionDeduction, setPensionDeduction] = useState(0); // 养老保险扣除
+  const [medicalDeduction, setMedicalDeduction] = useState(0); // 医疗保险扣除
+  const [unemploymentDeduction, setUnemploymentDeduction] = useState(0); // 失业保险扣除
+  const [housingFundDeduction, setHousingFundDeduction] = useState(0); // 住房公积金扣除
+  const [insuranceTotalDeduction, setInsuranceTotalDeduction] = useState(0); // 保险总扣除
+  
   // 公积金是否计入工资
   const [includeHousingFund, setIncludeHousingFund] = useState(false);
   
@@ -77,6 +84,13 @@ export default function SalaryCalculatorPage() {
     // 计算税后工资，如果公积金计入工资，则加上个人和公司缴纳的公积金
     const monthlyTakeHome = base - insuranceTotal + allowanceAmount + (includeHousingFund ? housingFund * 2 : 0);
     setMonthlyResult(monthlyTakeHome);
+    
+    // 保存五险一金扣除详情用于展示
+    setPensionDeduction(pension);
+    setMedicalDeduction(medical);
+    setUnemploymentDeduction(unemployment);
+    setHousingFundDeduction(housingFund);
+    setInsuranceTotalDeduction(insuranceTotal);
     
     // 时薪计算
     const dailyHours = parseFloat(dailyWorkingHours) || 8;
@@ -204,6 +218,31 @@ export default function SalaryCalculatorPage() {
             <div className="pt-2 space-y-1">
               <p className="text-lg">税后月薪: <span className="font-bold">¥{monthlyResult.toFixed(2)}</span></p>
               <p className="text-lg">时薪: <span className="font-bold">¥{hourlyResult.toFixed(2)}</span></p>
+            </div>
+            
+            {/* 五险一金扣除详情 */}
+            <div className="pt-4 space-y-2 border-t">
+              <h3 className="text-lg font-semibold">五险一金扣除详情</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <p>养老保险: <span className="font-medium">¥{pensionDeduction.toFixed(2)}</span></p>
+                <p>医疗保险: <span className="font-medium">¥{medicalDeduction.toFixed(2)}</span></p>
+                <p>失业保险: <span className="font-medium">¥{unemploymentDeduction.toFixed(2)}</span></p>
+                <p>住房公积金: <span className="font-medium">¥{housingFundDeduction.toFixed(2)}</span></p>
+              </div>
+              <p className="font-semibold">保险总扣除: <span className="font-bold">¥{insuranceTotalDeduction.toFixed(2)}</span></p>
+            </div>
+            
+            {/* 工资计算过程 */}
+            <div className="pt-4 space-y-2 border-t">
+              <h3 className="text-lg font-semibold">工资计算过程</h3>
+              <div className="space-y-1 text-sm">
+                <p>1. 基数: <span className="font-medium">¥{parseFloat(salaryBase || '0').toFixed(2)}</span></p>
+                <p>2. 保险扣除: <span className="font-medium">¥{insuranceTotalDeduction.toFixed(2)}</span></p>
+                <p>3. 补贴: <span className="font-medium">¥{parseFloat(allowance || '0').toFixed(2)}</span></p>
+                <p>4. 公积金调整: <span className="font-medium">{includeHousingFund ? '¥' + (housingFundDeduction * 2).toFixed(2) : '¥0.00'}</span></p>
+                <p className="font-semibold pt-2">税后月薪 = 基数 - 保险扣除 + 补贴 + 公积金调整</p>
+                <p className="font-semibold">税后月薪 = ¥{monthlyResult.toFixed(2)}</p>
+              </div>
             </div>
           </div>
           
