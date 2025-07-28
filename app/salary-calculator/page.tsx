@@ -24,22 +24,22 @@ export default function SalaryCalculatorPage() {
   };
 
   // 月薪计算相关状态
-  const [salaryBase, setSalaryBase] = useState(getStoredValue('salaryBase', '')); // 基数
-  const [pensionRate, setPensionRate] = useState(getStoredValue('pensionRate', '0.08')); // 养老保险比例
-  const [medicalRate, setMedicalRate] = useState(getStoredValue('medicalRate', '0.02')); // 医疗保险比例
-  const [unemploymentRate, setUnemploymentRate] = useState(getStoredValue('unemploymentRate', '0.005')); // 失业保险比例
-  const [housingFundRate, setHousingFundRate] = useState(getStoredValue('housingFundRate', '0.12')); // 住房公积金比例
-  const [allowance, setAllowance] = useState(getStoredValue('allowance', ''));
+  const [salaryBase, setSalaryBase] = useState(''); // 基数
+  const [pensionRate, setPensionRate] = useState('0.08'); // 养老保险比例
+  const [medicalRate, setMedicalRate] = useState('0.02'); // 医疗保险比例
+  const [unemploymentRate, setUnemploymentRate] = useState('0.005'); // 失业保险比例
+  const [housingFundRate, setHousingFundRate] = useState('0.12'); // 住房公积金比例
+  const [allowance, setAllowance] = useState('');
   
   // 时薪计算相关状态
-  const [dailyWorkingHours, setDailyWorkingHours] = useState(getStoredValue('dailyWorkingHours', '8')); // 日工作时间
-  const [monthlyWorkingDays, setMonthlyWorkingDays] = useState(getStoredValue('monthlyWorkingDays', '21.75')); // 月平均工作日
-  const [baseRatio, setBaseRatio] = useState(getStoredValue('baseRatio', '1')); // 基数比例
+  const [dailyWorkingHours, setDailyWorkingHours] = useState('8'); // 日工作时间
+  const [monthlyWorkingDays, setMonthlyWorkingDays] = useState('21.75'); // 月平均工作日
+  const [baseRatio, setBaseRatio] = useState('1'); // 基数比例
   const [showBaseRatio, setShowBaseRatio] = useState(false); // 是否显示基数比例输入框
   
   // 年薪计算相关状态
-  const [annualBonus, setAnnualBonus] = useState(getStoredValue('annualBonus', ''));
-  const [annualAllowance, setAnnualAllowance] = useState(getStoredValue('annualAllowance', ''));
+  const [annualBonus, setAnnualBonus] = useState('');
+  const [annualAllowance, setAnnualAllowance] = useState('');
   
   // 计算结果
   const [monthlyResult, setMonthlyResult] = useState(0);
@@ -130,14 +130,59 @@ export default function SalaryCalculatorPage() {
         setShowBaseRatio(storedShowBaseRatio === 'true');
       }
       
-      const storedAnnualAllowance = localStorage.getItem('annualAllowance');
-      if (storedAnnualAllowance !== null) {
-        setAnnualAllowance(storedAnnualAllowance);
+      const storedSalaryBase = localStorage.getItem('salaryBase');
+      if (storedSalaryBase !== null) {
+        setSalaryBase(storedSalaryBase);
+      }
+      
+      const storedPensionRate = localStorage.getItem('pensionRate');
+      if (storedPensionRate !== null) {
+        setPensionRate(storedPensionRate);
+      }
+      
+      const storedMedicalRate = localStorage.getItem('medicalRate');
+      if (storedMedicalRate !== null) {
+        setMedicalRate(storedMedicalRate);
+      }
+      
+      const storedUnemploymentRate = localStorage.getItem('unemploymentRate');
+      if (storedUnemploymentRate !== null) {
+        setUnemploymentRate(storedUnemploymentRate);
+      }
+      
+      const storedHousingFundRate = localStorage.getItem('housingFundRate');
+      if (storedHousingFundRate !== null) {
+        setHousingFundRate(storedHousingFundRate);
+      }
+      
+      const storedAllowance = localStorage.getItem('allowance');
+      if (storedAllowance !== null) {
+        setAllowance(storedAllowance);
+      }
+      
+      const storedDailyWorkingHours = localStorage.getItem('dailyWorkingHours');
+      if (storedDailyWorkingHours !== null) {
+        setDailyWorkingHours(storedDailyWorkingHours);
+      }
+      
+      const storedMonthlyWorkingDays = localStorage.getItem('monthlyWorkingDays');
+      if (storedMonthlyWorkingDays !== null) {
+        setMonthlyWorkingDays(storedMonthlyWorkingDays);
       }
       
       const storedBaseRatio = localStorage.getItem('baseRatio');
       if (storedBaseRatio !== null) {
         setBaseRatio(storedBaseRatio);
+      }
+      
+      const storedAnnualBonus = localStorage.getItem('annualBonus');
+      if (storedAnnualBonus !== null) {
+        setAnnualBonus(storedAnnualBonus);
+      }
+      
+      const storedAnnualAllowance = localStorage.getItem('annualAllowance');
+      if (storedAnnualAllowance !== null) {
+        setAnnualAllowance(storedAnnualAllowance);
       }
     }
   }, []);
