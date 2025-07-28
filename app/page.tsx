@@ -30,6 +30,11 @@ const tools = [
     href: "/image-compressor",
   },
   {
+    title: "工资计算器",
+    description: "计算月薪和年薪，支持五险一金和补贴计算",
+    href: "/salary-calculator",
+  },
+  {
     title: "动画展示", // 新增标题
     description: "展示一些 CSS 或 JS 动画效果", // 新增描述
     href: "/animation-showcase.html", // 新增链接，指向 HTML 文件
