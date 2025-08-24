@@ -20,9 +20,9 @@ const tools = [
     href: "/json-formatter",
   },
   {
-    title: "UUID生成器",
-    description: "生成随机的UUID (v4版本)，支持批量生成",
-    href: "/uuid-generator",
+    title: "随机数生成器",
+    description: "生成整数、浮点数、字符串、布尔值和UUID等多种类型的随机数",
+    href: "/random-number-generator",
   },
   {
     title: "图片压缩",
