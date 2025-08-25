@@ -298,8 +298,9 @@ export default function RandomNumberGenerator() {
         <CardBody className="space-y-6">
           {/* 类型选择 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">随机类型</label>
+            <label htmlFor="random-type" className="text-sm font-medium">随机类型</label>
             <Select
+              id="random-type"
               selectedKeys={[selectedType]}
               onSelectionChange={(keys) => setSelectedType(Array.from(keys)[0] as RandomType)}
             >
@@ -369,10 +370,13 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "color" && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">颜色格式</label>
+              <label htmlFor="color-format" className="text-sm font-medium">颜色格式</label>
               <Select
+                id="color-format"
+                onSelectionChange={(keys) =>
+                  setColorFormat(Array.from(keys)[0] as string)
+                }
                 selectedKeys={[colorFormat]}
-                onSelectionChange={(keys) => setColorFormat(Array.from(keys)[0] as string)}
               >
                 <SelectItem key="hex">HEX (#RRGGBB)</SelectItem>
                 <SelectItem key="rgb">RGB (r, g, b)</SelectItem>
@@ -385,15 +389,15 @@ export default function RandomNumberGenerator() {
             <div className="space-y-4">
               <Input
                 label="密码长度"
+                max="50"
+                min="4"
+                onValueChange={setPasswordLength}
                 placeholder="例如: 12"
                 type="number"
-                min="4"
-                max="50"
                 value={passwordLength}
-                onValueChange={setPasswordLength}
               />
               <div className="space-y-2">
-                <label className="text-sm font-medium">包含字符类型</label>
+                <label htmlFor="password-chars" className="text-sm font-medium">包含字符类型</label>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <input
@@ -459,10 +463,13 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "ip" && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">IP类型</label>
+              <label htmlFor="ip-type" className="text-sm font-medium">IP类型</label>
               <Select
+                id="ip-type"
+                onSelectionChange={(keys) =>
+                  setIpType(Array.from(keys)[0] as string)
+                }
                 selectedKeys={[ipType]}
-                onSelectionChange={(keys) => setIpType(Array.from(keys)[0] as string)}
               >
                 <SelectItem key="ipv4">IPv4</SelectItem>
                 <SelectItem key="ipv6">IPv6</SelectItem>
@@ -472,12 +479,17 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "username" && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">用户名风格</label>
+              <label htmlFor="username-style" className="text-sm font-medium">用户名风格</label>
               <Select
+                id="username-style"
+                onSelectionChange={(keys) =>
+                  setUsernameStyle(Array.from(keys)[0] as string)
+                }
                 selectedKeys={[usernameStyle]}
-                onSelectionChange={(keys) => setUsernameStyle(Array.from(keys)[0] as string)}
               >
-                <SelectItem key="random">形容词+名词+数字 (如: cooltiger123)</SelectItem>
+                <SelectItem key="random">
+                  形容词+名词+数字 (如: cooltiger123)
+                </SelectItem>
                 <SelectItem key="simple">随机字符串</SelectItem>
               </Select>
             </div>
@@ -485,8 +497,9 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "country" && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">输出格式</label>
+              <label htmlFor="country-format" className="text-sm font-medium">输出格式</label>
               <Select
+                id="country-format"
                 selectedKeys={[countryFormat]}
                 onSelectionChange={(keys) => setCountryFormat(Array.from(keys)[0] as string)}
               >
