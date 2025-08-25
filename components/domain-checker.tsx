@@ -99,7 +99,7 @@ export function DomainChecker() {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <Tabs key={queryType}>
+      <Tabs key={queryType} onSelectionChange={(key) => handleTabChange(key as "single" | "batch")}>
         <Tab key="single" title="单个查询">
           <form className="space-y-4 mt-4" onSubmit={handleSubmit}>
             <div className="flex gap-2">

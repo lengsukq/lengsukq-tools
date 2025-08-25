@@ -22,7 +22,7 @@ export function JsonFormatter() {
 
       setOutput(JSON.stringify(parsed, null, 2));
       setError("");
-    } catch (e) {
+    } catch {
       setError("无效的JSON格式");
       setOutput("");
     }
@@ -40,7 +40,7 @@ export function JsonFormatter() {
 
       setOutput(JSON.stringify(parsed));
       setError("");
-    } catch (e) {
+    } catch {
       setError("无效的JSON格式");
       setOutput("");
     }

@@ -6,7 +6,18 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
 
-type RandomType = "integer" | "float" | "string" | "boolean" | "uuid" | "color" | "password" | "datetime" | "ip" | "username" | "country";
+type RandomType =
+  | "integer"
+  | "float"
+  | "string"
+  | "boolean"
+  | "uuid"
+  | "color"
+  | "password"
+  | "datetime"
+  | "ip"
+  | "username"
+  | "country";
 type RandomResult = {
   value: string | number | boolean;
   type: RandomType;
@@ -16,49 +27,54 @@ export default function RandomNumberGenerator() {
   const [results, setResults] = useState<RandomResult[]>([]);
   const [count, setCount] = useState<string>("1");
   const [selectedType, setSelectedType] = useState<RandomType>("integer");
-  
+
   // 整数范围设置
   const [minInt, setMinInt] = useState<string>("1");
   const [maxInt, setMaxInt] = useState<string>("100");
-  
+
   // 浮点数范围设置
   const [minFloat, setMinFloat] = useState<string>("0");
   const [maxFloat, setMaxFloat] = useState<string>("1");
   const [decimalPlaces, setDecimalPlaces] = useState<string>("2");
-  
+
   // 字符串设置
   const [stringLength, setStringLength] = useState<string>("10");
   const [includeUppercase, setIncludeUppercase] = useState<boolean>(true);
   const [includeLowercase, setIncludeLowercase] = useState<boolean>(true);
   const [includeNumbers, setIncludeNumbers] = useState<boolean>(true);
   const [includeSymbols, setIncludeSymbols] = useState<boolean>(false);
-  
+
   // 颜色设置
   const [colorFormat, setColorFormat] = useState<string>("hex");
-  
+
   // 密码设置
   const [passwordLength, setPasswordLength] = useState<string>("12");
-  const [passwordIncludeUppercase, setPasswordIncludeUppercase] = useState<boolean>(true);
-  const [passwordIncludeLowercase, setPasswordIncludeLowercase] = useState<boolean>(true);
-  const [passwordIncludeNumbers, setPasswordIncludeNumbers] = useState<boolean>(true);
-  const [passwordIncludeSymbols, setPasswordIncludeSymbols] = useState<boolean>(true);
-  
+  const [passwordIncludeUppercase, setPasswordIncludeUppercase] =
+    useState<boolean>(true);
+  const [passwordIncludeLowercase, setPasswordIncludeLowercase] =
+    useState<boolean>(true);
+  const [passwordIncludeNumbers, setPasswordIncludeNumbers] =
+    useState<boolean>(true);
+  const [passwordIncludeSymbols, setPasswordIncludeSymbols] =
+    useState<boolean>(true);
+
   // 日期时间设置
   const [startDate, setStartDate] = useState<string>("2020-01-01");
   const [endDate, setEndDate] = useState<string>("2024-12-31");
-  
+
   // IP地址设置
   const [ipType, setIpType] = useState<string>("ipv4");
-  
+
   // 用户名设置
   const [usernameStyle, setUsernameStyle] = useState<string>("random");
-  
+
   // 国家设置
   const [countryFormat, setCountryFormat] = useState<string>("name");
 
   const generateRandomInteger = () => {
     const min = parseInt(minInt) || 1;
     const max = parseInt(maxInt) || 100;
+
     return Math.floor(Math.random() * (max - min + 1)) + min;
   };
 
@@ -67,24 +83,27 @@ export default function RandomNumberGenerator() {
     const max = parseFloat(maxFloat) || 1;
     const decimals = parseInt(decimalPlaces) || 2;
     const value = Math.random() * (max - min) + min;
+
     return parseFloat(value.toFixed(decimals));
   };
 
   const generateRandomString = () => {
     const length = parseInt(stringLength) || 10;
     let charset = "";
-    
+
     if (includeUppercase) charset += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     if (includeLowercase) charset += "abcdefghijklmnopqrstuvwxyz";
     if (includeNumbers) charset += "0123456789";
     if (includeSymbols) charset += "!@#$%^&*()_+-=[]{}|;:,.<>?";
-    
+
     if (charset === "") charset = "abcdefghijklmnopqrstuvwxyz"; // 默认只包含小写字母
-    
+
     let result = "";
+
     for (let i = 0; i < length; i++) {
       result += charset.charAt(Math.floor(Math.random() * charset.length));
     }
+
     return result;
   };
 
@@ -93,91 +112,142 @@ export default function RandomNumberGenerator() {
   };
 
   const generateRandomUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+
+        return v.toString(16);
+      },
+    );
   };
-  
+
   const generateRandomColor = () => {
     switch (colorFormat) {
       case "hex":
-        return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+        return (
+          "#" +
+          Math.floor(Math.random() * 16777215)
+            .toString(16)
+            .padStart(6, "0")
+        );
       case "rgb":
         const r = Math.floor(Math.random() * 256);
         const g = Math.floor(Math.random() * 256);
         const b = Math.floor(Math.random() * 256);
+
         return `rgb(${r}, ${g}, ${b})`;
       case "hsl":
         const h = Math.floor(Math.random() * 360);
         const s = Math.floor(Math.random() * 101);
         const l = Math.floor(Math.random() * 101);
+
         return `hsl(${h}, ${s}%, ${l}%)`;
       default:
-        return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+        return (
+          "#" +
+          Math.floor(Math.random() * 16777215)
+            .toString(16)
+            .padStart(6, "0")
+        );
     }
   };
-  
+
   const generateRandomPassword = () => {
     const length = parseInt(passwordLength) || 12;
     let charset = "";
-    
+
     if (passwordIncludeUppercase) charset += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     if (passwordIncludeLowercase) charset += "abcdefghijklmnopqrstuvwxyz";
     if (passwordIncludeNumbers) charset += "0123456789";
     if (passwordIncludeSymbols) charset += "!@#$%^&*()_+-=[]{}|;:,.<>?";
-    
+
     if (charset === "") charset = "abcdefghijklmnopqrstuvwxyz";
-    
+
     let result = "";
+
     for (let i = 0; i < length; i++) {
       result += charset.charAt(Math.floor(Math.random() * charset.length));
     }
+
     return result;
   };
-  
+
   const generateRandomDateTime = () => {
     const start = new Date(startDate).getTime();
     const end = new Date(endDate).getTime();
     const randomTime = Math.floor(Math.random() * (end - start + 1)) + start;
-    return new Date(randomTime).toISOString().split('T')[0] + ' ' + new Date(randomTime).toTimeString().split(' ')[0];
+
+    return (
+      new Date(randomTime).toISOString().split("T")[0] +
+      " " +
+      new Date(randomTime).toTimeString().split(" ")[0]
+    );
   };
-  
+
   const generateRandomIP = () => {
     if (ipType === "ipv4") {
       return `${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`;
     } else {
       // IPv6
       const segments = [];
+
       for (let i = 0; i < 8; i++) {
         segments.push(Math.floor(Math.random() * 65536).toString(16));
       }
-      return segments.join(':');
+
+      return segments.join(":");
     }
   };
-  
+
   const generateRandomUsername = () => {
-    const adjectives = ["cool", "smart", "happy", "lucky", "fast", "strong", "brave", "kind", "funny", "wise"];
-    const nouns = ["tiger", "eagle", "lion", "wolf", "bear", "fox", "hawk", "shark", "dragon", "phoenix"];
+    const adjectives = [
+      "cool",
+      "smart",
+      "happy",
+      "lucky",
+      "fast",
+      "strong",
+      "brave",
+      "kind",
+      "funny",
+      "wise",
+    ];
+    const nouns = [
+      "tiger",
+      "eagle",
+      "lion",
+      "wolf",
+      "bear",
+      "fox",
+      "hawk",
+      "shark",
+      "dragon",
+      "phoenix",
+    ];
     const numbers = Math.floor(Math.random() * 1000);
-    
+
     if (usernameStyle === "random") {
-      return adjectives[Math.floor(Math.random() * adjectives.length)] + 
-             nouns[Math.floor(Math.random() * nouns.length)] + 
-             numbers;
+      return (
+        adjectives[Math.floor(Math.random() * adjectives.length)] +
+        nouns[Math.floor(Math.random() * nouns.length)] +
+        numbers
+      );
     } else {
       // 简单随机字符串
       const length = 8 + Math.floor(Math.random() * 5);
       let result = "";
       const charset = "abcdefghijklmnopqrstuvwxyz0123456789";
+
       for (let i = 0; i < length; i++) {
         result += charset.charAt(Math.floor(Math.random() * charset.length));
       }
+
       return result;
     }
   };
-  
+
   const generateRandomCountry = () => {
     const countries = [
       { name: "中国", code: "CN", continent: "亚洲" },
@@ -189,11 +259,11 @@ export default function RandomNumberGenerator() {
       { name: "韩国", code: "KR", continent: "亚洲" },
       { name: "加拿大", code: "CA", continent: "北美洲" },
       { name: "澳大利亚", code: "AU", continent: "大洋洲" },
-      { name: "巴西", code: "BR", continent: "南美洲" }
+      { name: "巴西", code: "BR", continent: "南美洲" },
     ];
-    
+
     const country = countries[Math.floor(Math.random() * countries.length)];
-    
+
     switch (countryFormat) {
       case "name":
         return country.name;
@@ -211,10 +281,10 @@ export default function RandomNumberGenerator() {
   const generateRandomValues = () => {
     const numCount = Math.min(Math.max(parseInt(count) || 1, 1), 100); // 限制在1-100之间
     const newResults: RandomResult[] = [];
-    
+
     for (let i = 0; i < numCount; i++) {
       let value: string | number | boolean;
-      
+
       switch (selectedType) {
         case "integer":
           value = generateRandomInteger();
@@ -252,10 +322,10 @@ export default function RandomNumberGenerator() {
         default:
           value = generateRandomInteger();
       }
-      
+
       newResults.push({ value, type: selectedType });
     }
-    
+
     setResults(newResults);
   };
 
@@ -273,18 +343,30 @@ export default function RandomNumberGenerator() {
 
   const getTypeLabel = (type: RandomType) => {
     switch (type) {
-      case "integer": return "整数";
-      case "float": return "浮点数";
-      case "string": return "字符串";
-      case "boolean": return "布尔值";
-      case "uuid": return "UUID";
-      case "color": return "颜色";
-      case "password": return "密码";
-      case "datetime": return "日期时间";
-      case "ip": return "IP地址";
-      case "username": return "用户名";
-      case "country": return "国家";
-      default: return type;
+      case "integer":
+        return "整数";
+      case "float":
+        return "浮点数";
+      case "string":
+        return "字符串";
+      case "boolean":
+        return "布尔值";
+      case "uuid":
+        return "UUID";
+      case "color":
+        return "颜色";
+      case "password":
+        return "密码";
+      case "datetime":
+        return "日期时间";
+      case "ip":
+        return "IP地址";
+      case "username":
+        return "用户名";
+      case "country":
+        return "国家";
+      default:
+        return type;
     }
   };
 
@@ -298,11 +380,15 @@ export default function RandomNumberGenerator() {
         <CardBody className="space-y-6">
           {/* 类型选择 */}
           <div className="space-y-2">
-            <label htmlFor="random-type" className="text-sm font-medium">随机类型</label>
+            <label className="text-sm font-medium" htmlFor="random-type">
+              随机类型
+            </label>
             <Select
               id="random-type"
               selectedKeys={[selectedType]}
-              onSelectionChange={(keys) => setSelectedType(Array.from(keys)[0] as RandomType)}
+              onSelectionChange={(keys) =>
+                setSelectedType(Array.from(keys)[0] as RandomType)
+              }
             >
               <SelectItem key="integer">整数</SelectItem>
               <SelectItem key="float">浮点数</SelectItem>
@@ -343,25 +429,25 @@ export default function RandomNumberGenerator() {
               <Input
                 label="最小值"
                 placeholder="例如: 0"
-                type="number"
                 step="0.1"
+                type="number"
                 value={minFloat}
                 onValueChange={setMinFloat}
               />
               <Input
                 label="最大值"
                 placeholder="例如: 1"
-                type="number"
                 step="0.1"
+                type="number"
                 value={maxFloat}
                 onValueChange={setMaxFloat}
               />
               <Input
                 label="小数位数"
+                max="10"
+                min="0"
                 placeholder="例如: 2"
                 type="number"
-                min="0"
-                max="10"
                 value={decimalPlaces}
                 onValueChange={setDecimalPlaces}
               />
@@ -370,13 +456,15 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "color" && (
             <div className="space-y-2">
-              <label htmlFor="color-format" className="text-sm font-medium">颜色格式</label>
+              <label className="text-sm font-medium" htmlFor="color-format">
+                颜色格式
+              </label>
               <Select
                 id="color-format"
+                selectedKeys={[colorFormat]}
                 onSelectionChange={(keys) =>
                   setColorFormat(Array.from(keys)[0] as string)
                 }
-                selectedKeys={[colorFormat]}
               >
                 <SelectItem key="hex">HEX (#RRGGBB)</SelectItem>
                 <SelectItem key="rgb">RGB (r, g, b)</SelectItem>
@@ -391,53 +479,71 @@ export default function RandomNumberGenerator() {
                 label="密码长度"
                 max="50"
                 min="4"
-                onValueChange={setPasswordLength}
                 placeholder="例如: 12"
                 type="number"
                 value={passwordLength}
+                onValueChange={setPasswordLength}
               />
               <div className="space-y-2">
-                <label htmlFor="password-chars" className="text-sm font-medium">包含字符类型</label>
+                <label className="text-sm font-medium" htmlFor="password-chars">
+                  包含字符类型
+                </label>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <input
-                      type="checkbox"
-                      id="password-uppercase"
                       checked={passwordIncludeUppercase}
-                      onChange={(e) => setPasswordIncludeUppercase(e.target.checked)}
                       className="rounded"
+                      id="password-uppercase"
+                      type="checkbox"
+                      onChange={(e) =>
+                        setPasswordIncludeUppercase(e.target.checked)
+                      }
                     />
-                    <label htmlFor="password-uppercase" className="text-sm">大写字母</label>
+                    <label className="text-sm" htmlFor="password-uppercase">
+                      大写字母
+                    </label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
-                      type="checkbox"
-                      id="password-lowercase"
                       checked={passwordIncludeLowercase}
-                      onChange={(e) => setPasswordIncludeLowercase(e.target.checked)}
                       className="rounded"
+                      id="password-lowercase"
+                      type="checkbox"
+                      onChange={(e) =>
+                        setPasswordIncludeLowercase(e.target.checked)
+                      }
                     />
-                    <label htmlFor="password-lowercase" className="text-sm">小写字母</label>
+                    <label className="text-sm" htmlFor="password-lowercase">
+                      小写字母
+                    </label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
-                      type="checkbox"
-                      id="password-numbers"
                       checked={passwordIncludeNumbers}
-                      onChange={(e) => setPasswordIncludeNumbers(e.target.checked)}
                       className="rounded"
+                      id="password-numbers"
+                      type="checkbox"
+                      onChange={(e) =>
+                        setPasswordIncludeNumbers(e.target.checked)
+                      }
                     />
-                    <label htmlFor="password-numbers" className="text-sm">数字</label>
+                    <label className="text-sm" htmlFor="password-numbers">
+                      数字
+                    </label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
-                      type="checkbox"
-                      id="password-symbols"
                       checked={passwordIncludeSymbols}
-                      onChange={(e) => setPasswordIncludeSymbols(e.target.checked)}
                       className="rounded"
+                      id="password-symbols"
+                      type="checkbox"
+                      onChange={(e) =>
+                        setPasswordIncludeSymbols(e.target.checked)
+                      }
                     />
-                    <label htmlFor="password-symbols" className="text-sm">特殊符号</label>
+                    <label className="text-sm" htmlFor="password-symbols">
+                      特殊符号
+                    </label>
                   </div>
                 </div>
               </div>
@@ -463,13 +569,15 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "ip" && (
             <div className="space-y-2">
-              <label htmlFor="ip-type" className="text-sm font-medium">IP类型</label>
+              <label className="text-sm font-medium" htmlFor="ip-type">
+                IP类型
+              </label>
               <Select
                 id="ip-type"
+                selectedKeys={[ipType]}
                 onSelectionChange={(keys) =>
                   setIpType(Array.from(keys)[0] as string)
                 }
-                selectedKeys={[ipType]}
               >
                 <SelectItem key="ipv4">IPv4</SelectItem>
                 <SelectItem key="ipv6">IPv6</SelectItem>
@@ -479,13 +587,15 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "username" && (
             <div className="space-y-2">
-              <label htmlFor="username-style" className="text-sm font-medium">用户名风格</label>
+              <label className="text-sm font-medium" htmlFor="username-style">
+                用户名风格
+              </label>
               <Select
                 id="username-style"
+                selectedKeys={[usernameStyle]}
                 onSelectionChange={(keys) =>
                   setUsernameStyle(Array.from(keys)[0] as string)
                 }
-                selectedKeys={[usernameStyle]}
               >
                 <SelectItem key="random">
                   形容词+名词+数字 (如: cooltiger123)
@@ -497,11 +607,15 @@ export default function RandomNumberGenerator() {
 
           {selectedType === "country" && (
             <div className="space-y-2">
-              <label htmlFor="country-format" className="text-sm font-medium">输出格式</label>
+              <label className="text-sm font-medium" htmlFor="country-format">
+                输出格式
+              </label>
               <Select
                 id="country-format"
                 selectedKeys={[countryFormat]}
-                onSelectionChange={(keys) => setCountryFormat(Array.from(keys)[0] as string)}
+                onSelectionChange={(keys) =>
+                  setCountryFormat(Array.from(keys)[0] as string)
+                }
               >
                 <SelectItem key="name">国家名称</SelectItem>
                 <SelectItem key="code">国家代码</SelectItem>
@@ -515,53 +629,61 @@ export default function RandomNumberGenerator() {
             <div className="space-y-4">
               <Input
                 label="字符串长度"
+                max="100"
+                min="1"
                 placeholder="例如: 10"
                 type="number"
-                min="1"
-                max="100"
                 value={stringLength}
                 onValueChange={setStringLength}
               />
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center space-x-2">
                   <input
-                    type="checkbox"
-                    id="uppercase"
                     checked={includeUppercase}
+                    className="rounded"
+                    id="uppercase"
+                    type="checkbox"
                     onChange={(e) => setIncludeUppercase(e.target.checked)}
-                    className="rounded"
                   />
-                  <label htmlFor="uppercase" className="text-sm">包含大写字母</label>
+                  <label className="text-sm" htmlFor="uppercase">
+                    包含大写字母
+                  </label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
-                    type="checkbox"
-                    id="lowercase"
                     checked={includeLowercase}
+                    className="rounded"
+                    id="lowercase"
+                    type="checkbox"
                     onChange={(e) => setIncludeLowercase(e.target.checked)}
-                    className="rounded"
                   />
-                  <label htmlFor="lowercase" className="text-sm">包含小写字母</label>
+                  <label className="text-sm" htmlFor="lowercase">
+                    包含小写字母
+                  </label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
-                    type="checkbox"
-                    id="numbers"
                     checked={includeNumbers}
-                    onChange={(e) => setIncludeNumbers(e.target.checked)}
                     className="rounded"
+                    id="numbers"
+                    type="checkbox"
+                    onChange={(e) => setIncludeNumbers(e.target.checked)}
                   />
-                  <label htmlFor="numbers" className="text-sm">包含数字</label>
+                  <label className="text-sm" htmlFor="numbers">
+                    包含数字
+                  </label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
-                    type="checkbox"
-                    id="symbols"
                     checked={includeSymbols}
-                    onChange={(e) => setIncludeSymbols(e.target.checked)}
                     className="rounded"
+                    id="symbols"
+                    type="checkbox"
+                    onChange={(e) => setIncludeSymbols(e.target.checked)}
                   />
-                  <label htmlFor="symbols" className="text-sm">包含特殊符号</label>
+                  <label className="text-sm" htmlFor="symbols">
+                    包含特殊符号
+                  </label>
                 </div>
               </div>
             </div>
@@ -572,10 +694,10 @@ export default function RandomNumberGenerator() {
             <Input
               className="w-32"
               label="生成数量"
+              max="100"
+              min="1"
               placeholder="例如: 5"
               type="number"
-              min="1"
-              max="100"
               value={count}
               onValueChange={setCount}
             />
@@ -592,7 +714,9 @@ export default function RandomNumberGenerator() {
           {/* 结果展示 */}
           {results.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold">生成结果 ({results.length}个)</h3>
+              <h3 className="text-lg font-semibold">
+                生成结果 ({results.length}个)
+              </h3>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {results.map((result, index) => (
                   <div
@@ -604,7 +728,9 @@ export default function RandomNumberGenerator() {
                         {getTypeLabel(result.type)}
                       </span>
                       <code className="font-mono text-sm">
-                        {typeof result.value === 'boolean' ? result.value.toString() : result.value}
+                        {typeof result.value === "boolean"
+                          ? result.value.toString()
+                          : result.value}
                       </code>
                     </div>
                     <Button

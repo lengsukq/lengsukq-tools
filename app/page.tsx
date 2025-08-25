@@ -39,6 +39,11 @@ const tools = [
     description: "展示一些 CSS 或 JS 动画效果", // 新增描述
     href: "/animation-showcase.html", // 新增链接，指向 HTML 文件
   },
+  {
+    title: "Crontab计算器",
+    description: "解析crontab表达式，计算下次执行时间，生成可读的时间描述",
+    href: "/crontab-calculator",
+  },
 ];
 
 export default function Home() {
