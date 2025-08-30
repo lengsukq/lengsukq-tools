@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
+import { MobileControls } from "@/components/mobile-controls";
+import { useMobile } from "@/hooks/use-mobile";
 
 interface Position {
   x: number;
@@ -16,6 +18,7 @@ export default function SnakeGame() {
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const isMobile = useMobile();
 
   const GRID_SIZE = 20;
   const CELL_SIZE = 20;
@@ -35,6 +38,27 @@ export default function SnakeGame() {
     setScore(0);
     setGameStarted(false);
     generateFood();
+  };
+
+  const handleDirectionChange = (newDirection: string) => {
+    if (!gameStarted) {
+      setGameStarted(true);
+    }
+    
+    switch (newDirection) {
+      case "UP":
+        if (direction !== "DOWN") setDirection("UP");
+        break;
+      case "DOWN":
+        if (direction !== "UP") setDirection("DOWN");
+        break;
+      case "LEFT":
+        if (direction !== "RIGHT") setDirection("LEFT");
+        break;
+      case "RIGHT":
+        if (direction !== "LEFT") setDirection("RIGHT");
+        break;
+    }
   };
 
   const moveSnake = useCallback(() => {
@@ -135,7 +159,7 @@ export default function SnakeGame() {
           </div>
 
           <div
-            className="border-2 border-gray-300 bg-gray-100"
+            className="border-2 border-gray-600 bg-gray-900"
             style={{
               width: GRID_SIZE * CELL_SIZE,
               height: GRID_SIZE * CELL_SIZE,
@@ -185,6 +209,13 @@ export default function SnakeGame() {
             <p>使用方向键控制蛇的移动</p>
             <p>吃到红色食物可以增加分数</p>
           </div>
+
+          {isMobile && (
+            <MobileControls
+              onDirection={(direction) => handleDirectionChange(direction.toUpperCase())}
+              className="mt-4"
+            />
+          )}
         </CardBody>
       </Card>
     </section>

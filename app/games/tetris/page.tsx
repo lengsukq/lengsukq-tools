@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
+import { MobileControls } from "@/components/mobile-controls";
+import { useMobile } from "@/hooks/use-mobile";
 
 interface Position {
   x: number;
@@ -69,6 +71,7 @@ export default function TetrisGame() {
   const [score, setScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const isMobile = useMobile();
 
   const createNewPiece = useCallback((): Tetromino => {
     const pieces = Object.keys(TETROMINOS);
@@ -127,7 +130,7 @@ export default function TetrisGame() {
       const newRows = Array(linesCleared).fill(null).map(() => Array(BOARD_WIDTH).fill(0));
       setBoard([...newRows, ...newBoard]);
     }
-  }, [board]);
+  }, [board, BOARD_WIDTH]);
 
   const movePiece = useCallback((direction: 'left' | 'right' | 'down') => {
     if (!currentPiece || gameOver) return;
@@ -181,6 +184,28 @@ export default function TetrisGame() {
     setScore(0);
     setGameOver(false);
     setGameStarted(false);
+  };
+
+  const handleDirectionChange = (direction: 'up' | 'down' | 'left' | 'right') => {
+    if (!gameStarted) {
+      setGameStarted(true);
+      return;
+    }
+
+    switch (direction) {
+      case 'left':
+        movePiece('left');
+        break;
+      case 'right':
+        movePiece('right');
+        break;
+      case 'down':
+        movePiece('down');
+        break;
+      case 'up':
+        rotatePiece();
+        break;
+    }
   };
 
   useEffect(() => {
@@ -241,18 +266,18 @@ export default function TetrisGame() {
   };
 
   return (
-    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10">
+    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 bg-gray-900 min-h-screen">
       <div className="inline-block text-center justify-center mb-4">
-        <h1 className="text-3xl font-bold">俄罗斯方块</h1>
-        <p className="text-default-500 mt-2">
+        <h1 className="text-3xl font-bold text-white">俄罗斯方块</h1>
+        <p className="text-gray-300 mt-2">
           旋转和移动方块，消除完整的行
         </p>
       </div>
 
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md bg-gray-800 border-gray-700">
         <CardBody className="flex flex-col items-center gap-4">
           <div className="flex justify-between w-full">
-            <span className="text-lg font-semibold">得分: {score}</span>
+            <span className="text-lg font-semibold text-white">得分: {score}</span>
             <Button
               color="primary"
               variant="flat"
@@ -263,51 +288,58 @@ export default function TetrisGame() {
             </Button>
           </div>
 
-          <div
-            className="border-2 border-gray-300 bg-gray-100"
-            style={{
-              width: BOARD_WIDTH * 20,
-              height: BOARD_HEIGHT * 20,
-              position: "relative",
-            }}
-          >
+                     <div
+             className="border-2 border-gray-600 bg-gray-900"
+             style={{
+               width: BOARD_WIDTH * 20,
+               height: BOARD_HEIGHT * 20,
+               position: "relative",
+             }}
+           >
             {renderBoard().map((row, y) =>
               row.map((cell, x) => (
-                <div
-                  key={`${x}-${y}`}
-                  className={`absolute border border-gray-200 ${
-                    cell === 1 ? 'bg-blue-500' : 
-                    cell === 2 ? 'bg-green-500' : 'bg-white'
-                  }`}
-                  style={{
-                    width: 18,
-                    height: 18,
-                    left: x * 20 + 1,
-                    top: y * 20 + 1,
-                  }}
-                />
+                                 <div
+                   key={`${x}-${y}`}
+                   className={`absolute border border-gray-600 ${
+                     cell === 1 ? 'bg-blue-500' : 
+                     cell === 2 ? 'bg-green-500' : 'bg-gray-800'
+                   }`}
+                   style={{
+                     width: 18,
+                     height: 18,
+                     left: x * 20 + 1,
+                     top: y * 20 + 1,
+                   }}
+                 />
               ))
             )}
           </div>
 
-          {!gameStarted && (
-            <div className="text-center">
-              <p className="text-lg font-semibold mb-2">按任意方向键开始游戏</p>
-            </div>
-          )}
+                     {!gameStarted && (
+             <div className="text-center">
+               <p className="text-lg font-semibold mb-2 text-white">按任意方向键开始游戏</p>
+             </div>
+           )}
 
-          {gameOver && (
-            <div className="text-center">
-              <p className="text-xl font-bold text-red-500 mb-2">游戏结束!</p>
-              <p className="text-lg">最终得分: {score}</p>
-            </div>
-          )}
+           {gameOver && (
+             <div className="text-center">
+               <p className="text-xl font-bold text-red-500 mb-2">游戏结束!</p>
+               <p className="text-lg text-white">最终得分: {score}</p>
+             </div>
+           )}
 
-          <div className="text-sm text-gray-600 text-center">
-            <p>← → 移动方块</p>
-            <p>↓ 加速下落</p>
-            <p>↑ 旋转方块</p>
-          </div>
+           <div className="text-sm text-gray-300 text-center">
+             <p>← → 移动方块</p>
+             <p>↓ 加速下落</p>
+             <p>↑ 旋转方块</p>
+           </div>
+
+          {isMobile && (
+            <MobileControls
+              onDirection={handleDirectionChange}
+              className="mt-4"
+            />
+          )}
         </CardBody>
       </Card>
     </section>
