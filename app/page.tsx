@@ -44,6 +44,11 @@ const tools = [
     description: "解析crontab表达式，计算下次执行时间，生成可读的时间描述",
     href: "/crontab-calculator",
   },
+  {
+    title: "小游戏",
+    description: "经典游戏集合，包含贪食蛇、俄罗斯方块、2048等休闲游戏",
+    href: "/games",
+  },
 ];
 
 export default function Home() {
