@@ -6,6 +6,7 @@ import { Card, CardBody } from "@heroui/card";
 
 import { MobileControls } from "@/components/mobile-controls";
 import { useMobile } from "@/hooks/use-mobile";
+import { title, subtitle } from "@/components/primitives";
 
 const BOARD_SIZE = 4;
 
@@ -20,6 +21,7 @@ export default function Game2048() {
   const [mergedTiles, setMergedTiles] = useState<Set<string>>(new Set());
   const [scoreAnimation, setScoreAnimation] = useState<boolean>(false);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const [newTilePositions, setNewTilePositions] = useState<{row: number, col: number}[]>([]);
   const isMobile = useMobile();
 
   const addRandomTile = useCallback((boardState: number[][]) => {
@@ -39,6 +41,14 @@ export default function Game2048() {
 
       boardState[row][col] = Math.random() < 0.9 ? 2 : 4;
       setNewTiles(new Set([`${row}-${col}`]));
+      
+      // 记录新方块位置用于动画
+      setNewTilePositions([{row, col}]);
+      
+      // 清除新方块位置标记
+      setTimeout(() => {
+        setNewTilePositions([]);
+      }, 300);
     }
   }, []);
 
@@ -59,6 +69,7 @@ export default function Game2048() {
   const moveLeft = useCallback((boardState: number[][]): boolean => {
     let moved = false;
     const merged = new Set<string>();
+    let scoreIncrement = 0;
 
     for (let i = 0; i < BOARD_SIZE; i++) {
       const row = boardState[i].filter((cell) => cell !== 0);
@@ -66,6 +77,7 @@ export default function Game2048() {
       for (let j = 0; j < row.length - 1; j++) {
         if (row[j] === row[j + 1]) {
           row[j] *= 2;
+          scoreIncrement += row[j];
           row.splice(j + 1, 1);
           merged.add(`${i}-${j}`);
           moved = true;
@@ -83,12 +95,22 @@ export default function Game2048() {
       setMergedTiles(merged);
     }
 
+    // 更新分数并添加动画
+    if (scoreIncrement > 0) {
+      setScore(prev => {
+        setScoreAnimation(true);
+        setTimeout(() => setScoreAnimation(false), 300);
+        return prev + scoreIncrement;
+      });
+    }
+
     return moved;
   }, []);
 
   const moveRight = useCallback((boardState: number[][]): boolean => {
     let moved = false;
     const merged = new Set<string>();
+    let scoreIncrement = 0;
 
     for (let i = 0; i < BOARD_SIZE; i++) {
       const row = boardState[i].filter((cell) => cell !== 0);
@@ -96,6 +118,7 @@ export default function Game2048() {
       for (let j = row.length - 1; j > 0; j--) {
         if (row[j] === row[j - 1]) {
           row[j] *= 2;
+          scoreIncrement += row[j];
           row.splice(j - 1, 1);
           const actualCol = BOARD_SIZE - row.length + j;
 
@@ -117,12 +140,22 @@ export default function Game2048() {
       setMergedTiles(merged);
     }
 
+    // 更新分数并添加动画
+    if (scoreIncrement > 0) {
+      setScore(prev => {
+        setScoreAnimation(true);
+        setTimeout(() => setScoreAnimation(false), 300);
+        return prev + scoreIncrement;
+      });
+    }
+
     return moved;
   }, []);
 
   const moveUp = useCallback((boardState: number[][]): boolean => {
     let moved = false;
     const merged = new Set<string>();
+    let scoreIncrement = 0;
 
     for (let j = 0; j < BOARD_SIZE; j++) {
       const column = [];
@@ -135,6 +168,7 @@ export default function Game2048() {
       for (let i = 0; i < column.length - 1; i++) {
         if (column[i] === column[i + 1]) {
           column[i] *= 2;
+          scoreIncrement += column[i];
           column.splice(i + 1, 1);
           merged.add(`${i}-${j}`);
           moved = true;
@@ -156,12 +190,22 @@ export default function Game2048() {
       setMergedTiles(merged);
     }
 
+    // 更新分数并添加动画
+    if (scoreIncrement > 0) {
+      setScore(prev => {
+        setScoreAnimation(true);
+        setTimeout(() => setScoreAnimation(false), 300);
+        return prev + scoreIncrement;
+      });
+    }
+
     return moved;
   }, []);
 
   const moveDown = useCallback((boardState: number[][]): boolean => {
     let moved = false;
     const merged = new Set<string>();
+    let scoreIncrement = 0;
 
     for (let j = 0; j < BOARD_SIZE; j++) {
       const column = [];
@@ -174,6 +218,7 @@ export default function Game2048() {
       for (let i = column.length - 1; i > 0; i--) {
         if (column[i] === column[i - 1]) {
           column[i] *= 2;
+          scoreIncrement += column[i];
           column.splice(i - 1, 1);
           const actualRow = BOARD_SIZE - column.length + i;
 
@@ -195,6 +240,15 @@ export default function Game2048() {
 
     if (merged.size > 0) {
       setMergedTiles(merged);
+    }
+
+    // 更新分数并添加动画
+    if (scoreIncrement > 0) {
+      setScore(prev => {
+        setScoreAnimation(true);
+        setTimeout(() => setScoreAnimation(false), 300);
+        return prev + scoreIncrement;
+      });
     }
 
     return moved;
@@ -411,20 +465,23 @@ export default function Game2048() {
   };
 
   return (
-    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 bg-gray-900 min-h-screen">
+    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 px-4">
       <style>{`
-        @keyframes slideIn {
-          from {
+        @keyframes tileAppear {
+          0% {
             transform: scale(0);
             opacity: 0;
           }
-          to {
+          50% {
+            transform: scale(1.1);
+          }
+          100% {
             transform: scale(1);
             opacity: 1;
           }
         }
         
-        @keyframes merge {
+        @keyframes tileMerge {
           0% {
             transform: scale(1);
           }
@@ -450,8 +507,8 @@ export default function Game2048() {
             transform: scale(1);
           }
           50% {
-            transform: scale(1.1);
-            color: #10b981;
+            transform: scale(1.2);
+            color: #fbbf24;
           }
           100% {
             transform: scale(1);
@@ -469,12 +526,59 @@ export default function Game2048() {
           }
         }
         
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        @keyframes slideLeft {
+          from {
+            transform: translateX(20px);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+        
+        @keyframes slideRight {
+          from {
+            transform: translateX(-20px);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+        
+        @keyframes slideUp {
+          from {
+            transform: translateY(20px);
+          }
+          to {
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slideDown {
+          from {
+            transform: translateY(-20px);
+          }
+          to {
+            transform: translateY(0);
+          }
+        }
+        
         .tile-new {
-          animation: slideIn 0.3s ease-out;
+          animation: tileAppear 0.3s ease-out;
         }
         
         .tile-merged {
-          animation: merge 0.3s ease-out;
+          animation: tileMerge 0.3s ease-out;
         }
         
         .tile-slide {
@@ -488,97 +592,152 @@ export default function Game2048() {
         .game-board {
           animation: fadeIn 0.5s ease-out;
         }
+        
+        .tile-appear {
+          animation: tileAppear 0.3s ease-out;
+        }
+        
+        .tile-merge {
+          animation: tileMerge 0.3s ease-out;
+        }
+        
+        .fade-in {
+          animation: fadeIn 0.5s ease-out;
+        }
+        
+        .slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+        
+        .slide-left {
+          animation: slideLeft 0.15s ease-out;
+        }
+        
+        .slide-right {
+          animation: slideRight 0.15s ease-out;
+        }
+        
+        .slide-up {
+          animation: slideUp 0.15s ease-out;
+        }
+        
+        .slide-down {
+          animation: slideDown 0.15s ease-out;
+        }
+        
+        .tile {
+          transition: all 0.15s ease-out;
+        }
       `}</style>
-      <div className="inline-block text-center justify-center mb-4">
-        <h1 className="text-3xl font-bold text-white">2048</h1>
-        <p className="text-gray-300 mt-2">
-          数字益智游戏，通过滑动合并相同数字，达到2048获得胜利
-        </p>
-      </div>
-
-      <Card className="w-full max-w-md bg-gray-800 border-gray-700">
-        <CardBody className="flex flex-col items-center gap-4">
-          <div className="flex justify-between w-full">
-            <div className="text-center">
-              <p className="text-sm text-gray-300">得分</p>
-              <p
-                className={`text-lg font-semibold text-white ${scoreAnimation ? "score-update" : ""}`}
-              >
-                {score}
-              </p>
+      <div className="w-full max-w-md">
+        <div className="text-center mb-6 fade-in">
+              <h1 className={title({ size: "lg", fullWidth: true })}>2048</h1>
+              <div className={subtitle({ class: "mt-2" })}>
+                数字益智游戏，通过滑动合并相同数字，达到2048获得胜利
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-300">最高分</p>
-              <p className="text-lg font-semibold text-white">{bestScore}</p>
-            </div>
-            <Button
-              color="primary"
-              size="sm"
-              variant="flat"
-              onPress={resetGame}
-            >
-              重新开始
-            </Button>
-          </div>
 
-          <div
-            className={`grid grid-cols-4 gap-2 p-4 bg-gray-700 rounded-lg touch-none select-none ${gameStarted ? "game-board" : ""}`}
-            style={{ width: 352, height: 352 }}
-            onTouchEnd={handleTouchEnd}
-            onTouchStart={handleTouchStart}
-          >
-            {board.map((row, i) =>
-              row.map((cell, j) => {
-                const tileKey = `${i}-${j}`;
-                const isNew = newTiles.has(tileKey);
-                const isMerged = mergedTiles.has(tileKey);
-
-                return (
-                  <div
-                    key={tileKey}
-                    className={`w-16 h-16 flex items-center justify-center text-xl font-bold rounded-lg border-2 transition-all duration-300 ${
-                      cell === 0
-                        ? "bg-gray-700 border-gray-600"
-                        : `${getTileColor(cell)} border-gray-500 text-white`
-                    } ${isNew ? "tile-new" : ""} ${
-                      isMerged ? "tile-merged" : ""
-                    }`}
+        <Card className="w-full bg-gray-800 border-gray-700 shadow-xl slide-in">
+          <CardBody className="flex flex-col items-center gap-6 p-6">
+            <div className="flex justify-between w-full items-center">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M12 8v8m-4-4h8"/>
+                  </svg>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-300">得分</p>
+                  <p
+                    className={`text-lg font-semibold text-white ${scoreAnimation ? "score-update" : ""}`}
                   >
-                    {cell !== 0 ? cell : ""}
-                  </div>
-                );
-              }),
+                    {score}
+                  </p>
+                </div>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-300">最高分</p>
+                <p className="text-lg font-semibold text-white">{bestScore}</p>
+              </div>
+              <Button
+                color="primary"
+                size="sm"
+                className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white font-medium transition-all duration-300 transform hover:scale-105"
+                onPress={resetGame}
+              >
+                重新开始
+              </Button>
+            </div>
+
+            <div className="relative w-full max-w-sm mx-auto">
+              <div
+                className={`grid grid-cols-4 gap-2 p-4 bg-gray-700 rounded-lg touch-none select-none shadow-lg ${gameStarted ? "game-board" : ""}`}
+                style={{ width: 352, height: 352 }}
+                onTouchEnd={handleTouchEnd}
+                onTouchStart={handleTouchStart}
+              >
+                {board.map((row, i) =>
+                  row.map((cell, j) => {
+                    const tileKey = `${i}-${j}`;
+                    const isNew = newTiles.has(tileKey);
+                    const isMerged = mergedTiles.has(tileKey);
+
+                    return (
+                      <div
+                        key={tileKey}
+                        className={`w-16 h-16 flex items-center justify-center text-xl font-bold rounded-lg border-2 tile ${
+                          cell === 0
+                            ? "bg-gray-700 border-gray-600"
+                            : `${getTileColor(cell)} border-gray-500 text-white shadow-md`
+                        } ${isNew ? "tile-appear" : ""} ${
+                          isMerged ? "tile-merge" : ""
+                        }`}
+                        style={{
+                          boxShadow: cell > 0 ? '0 4px 6px rgba(0, 0, 0, 0.3)' : 'none',
+                          zIndex: isNew || isMerged ? 10 : 1,
+                        }}
+                      >
+                        {cell !== 0 ? cell : ""}
+                      </div>
+                    );
+                  }),
+                )}
+              </div>
+            </div>
+
+            {won && !gameOver && (
+              <div className="text-center bg-green-900/30 p-4 rounded-lg w-full animate-pulse fade-in">
+                <p className="text-xl font-bold text-green-300 mb-2">恭喜获胜!</p>
+                <p className="text-lg text-green-200">你达到了2048!</p>
+              </div>
             )}
-          </div>
 
-          {won && !gameOver && (
-            <div className="text-center">
-              <p className="text-xl font-bold text-green-500 mb-2">恭喜获胜!</p>
-              <p className="text-lg text-white">你达到了2048!</p>
+            {gameOver && (
+              <div className="text-center bg-red-900/30 p-4 rounded-lg w-full animate-pulse fade-in">
+                <p className="text-xl font-bold text-red-300 mb-2">游戏结束!</p>
+                <p className="text-lg text-red-200">最终得分: {score}</p>
+              </div>
+            )}
+
+            <div className="text-sm text-gray-300 text-center bg-gray-700/50 p-3 rounded-lg w-full fade-in">
+              <p className="font-medium mb-1">游戏说明</p>
+              <p>使用方向键或触摸滑动移动方块</p>
+              <p>相同数字的方块会合并</p>
+              <p>达到2048获得胜利</p>
             </div>
-          )}
 
-          {gameOver && (
-            <div className="text-center">
-              <p className="text-xl font-bold text-red-500 mb-2">游戏结束!</p>
-              <p className="text-lg text-white">最终得分: {score}</p>
-            </div>
-          )}
-
-          <div className="text-sm text-gray-300 text-center">
-            <p>使用方向键或触摸滑动移动方块</p>
-            <p>相同数字的方块会合并</p>
-            <p>达到2048获得胜利</p>
-          </div>
-
-          {isMobile && (
-            <MobileControls
-              className="mt-4"
-              onDirection={handleDirectionChange}
-            />
-          )}
-        </CardBody>
-      </Card>
+            {isMobile && (
+              <div className="w-full mt-2 fade-in">
+                <MobileControls
+                  className="w-full"
+                  onDirection={handleDirectionChange}
+                />
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </div>
     </section>
   );
 }

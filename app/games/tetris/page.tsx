@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 
 import { MobileControls } from "@/components/mobile-controls";
 import { useMobile } from "@/hooks/use-mobile";
+import { title, subtitle } from "@/components/primitives";
 
 interface Position {
   x: number;
@@ -72,6 +73,9 @@ export default function TetrisGame() {
   const [score, setScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const [clearingLines, setClearingLines] = useState<number[]>([]);
+  const [rotating, setRotating] = useState<boolean>(false);
+  const [scoreAnimation, setScoreAnimation] = useState<boolean>(false);
   const isMobile = useMobile();
 
   const createNewPiece = useCallback((): Tetromino => {
@@ -132,16 +136,38 @@ export default function TetrisGame() {
   );
 
   const clearLines = useCallback(() => {
-    const newBoard = board.filter((row) => !row.every((cell) => cell === 1));
-    const linesCleared = board.length - newBoard.length;
+    const linesToClear: number[] = [];
+    
+    // 找出需要消除的行
+    board.forEach((row, index) => {
+      if (row.every((cell) => cell === 1)) {
+        linesToClear.push(index);
+      }
+    });
 
-    if (linesCleared > 0) {
-      setScore((prev) => prev + linesCleared * 100);
-      const newRows = Array(linesCleared)
-        .fill(null)
-        .map(() => Array(BOARD_WIDTH).fill(0));
+    if (linesToClear.length > 0) {
+      // 设置消除动画
+      setClearingLines(linesToClear);
+      
+      // 延迟执行消除逻辑，让动画有时间播放
+      setTimeout(() => {
+        const newBoard = board.filter((_, index) => !linesToClear.includes(index));
+        const linesCleared = linesToClear.length;
+        
+        setScore((prev) => {
+          const newScore = prev + linesCleared * 100;
+          setScoreAnimation(true);
+          setTimeout(() => setScoreAnimation(false), 300);
+          return newScore;
+        });
+        
+        const newRows = Array(linesCleared)
+          .fill(null)
+          .map(() => Array(BOARD_WIDTH).fill(0));
 
-      setBoard([...newRows, ...newBoard]);
+        setBoard([...newRows, ...newBoard]);
+        setClearingLines([]);
+      }, 300); // 动画持续时间
     }
   }, [board, BOARD_WIDTH]);
 
@@ -190,6 +216,8 @@ export default function TetrisGame() {
   const rotatePiece = useCallback(() => {
     if (!currentPiece || gameOver) return;
 
+    setRotating(true);
+    
     const rotatedShape = currentPiece.shape[0].map((_, index) =>
       currentPiece.shape.map((row) => row[index]).reverse(),
     );
@@ -199,6 +227,9 @@ export default function TetrisGame() {
     if (isValidMove(rotatedPiece, rotatedPiece.position)) {
       setCurrentPiece(rotatedPiece);
     }
+    
+    // 重置旋转状态，允许再次旋转
+    setTimeout(() => setRotating(false), 200);
   }, [currentPiece, gameOver, isValidMove]);
 
   const resetGame = () => {
@@ -304,87 +335,226 @@ export default function TetrisGame() {
   };
 
   return (
-    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 bg-gray-900 min-h-screen">
-      <div className="inline-block text-center justify-center mb-4">
-        <h1 className="text-3xl font-bold text-white">俄罗斯方块</h1>
-        <p className="text-gray-300 mt-2">旋转和移动方块，消除完整的行</p>
-      </div>
-
-      <Card className="w-full max-w-md bg-gray-800 border-gray-700">
-        <CardBody className="flex flex-col items-center gap-4">
-          <div className="flex justify-between w-full">
-            <span className="text-lg font-semibold text-white">
-              得分: {score}
-            </span>
-            <Button
-              color="primary"
-              size="sm"
-              variant="flat"
-              onPress={resetGame}
-            >
-              重新开始
-            </Button>
+    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 px-4">
+      <style>{`
+        @keyframes lineClear {
+          0% {
+            background-color: rgba(255, 255, 255, 0.8);
+            transform: scaleX(1);
+          }
+          50% {
+            background-color: rgba(255, 255, 255, 1);
+            transform: scaleX(1.05);
+          }
+          100% {
+            background-color: rgba(255, 255, 255, 0);
+            transform: scaleX(0);
+            opacity: 0;
+          }
+        }
+        
+        @keyframes pieceRotate {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(90deg);
+          }
+        }
+        
+        @keyframes scoreUpdate {
+          0% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.2);
+            color: #fbbf24;
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        @keyframes pieceFall {
+          0% {
+            transform: translateY(-20px);
+            opacity: 0;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        
+        .line-clear {
+          animation: lineClear 0.3s ease-out forwards;
+        }
+        
+        .piece-rotate {
+          animation: pieceRotate 0.2s ease-out;
+        }
+        
+        .score-update {
+          animation: scoreUpdate 0.3s ease-out;
+        }
+        
+        .fade-in {
+          animation: fadeIn 0.5s ease-out;
+        }
+        
+        .slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+        
+        .piece-fall {
+          animation: pieceFall 0.3s ease-out;
+        }
+        
+        .tetris-block {
+          transition: all 0.15s ease-out;
+        }
+      `}</style>
+      <div className="w-full max-w-md">
+        <div className="text-center mb-6 fade-in">
+          <h1 className={title({ size: "lg", fullWidth: true })}>俄罗斯方块</h1>
+          <div className={subtitle({ class: "mt-2" })}>
+            旋转和移动方块，消除完整的行
           </div>
+        </div>
 
-          <div
-            className="border-2 border-gray-600 bg-gray-900"
-            style={{
-              width: BOARD_WIDTH * 20,
-              height: BOARD_HEIGHT * 20,
-              position: "relative",
-            }}
-          >
-            {renderBoard().map((row, y) =>
-              row.map((cell, x) => (
-                <div
-                  key={`${x}-${y}`}
-                  className={`absolute border border-gray-600 ${
-                    cell === 1
-                      ? "bg-blue-500"
-                      : cell === 2
-                        ? "bg-green-500"
-                        : "bg-gray-800"
-                  }`}
-                  style={{
-                    width: 18,
-                    height: 18,
-                    left: x * 20 + 1,
-                    top: y * 20 + 1,
-                  }}
-                />
-              )),
+        <Card className="w-full bg-gray-800 border-gray-700 shadow-xl slide-in">
+          <CardBody className="flex flex-col items-center gap-6 p-6">
+            <div className="flex justify-between w-full items-center">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                </div>
+                <span className={`text-xl font-bold text-white ${scoreAnimation ? 'score-update' : ''}`}>得分: {score}</span>
+              </div>
+              <Button
+                color="primary"
+                size="sm"
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium transition-all duration-300 transform hover:scale-105"
+                onPress={resetGame}
+              >
+                重新开始
+              </Button>
+            </div>
+
+            <div className="relative w-full max-w-sm mx-auto">
+              <div
+                className="border-4 border-gray-700 bg-gray-900 rounded-lg overflow-hidden shadow-lg"
+                style={{
+                  width: BOARD_WIDTH * 20,
+                  height: BOARD_HEIGHT * 20,
+                  position: "relative",
+                }}
+              >
+                {/* 网格背景 */}
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 opacity-30"></div>
+                
+                {/* 消除行的动画 */}
+                {clearingLines.map((lineIndex) => (
+                  <div
+                    key={`clear-${lineIndex}`}
+                    className="absolute w-full h-5 bg-white line-clear"
+                    style={{
+                      top: lineIndex * 20,
+                      left: 0,
+                      height: 18,
+                    }}
+                  />
+                ))}
+                
+                {renderBoard().map((row, y) =>
+                  row.map((cell, x) => {
+                    const isClearing = clearingLines.includes(y);
+                    const isCurrentPiece = cell === 2;
+                    
+                    return (
+                      <div
+                        key={`${x}-${y}`}
+                        className={`absolute border border-gray-700 tetris-block ${
+                          cell === 1
+                            ? "bg-gradient-to-br from-blue-400 to-blue-600"
+                            : cell === 2
+                              ? "bg-gradient-to-br from-green-400 to-green-600"
+                              : "bg-gray-800"
+                        } ${isClearing ? 'opacity-0' : ''} ${isCurrentPiece && rotating ? 'piece-rotate' : ''} ${isCurrentPiece ? 'piece-fall' : ''}`}
+                        style={{
+                          width: 18,
+                          height: 18,
+                          left: x * 20 + 1,
+                          top: y * 20 + 1,
+                          boxShadow: cell > 0 ? '0 0 4px rgba(59, 130, 246, 0.5)' : 'none',
+                          zIndex: isCurrentPiece ? 10 : 1,
+                        }}
+                      />
+                    );
+                  }),
+                )}
+              </div>
+            </div>
+
+            {!gameStarted && (
+              <div className="text-center bg-blue-900/30 p-4 rounded-lg w-full fade-in">
+                <p className="text-lg font-semibold text-blue-300 mb-2">准备开始</p>
+                <p className="text-blue-200">按任意方向键开始游戏</p>
+              </div>
             )}
-          </div>
 
-          {!gameStarted && (
-            <div className="text-center">
-              <p className="text-lg font-semibold mb-2 text-white">
-                按任意方向键开始游戏
-              </p>
+            {gameOver && (
+              <div className="text-center bg-red-900/30 p-4 rounded-lg w-full animate-pulse fade-in">
+                <p className="text-xl font-bold text-red-300 mb-2">游戏结束!</p>
+                <p className="text-lg text-red-200">最终得分: {score}</p>
+              </div>
+            )}
+
+            <div className="text-sm text-gray-300 text-center bg-gray-700/50 p-3 rounded-lg w-full fade-in">
+              <p className="font-medium mb-1">操作说明</p>
+              <p>← → 移动方块</p>
+              <p>↓ 加速下落</p>
+              <p>↑ 旋转方块</p>
             </div>
-          )}
 
-          {gameOver && (
-            <div className="text-center">
-              <p className="text-xl font-bold text-red-500 mb-2">游戏结束!</p>
-              <p className="text-lg text-white">最终得分: {score}</p>
-            </div>
-          )}
-
-          <div className="text-sm text-gray-300 text-center">
-            <p>← → 移动方块</p>
-            <p>↓ 加速下落</p>
-            <p>↑ 旋转方块</p>
-          </div>
-
-          {isMobile && (
-            <MobileControls
-              className="mt-4"
-              onDirection={handleDirectionChange}
-            />
-          )}
-        </CardBody>
-      </Card>
+            {isMobile && (
+              <div className="w-full mt-2 fade-in">
+                <MobileControls
+                  className="w-full"
+                  onDirection={handleDirectionChange}
+                />
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </div>
     </section>
   );
 }
