@@ -699,6 +699,7 @@ export default function Game2048() {
                   height: BOARD_SIZE * CELL_SIZE + 32, // 加上内边距
                   maxWidth: '100%',
                   margin: '0 auto',
+                  gap: `${CELL_SIZE / 10}px`, // 动态调整间隙
                 }}
                 onTouchEnd={handleTouchEnd}
                 onTouchStart={handleTouchStart}
@@ -760,6 +761,7 @@ export default function Game2048() {
                 <MobileControls
                   className="w-full"
                   onDirection={handleDirectionChange}
+                  cellSize={CELL_SIZE}
                 />
               </div>
             )}

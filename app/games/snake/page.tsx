@@ -269,8 +269,8 @@ export default function SnakeGame() {
               <div
                 className="border-4 border-gray-800 dark:border-gray-600 bg-gray-900 rounded-lg overflow-hidden shadow-lg"
                 style={{
-                  width: GRID_SIZE * CELL_SIZE,
-                  height: GRID_SIZE * CELL_SIZE,
+                  width: GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * Math.max(1, Math.floor(CELL_SIZE * 0.05)),
+                  height: GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * Math.max(1, Math.floor(CELL_SIZE * 0.05)),
                   position: "relative",
                   maxWidth: '100%',
                   margin: '0 auto',
@@ -336,6 +336,7 @@ export default function SnakeGame() {
                   onDirection={(direction) =>
                     handleDirectionChange(direction.toUpperCase())
                   }
+                  cellSize={CELL_SIZE}
                 />
               </div>
             )}

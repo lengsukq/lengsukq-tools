@@ -493,8 +493,8 @@ export default function TetrisGame() {
               <div
                 className="border-4 border-gray-700 bg-gray-900 rounded-lg overflow-hidden shadow-lg"
                 style={{
-                  width: BOARD_WIDTH * CELL_SIZE,
-                  height: BOARD_HEIGHT * CELL_SIZE,
+                  width: BOARD_WIDTH * CELL_SIZE + (BOARD_WIDTH - 1) * Math.max(1, Math.floor(CELL_SIZE * 0.05)),
+                  height: BOARD_HEIGHT * CELL_SIZE + (BOARD_HEIGHT - 1) * Math.max(1, Math.floor(CELL_SIZE * 0.05)),
                   position: "relative",
                   maxWidth: '100%',
                   margin: '0 auto',
@@ -572,6 +572,7 @@ export default function TetrisGame() {
                 <MobileControls
                   className="w-full"
                   onDirection={handleDirectionChange}
+                  cellSize={CELL_SIZE}
                 />
               </div>
             )}
