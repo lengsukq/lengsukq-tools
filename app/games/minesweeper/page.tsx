@@ -289,11 +289,40 @@ export default function MinesweeperGame() {
       setGameState(GameState.PLAYING);
       startTimer();
       
-      // 延迟执行揭示操作，确保板已更新
-      setTimeout(() => {
-        revealCell(row, col);
-        setIsAnimating(false);
-      }, 10);
+      // 直接揭示点击的单元格，不使用递归调用
+      const cell = newBoard[row][col];
+      cell.state = CellState.REVEALED;
+      
+      // 如果是空单元格，递归揭示周围的单元格
+      if (cell.content === CellContent.EMPTY) {
+        const { rows, cols } = BOARD_SIZES[difficulty];
+        
+        const revealAdjacent = (r: number, c: number) => {
+          if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+          if (newBoard[r][c].state !== CellState.HIDDEN) return;
+          
+          newBoard[r][c].state = CellState.REVEALED;
+          
+          if (newBoard[r][c].content === CellContent.EMPTY) {
+            for (let dr = -1; dr <= 1; dr++) {
+              for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                revealAdjacent(r + dr, c + dc);
+              }
+            }
+          }
+        };
+        
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            revealAdjacent(row + dr, col + dc);
+          }
+        }
+      }
+      
+      setBoard(newBoard);
+      setIsAnimating(false);
       return;
     }
     
@@ -455,6 +484,13 @@ export default function MinesweeperGame() {
       }
     };
   }, [resetGame]);
+  
+  // 确保游戏板正确初始化
+  useEffect(() => {
+    if (board.length === 0) {
+      resetGame();
+    }
+  }, [board, resetGame]);
 
   // 格式化时间
   const formatTime = useCallback((seconds: number): string => {

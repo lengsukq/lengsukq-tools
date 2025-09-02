@@ -144,18 +144,29 @@ export default function Game2048() {
     const newTiles: Tile[] = [];
     const newBoard = [...gameBoard];
     
-    // 添加两个初始瓦片
-    for (let i = 0; i < 2; i++) {
-      const newTile = generateRandomTile();
-      if (newTile) {
-        newTiles.push(newTile);
-        newBoard[newTile.row][newTile.col] = newTile.value;
-      }
+    // 添加第一个初始瓦片
+    const firstTile = generateRandomTile();
+    if (firstTile) {
+      newTiles.push(firstTile);
+      newBoard[firstTile.row][firstTile.col] = firstTile.value;
+      
+      // 更新游戏板状态，确保第二个瓦片不会放在相同位置
+      setGameBoard(newBoard);
+      
+      // 添加第二个初始瓦片
+      setTimeout(() => {
+        const secondTile = generateRandomTile();
+        if (secondTile) {
+          newTiles.push(secondTile);
+          const updatedBoard = [...newBoard];
+          updatedBoard[secondTile.row][secondTile.col] = secondTile.value;
+          
+          setTiles(newTiles);
+          setGameBoard(updatedBoard);
+          setGameStarted(true);
+        }
+      }, 50);
     }
-    
-    setTiles(newTiles);
-    setGameBoard(newBoard);
-    setGameStarted(true);
   }, [gameBoard, generateRandomTile]);
 
   // 移动瓦片
@@ -451,7 +462,11 @@ export default function Game2048() {
   // 初始化游戏
   useEffect(() => {
     initializeGame();
-  }, [initializeGame]);
+    // 延迟添加初始瓦片，确保游戏板已初始化
+    setTimeout(() => {
+      addInitialTiles();
+    }, 100);
+  }, [initializeGame, addInitialTiles]);
 
   // 渲染游戏板背景
   const renderBoardBackground = () => {

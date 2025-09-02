@@ -266,7 +266,7 @@ export default function SnakeGame() {
     setNextDirection('right');
     setScore(0);
     setGameOver(false);
-    setGameStarted(true);
+    setGameStarted(false); // 初始化为未开始状态，等待用户操作
     setSpeed(INITIAL_SPEED);
     setTheme('green');
     previousDirectionRef.current = 'right';
@@ -401,6 +401,8 @@ export default function SnakeGame() {
     }
     
     initializeGame();
+    // 设置游戏状态为未开始，等待用户操作
+    setGameStarted(false);
   }, [initializeGame]);
 
   // 渲染游戏板网格
