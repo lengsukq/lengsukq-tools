@@ -141,13 +141,13 @@ export function MarkdownPreview() {
       const longUrl = currentUrl.toString();
       
       // 调用短链接API
-      const shortUrlApi = `https://api.mmp.cc/api/dwz?longurl=${encodeURIComponent(longUrl)}`;
+      const shortUrlApi = `https://api.mg-tool.cn/v1/dlj/?url=${encodeURIComponent(longUrl)}`;
       const response = await fetch(shortUrlApi);
       const data = await response.json();
       
-      if (data.status === 200 && data.shorturl) {
+      if (data.success && data.shortUrl) {
         // 使用短链接
-        setShareUrl(data.shorturl);
+        setShareUrl(data.shortUrl);
       } else {
         // 如果短链接生成失败，使用原始长链接
         console.warn("短链接生成失败，使用原始链接");
