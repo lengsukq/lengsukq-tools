@@ -141,8 +141,10 @@ export default function CronTabCalculatorPage() {
     // 解析分钟部分
     let minuteInterval = 1;
     let minuteBase = 0;
+
     if (minute.includes("/")) {
       const [base, interval] = minute.split("/");
+
       minuteInterval = parseInt(interval);
       minuteBase = base === "*" ? 0 : parseInt(base);
     } else if (minute !== "*") {
@@ -153,8 +155,10 @@ export default function CronTabCalculatorPage() {
     // 解析小时部分
     let hourInterval = 1;
     let hourBase = 0;
+
     if (hour.includes("/")) {
       const [base, interval] = hour.split("/");
+
       hourInterval = parseInt(interval);
       hourBase = base === "*" ? 0 : parseInt(base);
     } else if (hour !== "*") {
@@ -164,16 +168,18 @@ export default function CronTabCalculatorPage() {
 
     for (let i = 0; i < count; i++) {
       const nextTime = new Date(currentTime);
-      
+
       // 设置分钟
       if (minute !== "*") {
         let targetMinute = minuteBase;
+
         if (minute.includes("/")) {
           // 对于 */30 这样的表达式，找到下一个符合条件的分钟
           const currentMinute = nextTime.getMinutes();
           const minutesFromBase = (currentMinute - minuteBase + 60) % 60;
-          const minutesToNext = minuteInterval - (minutesFromBase % minuteInterval);
-          
+          const minutesToNext =
+            minuteInterval - (minutesFromBase % minuteInterval);
+
           if (minutesToNext === minuteInterval && minutesFromBase > 0) {
             targetMinute = minuteBase;
             nextTime.setHours(nextTime.getHours() + 1);
@@ -194,7 +200,7 @@ export default function CronTabCalculatorPage() {
           const currentHour = nextTime.getHours();
           const hoursFromBase = (currentHour - hourBase + 24) % 24;
           const hoursToNext = hourInterval - (hoursFromBase % hourInterval);
-          
+
           if (hoursToNext === hourInterval && hoursFromBase > 0) {
             nextTime.setHours(hourBase);
             nextTime.setDate(nextTime.getDate() + 1);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
+
 import { MobileControls } from "@/components/mobile-controls";
 import { useMobile } from "@/hooks/use-mobile";
 
@@ -28,6 +29,7 @@ export default function SnakeGame() {
       x: Math.floor(Math.random() * GRID_SIZE),
       y: Math.floor(Math.random() * GRID_SIZE),
     };
+
     setFood(newFood);
   }, []);
 
@@ -44,7 +46,7 @@ export default function SnakeGame() {
     if (!gameStarted) {
       setGameStarted(true);
     }
-    
+
     switch (newDirection) {
       case "UP":
         if (direction !== "DOWN") setDirection("UP");
@@ -84,8 +86,11 @@ export default function SnakeGame() {
       }
 
       // 检查是否撞到自己
-      if (newSnake.some((segment) => segment.x === head.x && segment.y === head.y)) {
+      if (
+        newSnake.some((segment) => segment.x === head.x && segment.y === head.y)
+      ) {
         setGameOver(true);
+
         return prevSnake;
       }
 
@@ -105,6 +110,7 @@ export default function SnakeGame() {
 
   useEffect(() => {
     const interval = setInterval(moveSnake, 150);
+
     return () => clearInterval(interval);
   }, [moveSnake]);
 
@@ -112,6 +118,7 @@ export default function SnakeGame() {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (!gameStarted) {
         setGameStarted(true);
+
         return;
       }
 
@@ -132,6 +139,7 @@ export default function SnakeGame() {
     };
 
     window.addEventListener("keydown", handleKeyPress);
+
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [direction, gameStarted]);
 
@@ -150,9 +158,9 @@ export default function SnakeGame() {
             <span className="text-lg font-semibold">得分: {score}</span>
             <Button
               color="primary"
+              size="sm"
               variant="flat"
               onPress={resetGame}
-              size="sm"
             >
               重新开始
             </Button>
@@ -212,8 +220,10 @@ export default function SnakeGame() {
 
           {isMobile && (
             <MobileControls
-              onDirection={(direction) => handleDirectionChange(direction.toUpperCase())}
               className="mt-4"
+              onDirection={(direction) =>
+                handleDirectionChange(direction.toUpperCase())
+              }
             />
           )}
         </CardBody>

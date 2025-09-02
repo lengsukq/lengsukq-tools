@@ -26,9 +26,7 @@ export default function GamesPage() {
         <span className={title()}>小&nbsp;</span>
         <span className={title({ color: "violet" })}>游戏&nbsp;</span>
         <span className={title()}>集合</span>
-        <div className={subtitle({ class: "mt-4" })}>
-          经典游戏，休闲娱乐
-        </div>
+        <div className={subtitle({ class: "mt-4" })}>经典游戏，休闲娱乐</div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-4xl">
