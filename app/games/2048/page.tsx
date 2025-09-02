@@ -22,7 +22,28 @@ export default function Game2048() {
   const [scoreAnimation, setScoreAnimation] = useState<boolean>(false);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
   const [newTilePositions, setNewTilePositions] = useState<{row: number, col: number}[]>([]);
+  const [CELL_SIZE, setCELL_SIZE] = useState(80);
   const isMobile = useMobile();
+  
+  // 根据屏幕宽度动态调整单元格大小
+  useEffect(() => {
+    const updateCellSize = () => {
+      if (isMobile) {
+        // 在移动端，根据屏幕宽度计算合适的单元格大小
+        const screenWidth = window.innerWidth;
+        const maxGameWidth = screenWidth - 64; // 减去边距
+        const newSize = Math.min(80, Math.floor(maxGameWidth / BOARD_SIZE));
+        setCELL_SIZE(newSize);
+      } else {
+        setCELL_SIZE(80);
+      }
+    };
+    
+    updateCellSize();
+    window.addEventListener('resize', updateCellSize);
+    
+    return () => window.removeEventListener('resize', updateCellSize);
+  }, [isMobile]);
 
   const addRandomTile = useCallback((boardState: number[][]) => {
     const emptyCells: [number, number][] = [];
@@ -673,7 +694,12 @@ export default function Game2048() {
             <div className="relative w-full max-w-sm mx-auto">
               <div
                 className={`grid grid-cols-4 gap-2 p-4 bg-gray-700 rounded-lg touch-none select-none shadow-lg ${gameStarted ? "game-board" : ""}`}
-                style={{ width: 352, height: 352 }}
+                style={{ 
+                  width: BOARD_SIZE * CELL_SIZE + 32, // 加上内边距
+                  height: BOARD_SIZE * CELL_SIZE + 32, // 加上内边距
+                  maxWidth: '100%',
+                  margin: '0 auto',
+                }}
                 onTouchEnd={handleTouchEnd}
                 onTouchStart={handleTouchStart}
               >
@@ -686,7 +712,7 @@ export default function Game2048() {
                     return (
                       <div
                         key={tileKey}
-                        className={`w-16 h-16 flex items-center justify-center text-xl font-bold rounded-lg border-2 tile ${
+                        className={`flex items-center justify-center text-xl font-bold rounded-lg border-2 tile ${
                           cell === 0
                             ? "bg-gray-700 border-gray-600"
                             : `${getTileColor(cell)} border-gray-500 text-white shadow-md`
@@ -694,6 +720,8 @@ export default function Game2048() {
                           isMerged ? "tile-merge" : ""
                         }`}
                         style={{
+                          width: CELL_SIZE,
+                          height: CELL_SIZE,
                           boxShadow: cell > 0 ? '0 4px 6px rgba(0, 0, 0, 0.3)' : 'none',
                           zIndex: isNew || isMerged ? 10 : 1,
                         }}
@@ -728,7 +756,7 @@ export default function Game2048() {
             </div>
 
             {isMobile && (
-              <div className="w-full mt-2 fade-in">
+              <div className="w-full mt-4 fade-in">
                 <MobileControls
                   className="w-full"
                   onDirection={handleDirectionChange}

@@ -20,10 +20,30 @@ export default function SnakeGame() {
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const [CELL_SIZE, setCELL_SIZE] = useState<number>(20);
   const isMobile = useMobile();
-
+  
   const GRID_SIZE = 20;
-  const CELL_SIZE = 20;
+  
+  // 根据屏幕宽度动态调整单元格大小
+  useEffect(() => {
+    const updateCellSize = () => {
+      if (isMobile) {
+        // 在移动端，根据屏幕宽度计算合适的单元格大小
+        const screenWidth = window.innerWidth;
+        const maxGameWidth = screenWidth - 64; // 减去边距
+        const newSize = Math.min(20, Math.floor(maxGameWidth / GRID_SIZE));
+        setCELL_SIZE(newSize);
+      } else {
+        setCELL_SIZE(20);
+      }
+    };
+    
+    updateCellSize();
+    window.addEventListener('resize', updateCellSize);
+    
+    return () => window.removeEventListener('resize', updateCellSize);
+  }, [isMobile]);
 
   const generateFood = useCallback(() => {
     const newFood = {
@@ -252,6 +272,8 @@ export default function SnakeGame() {
                   width: GRID_SIZE * CELL_SIZE,
                   height: GRID_SIZE * CELL_SIZE,
                   position: "relative",
+                  maxWidth: '100%',
+                  margin: '0 auto',
                 }}
               >
                 {/* 网格背景 */}
@@ -308,7 +330,7 @@ export default function SnakeGame() {
             </div>
 
             {isMobile && (
-              <div className="w-full mt-2 fade-in">
+              <div className="w-full mt-4 fade-in">
                 <MobileControls
                   className="w-full"
                   onDirection={(direction) =>

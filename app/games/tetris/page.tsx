@@ -77,6 +77,27 @@ export default function TetrisGame() {
   const [rotating, setRotating] = useState<boolean>(false);
   const [scoreAnimation, setScoreAnimation] = useState<boolean>(false);
   const isMobile = useMobile();
+  const [CELL_SIZE, setCELL_SIZE] = useState(20);
+  
+  // 根据屏幕宽度动态调整单元格大小
+  useEffect(() => {
+    const updateCellSize = () => {
+      if (isMobile) {
+        // 在移动端，根据屏幕宽度计算合适的单元格大小
+        const screenWidth = window.innerWidth;
+        const maxGameWidth = screenWidth - 64; // 减去边距
+        const newSize = Math.min(20, Math.floor(maxGameWidth / BOARD_WIDTH));
+        setCELL_SIZE(newSize);
+      } else {
+        setCELL_SIZE(20);
+      }
+    };
+    
+    updateCellSize();
+    window.addEventListener('resize', updateCellSize);
+    
+    return () => window.removeEventListener('resize', updateCellSize);
+  }, [isMobile]);
 
   const createNewPiece = useCallback((): Tetromino => {
     const pieces = Object.keys(TETROMINOS);
@@ -472,9 +493,11 @@ export default function TetrisGame() {
               <div
                 className="border-4 border-gray-700 bg-gray-900 rounded-lg overflow-hidden shadow-lg"
                 style={{
-                  width: BOARD_WIDTH * 20,
-                  height: BOARD_HEIGHT * 20,
+                  width: BOARD_WIDTH * CELL_SIZE,
+                  height: BOARD_HEIGHT * CELL_SIZE,
                   position: "relative",
+                  maxWidth: '100%',
+                  margin: '0 auto',
                 }}
               >
                 {/* 网格背景 */}
@@ -486,9 +509,9 @@ export default function TetrisGame() {
                     key={`clear-${lineIndex}`}
                     className="absolute w-full h-5 bg-white line-clear"
                     style={{
-                      top: lineIndex * 20,
+                      top: lineIndex * CELL_SIZE,
                       left: 0,
-                      height: 18,
+                      height: CELL_SIZE - 2,
                     }}
                   />
                 ))}
@@ -509,10 +532,10 @@ export default function TetrisGame() {
                               : "bg-gray-800"
                         } ${isClearing ? 'opacity-0' : ''} ${isCurrentPiece && rotating ? 'piece-rotate' : ''} ${isCurrentPiece ? 'piece-fall' : ''}`}
                         style={{
-                          width: 18,
-                          height: 18,
-                          left: x * 20 + 1,
-                          top: y * 20 + 1,
+                          width: CELL_SIZE - 2,
+                          height: CELL_SIZE - 2,
+                          left: x * CELL_SIZE + 1,
+                          top: y * CELL_SIZE + 1,
                           boxShadow: cell > 0 ? '0 0 4px rgba(59, 130, 246, 0.5)' : 'none',
                           zIndex: isCurrentPiece ? 10 : 1,
                         }}
@@ -545,7 +568,7 @@ export default function TetrisGame() {
             </div>
 
             {isMobile && (
-              <div className="w-full mt-2 fade-in">
+              <div className="w-full mt-4 fade-in">
                 <MobileControls
                   className="w-full"
                   onDirection={handleDirectionChange}
