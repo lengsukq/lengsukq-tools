@@ -139,6 +139,7 @@ export function MarkdownPreview() {
       currentUrl.searchParams.set("shared", encodedContent);
 
       const longUrl = currentUrl.toString();
+      console.log("生成的长URL:", longUrl);
       
       // 调用后端短链接API
       const response = await fetch('/api/short-link', {
@@ -149,14 +150,18 @@ export function MarkdownPreview() {
         body: JSON.stringify({ url: longUrl }),
       });
       
+      console.log("API响应状态:", response.status);
+      
       const data = await response.json();
+      console.log("API响应数据:", data);
       
       if (data.success && data.shortUrl) {
         // 使用短链接
+        console.log("短链接生成成功:", data.shortUrl);
         setShareUrl(data.shortUrl);
       } else {
         // 如果短链接生成失败，使用原始长链接
-        console.warn("短链接生成失败，使用原始链接");
+        console.warn("短链接生成失败，使用原始链接。响应数据:", data);
         setShareUrl(longUrl);
       }
       
