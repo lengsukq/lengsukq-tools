@@ -140,9 +140,15 @@ export function MarkdownPreview() {
 
       const longUrl = currentUrl.toString();
       
-      // 调用短链接API
-      const shortUrlApi = `https://api.mg-tool.cn/v1/dlj/?url=${encodeURIComponent(longUrl)}`;
-      const response = await fetch(shortUrlApi);
+      // 调用后端短链接API
+      const response = await fetch('/api/short-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: longUrl }),
+      });
+      
       const data = await response.json();
       
       if (data.success && data.shortUrl) {
