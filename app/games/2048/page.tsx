@@ -1,408 +1,271 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
-
-import { MobileControls } from "@/components/mobile-controls";
-import { useMobile } from "@/hooks/use-mobile";
 import { title, subtitle } from "@/components/primitives";
+import { useMobile } from "@/hooks/use-mobile";
+import { MobileControls } from "@/components/mobile-controls";
 
 const BOARD_SIZE = 4;
+const ANIMATION_DURATION = 200;
+
+interface Tile {
+  id: string;
+  value: number;
+  row: number;
+  col: number;
+  mergedFrom?: string[];
+  isNew?: boolean;
+  isMerged?: boolean;
+}
 
 export default function Game2048() {
-  const [board, setBoard] = useState<number[][]>([]);
+  const [tiles, setTiles] = useState<Tile[]>([]);
   const [score, setScore] = useState<number>(0);
   const [bestScore, setBestScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [won, setWon] = useState<boolean>(false);
-  const [animating, setAnimating] = useState<boolean>(false);
-  const [newTiles, setNewTiles] = useState<Set<string>>(new Set());
-  const [mergedTiles, setMergedTiles] = useState<Set<string>>(new Set());
-  const [scoreAnimation, setScoreAnimation] = useState<boolean>(false);
   const [gameStarted, setGameStarted] = useState<boolean>(false);
-  const [newTilePositions, setNewTilePositions] = useState<{row: number, col: number}[]>([]);
-  const [CELL_SIZE, setCELL_SIZE] = useState(80);
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
+  const [scoreAnimation, setScoreAnimation] = useState<boolean>(false);
+  const [gameBoard, setGameBoard] = useState<number[][]>([]);
+  const [cellSize, setCellSize] = useState<number>(80);
+  const [boardSize, setBoardSize] = useState<number>(320);
   const isMobile = useMobile();
-  
-  // 根据屏幕宽度动态调整单元格大小
+  const gameRef = useRef<HTMLDivElement>(null);
+
+  // 动态调整游戏板大小
   useEffect(() => {
-    const updateCellSize = () => {
+    const updateBoardSize = () => {
       if (isMobile) {
-        // 在移动端，根据屏幕宽度计算合适的单元格大小
         const screenWidth = window.innerWidth;
-        const maxGameWidth = screenWidth - 64; // 减去边距
-        const newSize = Math.min(80, Math.floor(maxGameWidth / BOARD_SIZE));
-        setCELL_SIZE(newSize);
+        const maxWidth = Math.min(screenWidth - 48, 400);
+        const newCellSize = Math.floor(maxWidth / BOARD_SIZE);
+        const newBoardSize = newCellSize * BOARD_SIZE;
+        setCellSize(newCellSize);
+        setBoardSize(newBoardSize);
       } else {
-        setCELL_SIZE(80);
+        setCellSize(80);
+        setBoardSize(320);
       }
     };
-    
-    updateCellSize();
-    window.addEventListener('resize', updateCellSize);
-    
-    return () => window.removeEventListener('resize', updateCellSize);
+
+    updateBoardSize();
+    window.addEventListener('resize', updateBoardSize);
+    return () => window.removeEventListener('resize', updateBoardSize);
   }, [isMobile]);
 
-  const addRandomTile = useCallback((boardState: number[][]) => {
+  // 生成随机瓦片
+  const generateRandomTile = useCallback((): Tile | null => {
     const emptyCells: [number, number][] = [];
-
+    
     for (let i = 0; i < BOARD_SIZE; i++) {
       for (let j = 0; j < BOARD_SIZE; j++) {
-        if (boardState[i][j] === 0) {
+        if (!tiles.some(tile => tile.row === i && tile.col === j)) {
           emptyCells.push([i, j]);
         }
       }
     }
 
-    if (emptyCells.length > 0) {
-      const [row, col] =
-        emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    if (emptyCells.length === 0) return null;
 
-      boardState[row][col] = Math.random() < 0.9 ? 2 : 4;
-      setNewTiles(new Set([`${row}-${col}`]));
-      
-      // 记录新方块位置用于动画
-      setNewTilePositions([{row, col}]);
-      
-      // 清除新方块位置标记
-      setTimeout(() => {
-        setNewTilePositions([]);
-      }, 300);
+    const [row, col] = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    const value = Math.random() < 0.9 ? 2 : 4;
+    const id = `tile-${Date.now()}-${Math.random()}`;
+
+    return {
+      id,
+      value,
+      row,
+      col,
+      isNew: true
+    };
+  }, [tiles]);
+
+  // 初始化游戏
+  const initializeGame = useCallback(() => {
+    const newTiles: Tile[] = [];
+    const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+    
+    // 生成两个初始瓦片
+    for (let i = 0; i < 2; i++) {
+      const tile = generateRandomTile();
+      if (tile) {
+        newTiles.push(tile);
+        newBoard[tile.row][tile.col] = tile.value;
+      }
     }
-  }, []);
 
-  const initializeBoard = useCallback(() => {
-    const newBoard = Array(BOARD_SIZE)
-      .fill(null)
-      .map(() => Array(BOARD_SIZE).fill(0));
-
-    addRandomTile(newBoard);
-    addRandomTile(newBoard);
-    setBoard(newBoard);
+    setTiles(newTiles);
+    setGameBoard(newBoard);
     setScore(0);
     setGameOver(false);
     setWon(false);
     setGameStarted(true);
-  }, [addRandomTile]);
+  }, [generateRandomTile]);
 
-  const moveLeft = useCallback((boardState: number[][]): boolean => {
+  // 移动瓦片
+  const moveTiles = useCallback((direction: 'up' | 'down' | 'left' | 'right') => {
+    if (isAnimating || gameOver) return;
+
+    setIsAnimating(true);
+    const newBoard = gameBoard.map(row => [...row]);
+    const newTiles: Tile[] = [];
     let moved = false;
-    const merged = new Set<string>();
     let scoreIncrement = 0;
 
-    for (let i = 0; i < BOARD_SIZE; i++) {
-      const row = boardState[i].filter((cell) => cell !== 0);
-
-      for (let j = 0; j < row.length - 1; j++) {
-        if (row[j] === row[j + 1]) {
-          row[j] *= 2;
-          scoreIncrement += row[j];
-          row.splice(j + 1, 1);
-          merged.add(`${i}-${j}`);
-          moved = true;
-        }
-      }
-      const newRow = row.concat(Array(BOARD_SIZE - row.length).fill(0));
-
-      if (JSON.stringify(boardState[i]) !== JSON.stringify(newRow)) {
-        moved = true;
-      }
-      boardState[i] = newRow;
-    }
-
-    if (merged.size > 0) {
-      setMergedTiles(merged);
-    }
-
-    // 更新分数并添加动画
-    if (scoreIncrement > 0) {
-      setScore(prev => {
-        setScoreAnimation(true);
-        setTimeout(() => setScoreAnimation(false), 300);
-        return prev + scoreIncrement;
-      });
-    }
-
-    return moved;
-  }, []);
-
-  const moveRight = useCallback((boardState: number[][]): boolean => {
-    let moved = false;
-    const merged = new Set<string>();
-    let scoreIncrement = 0;
-
-    for (let i = 0; i < BOARD_SIZE; i++) {
-      const row = boardState[i].filter((cell) => cell !== 0);
-
-      for (let j = row.length - 1; j > 0; j--) {
-        if (row[j] === row[j - 1]) {
-          row[j] *= 2;
-          scoreIncrement += row[j];
-          row.splice(j - 1, 1);
-          const actualCol = BOARD_SIZE - row.length + j;
-
-          merged.add(`${i}-${actualCol}`);
-          moved = true;
-        }
-      }
-      const newRow = Array(BOARD_SIZE - row.length)
-        .fill(0)
-        .concat(row);
-
-      if (JSON.stringify(boardState[i]) !== JSON.stringify(newRow)) {
-        moved = true;
-      }
-      boardState[i] = newRow;
-    }
-
-    if (merged.size > 0) {
-      setMergedTiles(merged);
-    }
-
-    // 更新分数并添加动画
-    if (scoreIncrement > 0) {
-      setScore(prev => {
-        setScoreAnimation(true);
-        setTimeout(() => setScoreAnimation(false), 300);
-        return prev + scoreIncrement;
-      });
-    }
-
-    return moved;
-  }, []);
-
-  const moveUp = useCallback((boardState: number[][]): boolean => {
-    let moved = false;
-    const merged = new Set<string>();
-    let scoreIncrement = 0;
-
-    for (let j = 0; j < BOARD_SIZE; j++) {
-      const column = [];
-
-      for (let i = 0; i < BOARD_SIZE; i++) {
-        if (boardState[i][j] !== 0) {
-          column.push(boardState[i][j]);
-        }
-      }
-      for (let i = 0; i < column.length - 1; i++) {
-        if (column[i] === column[i + 1]) {
-          column[i] *= 2;
-          scoreIncrement += column[i];
-          column.splice(i + 1, 1);
-          merged.add(`${i}-${j}`);
-          moved = true;
-        }
-      }
-      const newColumn = column.concat(
-        Array(BOARD_SIZE - column.length).fill(0),
-      );
-
-      for (let i = 0; i < BOARD_SIZE; i++) {
-        if (boardState[i][j] !== newColumn[i]) {
-          moved = true;
-        }
-        boardState[i][j] = newColumn[i];
-      }
-    }
-
-    if (merged.size > 0) {
-      setMergedTiles(merged);
-    }
-
-    // 更新分数并添加动画
-    if (scoreIncrement > 0) {
-      setScore(prev => {
-        setScoreAnimation(true);
-        setTimeout(() => setScoreAnimation(false), 300);
-        return prev + scoreIncrement;
-      });
-    }
-
-    return moved;
-  }, []);
-
-  const moveDown = useCallback((boardState: number[][]): boolean => {
-    let moved = false;
-    const merged = new Set<string>();
-    let scoreIncrement = 0;
-
-    for (let j = 0; j < BOARD_SIZE; j++) {
-      const column = [];
-
-      for (let i = 0; i < BOARD_SIZE; i++) {
-        if (boardState[i][j] !== 0) {
-          column.push(boardState[i][j]);
-        }
-      }
-      for (let i = column.length - 1; i > 0; i--) {
-        if (column[i] === column[i - 1]) {
-          column[i] *= 2;
-          scoreIncrement += column[i];
-          column.splice(i - 1, 1);
-          const actualRow = BOARD_SIZE - column.length + i;
-
-          merged.add(`${actualRow}-${j}`);
-          moved = true;
-        }
-      }
-      const newColumn = Array(BOARD_SIZE - column.length)
-        .fill(0)
-        .concat(column);
-
-      for (let i = 0; i < BOARD_SIZE; i++) {
-        if (boardState[i][j] !== newColumn[i]) {
-          moved = true;
-        }
-        boardState[i][j] = newColumn[i];
-      }
-    }
-
-    if (merged.size > 0) {
-      setMergedTiles(merged);
-    }
-
-    // 更新分数并添加动画
-    if (scoreIncrement > 0) {
-      setScore(prev => {
-        setScoreAnimation(true);
-        setTimeout(() => setScoreAnimation(false), 300);
-        return prev + scoreIncrement;
-      });
-    }
-
-    return moved;
-  }, []);
-
-  const isGameOver = useCallback((boardState: number[][]): boolean => {
-    // 检查是否有空格
-    for (let i = 0; i < BOARD_SIZE; i++) {
-      for (let j = 0; j < BOARD_SIZE; j++) {
-        if (boardState[i][j] === 0) return false;
-      }
-    }
-
-    // 检查是否可以合并
-    for (let i = 0; i < BOARD_SIZE; i++) {
-      for (let j = 0; j < BOARD_SIZE; j++) {
-        const current = boardState[i][j];
-
-        if (
-          (i < BOARD_SIZE - 1 && boardState[i + 1][j] === current) ||
-          (j < BOARD_SIZE - 1 && boardState[i][j + 1] === current)
-        ) {
-          return false;
-        }
-      }
-    }
-
-    return true;
-  }, []);
-
-  const move = useCallback(
-    (direction: "left" | "right" | "up" | "down") => {
-      if (gameOver || animating) return;
-
-      setAnimating(true);
-      const newBoard = board.map((row) => [...row]);
-      let moved = false;
-
+    // 根据方向确定遍历顺序
+    const getTraversalOrder = () => {
       switch (direction) {
-        case "left":
-          moved = moveLeft(newBoard);
-          break;
-        case "right":
-          moved = moveRight(newBoard);
-          break;
-        case "up":
-          moved = moveUp(newBoard);
-          break;
-        case "down":
-          moved = moveDown(newBoard);
-          break;
+        case 'left':
+          return { row: [0, BOARD_SIZE - 1], col: [0, BOARD_SIZE - 1] };
+        case 'right':
+          return { row: [0, BOARD_SIZE - 1], col: [BOARD_SIZE - 1, 0, -1] };
+        case 'up':
+          return { row: [0, BOARD_SIZE - 1], col: [0, BOARD_SIZE - 1] };
+        case 'down':
+          return { row: [BOARD_SIZE - 1, 0, -1], col: [0, BOARD_SIZE - 1] };
+      }
+    };
+
+    const order = getTraversalOrder();
+    const isHorizontal = direction === 'left' || direction === 'right';
+
+    // 遍历每一行/列
+    for (let i = order.row[0]; isHorizontal ? i <= order.row[1] : i >= order.row[1]; i += order.row[2] || 1) {
+      const line: number[] = [];
+      const lineTiles: Tile[] = [];
+
+      // 收集非零值
+      for (let j = order.col[0]; j !== order.col[1] + (order.col[2] || 1); j += order.col[2] || 1) {
+        const value = isHorizontal ? newBoard[i][j] : newBoard[j][i];
+        if (value !== 0) {
+          line.push(value);
+          const tile = tiles.find(t => 
+            isHorizontal ? (t.row === i && t.col === j) : (t.row === j && t.col === i)
+          );
+          if (tile) lineTiles.push(tile);
+        }
       }
 
-      if (moved) {
-        addRandomTile(newBoard);
-        setBoard(newBoard);
-
-        // 计算分数
-        let newScore = 0;
-
-        for (let i = 0; i < BOARD_SIZE; i++) {
-          for (let j = 0; j < BOARD_SIZE; j++) {
-            newScore += newBoard[i][j];
+      // 合并相同值
+      for (let j = 0; j < line.length - 1; j++) {
+        if (line[j] === line[j + 1]) {
+          line[j] *= 2;
+          scoreIncrement += line[j];
+          line.splice(j + 1, 1);
+          
+          // 标记合并的瓦片
+          if (lineTiles[j] && lineTiles[j + 1]) {
+            lineTiles[j].value = line[j];
+            lineTiles[j].isMerged = true;
+            lineTiles[j].mergedFrom = [lineTiles[j].id, lineTiles[j + 1].id];
+            lineTiles.splice(j + 1, 1);
           }
         }
-        setScore(newScore);
-        setScoreAnimation(true);
-
-        if (newScore > bestScore) {
-          setBestScore(newScore);
-        }
-
-        setTimeout(() => setScoreAnimation(false), 300);
-
-        // 检查是否获胜
-        for (let i = 0; i < BOARD_SIZE; i++) {
-          for (let j = 0; j < BOARD_SIZE; j++) {
-            if (newBoard[i][j] === 2048) {
-              setWon(true);
-            }
-          }
-        }
-
-        // 检查游戏是否结束
-        if (isGameOver(newBoard)) {
-          setGameOver(true);
-        }
-
-        // 清除动画状态
-        setTimeout(() => {
-          setAnimating(false);
-          setNewTiles(new Set());
-          setMergedTiles(new Set());
-        }, 300);
-      } else {
-        setAnimating(false);
       }
-    },
-    [
-      board,
-      gameOver,
-      animating,
-      moveLeft,
-      moveRight,
-      moveUp,
-      moveDown,
-      addRandomTile,
-      bestScore,
-      isGameOver,
-    ],
-  );
 
-  const handleDirectionChange = (
-    direction: "up" | "down" | "left" | "right",
-  ) => {
-    if (!animating) {
-      move(direction);
+      // 填充零
+      while (line.length < BOARD_SIZE) {
+        line.push(0);
+      }
+
+      // 更新棋盘
+      for (let j = 0; j < BOARD_SIZE; j++) {
+        const value = line[j];
+        const col = isHorizontal ? j : i;
+        const row = isHorizontal ? i : j;
+        
+        newBoard[row][col] = value;
+        
+        if (value !== 0) {
+          const existingTile = lineTiles.find(t => 
+            isHorizontal ? (t.row === i && t.col === j) : (t.row === j && t.col === i)
+          );
+          
+          if (existingTile) {
+            existingTile.row = row;
+            existingTile.col = col;
+            newTiles.push(existingTile);
+          }
+        }
+      }
     }
-  };
+
+    if (scoreIncrement > 0) {
+      setScore(prev => prev + scoreIncrement);
+      setScoreAnimation(true);
+      setTimeout(() => setScoreAnimation(false), 300);
+    }
+
+    // 生成新瓦片
+    const newTile = generateRandomTile();
+    if (newTile) {
+      newTiles.push(newTile);
+      newBoard[newTile.row][newTile.col] = newTile.value;
+    }
+
+    setTiles(newTiles);
+    setGameBoard(newBoard);
+
+    // 检查游戏状态
+    setTimeout(() => {
+      checkGameState(newBoard);
+      setIsAnimating(false);
+      
+      // 清除动画标记
+      setTiles(prev => prev.map(tile => ({
+        ...tile,
+        isNew: false,
+        isMerged: false,
+        mergedFrom: undefined
+      })));
+    }, ANIMATION_DURATION);
+  }, [gameBoard, tiles, isAnimating, gameOver, generateRandomTile]);
+
+  // 检查游戏状态
+  const checkGameState = useCallback((board: number[][]) => {
+    // 检查是否获胜
+    const hasWon = board.some(row => row.some(cell => cell === 2048));
+    if (hasWon && !won) {
+      setWon(true);
+    }
+
+    // 检查是否游戏结束
+    const hasEmptyCell = board.some(row => row.some(cell => cell === 0));
+    if (!hasEmptyCell) {
+      // 检查是否可以合并
+      let canMerge = false;
+      for (let i = 0; i < BOARD_SIZE; i++) {
+        for (let j = 0; j < BOARD_SIZE; j++) {
+          const current = board[i][j];
+          if (
+            (i < BOARD_SIZE - 1 && board[i + 1][j] === current) ||
+            (j < BOARD_SIZE - 1 && board[i][j + 1] === current)
+          ) {
+            canMerge = true;
+            break;
+          }
+        }
+        if (canMerge) break;
+      }
+      
+      if (!canMerge) {
+        setGameOver(true);
+      }
+    }
+  }, [won]);
 
   // 触摸控制
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(
-    null,
-  );
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-
-    setTouchStart({ x: touch.clientX, y: touch.clientY });
+    setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart || animating) return;
+    if (!touchStart || isAnimating) return;
 
     const touch = e.changedTouches[0];
     const deltaX = touch.clientX - touchStart.x;
@@ -410,94 +273,113 @@ export default function Game2048() {
     const minSwipeDistance = 30;
 
     if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      // 水平滑动
       if (Math.abs(deltaX) > minSwipeDistance) {
-        if (deltaX > 0) {
-          move("right");
-        } else {
-          move("left");
-        }
+        moveTiles(deltaX > 0 ? 'right' : 'left');
       }
     } else {
-      // 垂直滑动
       if (Math.abs(deltaY) > minSwipeDistance) {
-        if (deltaY > 0) {
-          move("down");
-        } else {
-          move("up");
-        }
+        moveTiles(deltaY > 0 ? 'down' : 'up');
       }
     }
 
     setTouchStart(null);
   };
 
-  const resetGame = () => {
-    setAnimating(false);
-    setNewTiles(new Set());
-    setMergedTiles(new Set());
-    initializeBoard();
-  };
-
+  // 键盘控制
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      if (isAnimating || gameOver) return;
+
       switch (e.key) {
-        case "ArrowLeft":
-          move("left");
+        case 'ArrowLeft':
+          e.preventDefault();
+          moveTiles('left');
           break;
-        case "ArrowRight":
-          move("right");
+        case 'ArrowRight':
+          e.preventDefault();
+          moveTiles('right');
           break;
-        case "ArrowUp":
-          move("up");
+        case 'ArrowUp':
+          e.preventDefault();
+          moveTiles('up');
           break;
-        case "ArrowDown":
-          move("down");
+        case 'ArrowDown':
+          e.preventDefault();
+          moveTiles('down');
           break;
       }
     };
 
-    window.addEventListener("keydown", handleKeyPress);
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [moveTiles, isAnimating, gameOver]);
 
-    return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [move]);
-
+  // 初始化游戏
   useEffect(() => {
-    initializeBoard();
-  }, [initializeBoard]);
+    initializeGame();
+  }, [initializeGame]);
+
+  // 更新最高分
+  useEffect(() => {
+    if (score > bestScore) {
+      setBestScore(score);
+      localStorage.setItem('2048-best-score', score.toString());
+    }
+  }, [score, bestScore]);
+
+  // 加载最高分
+  useEffect(() => {
+    const savedBestScore = localStorage.getItem('2048-best-score');
+    if (savedBestScore) {
+      setBestScore(parseInt(savedBestScore));
+    }
+  }, []);
+
+  const resetGame = () => {
+    setTiles([]);
+    setGameBoard([]);
+    setScore(0);
+    setGameOver(false);
+    setWon(false);
+    setGameStarted(false);
+    setIsAnimating(false);
+    setTimeout(initializeGame, 100);
+  };
 
   const getTileColor = (value: number) => {
     const colors: { [key: number]: string } = {
-      0: "bg-gray-700",
-      2: "bg-red-500",
-      4: "bg-orange-500",
-      8: "bg-yellow-500",
-      16: "bg-lime-500",
-      32: "bg-green-500",
-      64: "bg-teal-500",
-      128: "bg-blue-500",
-      256: "bg-indigo-500",
-      512: "bg-purple-500",
-      1024: "bg-pink-500",
-      2048: "bg-red-600 text-white",
+      2: 'from-yellow-400 to-yellow-600',
+      4: 'from-orange-400 to-orange-600',
+      8: 'from-red-400 to-red-600',
+      16: 'from-pink-400 to-pink-600',
+      32: 'from-purple-400 to-purple-600',
+      64: 'from-indigo-400 to-indigo-600',
+      128: 'from-blue-400 to-blue-600',
+      256: 'from-cyan-400 to-cyan-600',
+      512: 'from-teal-400 to-teal-600',
+      1024: 'from-green-400 to-green-600',
+      2048: 'from-yellow-300 to-yellow-500',
     };
+    return colors[value] || 'from-gray-400 to-gray-600';
+  };
 
-    return colors[value] || "bg-gray-600";
+  const getTileTextColor = (value: number) => {
+    return value <= 4 ? 'text-gray-800' : 'text-white';
   };
 
   return (
-    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 px-4">
+    <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 px-4">
       <style>{`
         @keyframes tileAppear {
           0% {
-            transform: scale(0);
+            transform: scale(0) rotate(180deg);
             opacity: 0;
           }
           50% {
-            transform: scale(1.1);
+            transform: scale(1.1) rotate(90deg);
           }
           100% {
-            transform: scale(1);
+            transform: scale(1) rotate(0deg);
             opacity: 1;
           }
         }
@@ -514,21 +396,12 @@ export default function Game2048() {
           }
         }
         
-        @keyframes slide {
-          from {
-            transform: translateX(0) translateY(0);
-          }
-          to {
-            transform: translateX(var(--slide-x, 0)) translateY(var(--slide-y, 0));
-          }
-        }
-        
         @keyframes scoreUpdate {
           0% {
             transform: scale(1);
           }
           50% {
-            transform: scale(1.2);
+            transform: scale(1.1);
             color: #fbbf24;
           }
           100% {
@@ -558,210 +431,168 @@ export default function Game2048() {
           }
         }
         
-        @keyframes slideLeft {
-          from {
-            transform: translateX(20px);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-        
-        @keyframes slideRight {
-          from {
-            transform: translateX(-20px);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-        
-        @keyframes slideUp {
-          from {
-            transform: translateY(20px);
-          }
-          to {
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes slideDown {
-          from {
-            transform: translateY(-20px);
-          }
-          to {
-            transform: translateY(0);
-          }
-        }
-        
         .tile-new {
-          animation: tileAppear 0.3s ease-out;
+          animation: tileAppear 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
         
         .tile-merged {
-          animation: tileMerge 0.3s ease-out;
-        }
-        
-        .tile-slide {
-          animation: slide 0.3s ease-out;
+          animation: tileMerge 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
         
         .score-update {
           animation: scoreUpdate 0.3s ease-out;
         }
         
-        .game-board {
-          animation: fadeIn 0.5s ease-out;
-        }
-        
-        .tile-appear {
-          animation: tileAppear 0.3s ease-out;
-        }
-        
-        .tile-merge {
-          animation: tileMerge 0.3s ease-out;
-        }
-        
         .fade-in {
-          animation: fadeIn 0.5s ease-out;
+          animation: fadeIn 0.6s ease-out;
         }
         
         .slide-in {
-          animation: slideIn 0.3s ease-out;
+          animation: slideIn 0.4s ease-out;
         }
         
-        .slide-left {
-          animation: slideLeft 0.15s ease-out;
-        }
-        
-        .slide-right {
-          animation: slideRight 0.15s ease-out;
-        }
-        
-        .slide-up {
-          animation: slideUp 0.15s ease-out;
-        }
-        
-        .slide-down {
-          animation: slideDown 0.15s ease-out;
+        .game-board {
+          background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+          box-shadow: 
+            0 20px 40px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
         
         .tile {
-          transition: all 0.15s ease-out;
+          transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 
+            0 4px 8px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        
+        .tile:hover {
+          transform: translateY(-2px);
+          box-shadow: 
+            0 8px 16px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
       `}</style>
+
       <div className="w-full max-w-md">
         <div className="text-center mb-6 fade-in">
-              <h1 className={title({ size: "lg", fullWidth: true })}>2048</h1>
-              <div className={subtitle({ class: "mt-2" })}>
-                数字益智游戏，通过滑动合并相同数字，达到2048获得胜利
-              </div>
-            </div>
+          <h1 className={title({ size: "lg", fullWidth: true, color: "yellow" })}>2048</h1>
+          <div className={subtitle({ class: "mt-2 text-gray-300" })}>
+            数字益智游戏，通过滑动合并相同数字，达到2048获得胜利
+          </div>
+        </div>
 
-        <Card className="w-full bg-gray-800 border-gray-700 shadow-xl slide-in">
+        <Card className="w-full bg-gray-800/50 border-gray-700/50 shadow-2xl slide-in backdrop-blur-sm">
           <CardBody className="flex flex-col items-center gap-6 p-6">
+            {/* 游戏信息栏 */}
             <div className="flex justify-between w-full items-center">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M12 8v8m-4-4h8"/>
-                  </svg>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/>
+                      <path d="M12 8v8m-4-4h8"/>
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-400">得分</p>
+                    <p className={`text-lg font-bold text-white ${scoreAnimation ? "score-update" : ""}`}>
+                      {score.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
+                
                 <div className="text-center">
-                  <p className="text-sm text-gray-300">得分</p>
-                  <p
-                    className={`text-lg font-semibold text-white ${scoreAnimation ? "score-update" : ""}`}
-                  >
-                    {score}
-                  </p>
+                  <p className="text-sm text-gray-400">最高分</p>
+                  <p className="text-lg font-bold text-white">{bestScore.toLocaleString()}</p>
                 </div>
               </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-300">最高分</p>
-                <p className="text-lg font-semibold text-white">{bestScore}</p>
-              </div>
+              
               <Button
                 color="primary"
                 size="sm"
-                className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white font-medium transition-all duration-300 transform hover:scale-105"
+                className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white font-medium transition-all duration-300 transform hover:scale-105 shadow-lg"
                 onPress={resetGame}
               >
                 重新开始
               </Button>
             </div>
 
-            <div className="relative w-full max-w-sm mx-auto">
+            {/* 游戏板 */}
+            <div className="relative w-full flex justify-center">
               <div
-                className={`grid grid-cols-4 gap-2 p-4 bg-gray-700 rounded-lg touch-none select-none shadow-lg ${gameStarted ? "game-board" : ""}`}
-                style={{ 
-                  width: BOARD_SIZE * CELL_SIZE + 32, // 加上内边距
-                  height: BOARD_SIZE * CELL_SIZE + 32, // 加上内边距
-                  maxWidth: '100%',
-                  margin: '0 auto',
-                  gap: `${CELL_SIZE / 10}px`, // 动态调整间隙
+                ref={gameRef}
+                className="game-board rounded-xl p-4 touch-none select-none"
+                style={{
+                  width: boardSize + 32,
+                  height: boardSize + 32,
                 }}
-                onTouchEnd={handleTouchEnd}
                 onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
               >
-                {board.map((row, i) =>
-                  row.map((cell, j) => {
-                    const tileKey = `${i}-${j}`;
-                    const isNew = newTiles.has(tileKey);
-                    const isMerged = mergedTiles.has(tileKey);
+                {/* 背景网格 */}
+                <div className="absolute inset-4 grid grid-cols-4 grid-rows-4 gap-2">
+                  {Array.from({ length: BOARD_SIZE * BOARD_SIZE }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="bg-gray-700/30 rounded-lg border border-gray-600/30"
+                    />
+                  ))}
+                </div>
 
-                    return (
-                      <div
-                        key={tileKey}
-                        className={`flex items-center justify-center text-xl font-bold rounded-lg border-2 tile ${
-                          cell === 0
-                            ? "bg-gray-700 border-gray-600"
-                            : `${getTileColor(cell)} border-gray-500 text-white shadow-md`
-                        } ${isNew ? "tile-appear" : ""} ${
-                          isMerged ? "tile-merge" : ""
-                        }`}
-                        style={{
-                          width: CELL_SIZE,
-                          height: CELL_SIZE,
-                          boxShadow: cell > 0 ? '0 4px 6px rgba(0, 0, 0, 0.3)' : 'none',
-                          zIndex: isNew || isMerged ? 10 : 1,
-                        }}
-                      >
-                        {cell !== 0 ? cell : ""}
-                      </div>
-                    );
-                  }),
-                )}
+                {/* 瓦片 */}
+                {tiles.map((tile) => (
+                  <div
+                    key={tile.id}
+                    className={`absolute tile rounded-lg flex items-center justify-center font-bold text-lg ${getTileColor(tile.value)} ${getTileTextColor(tile.value)} ${
+                      tile.isNew ? 'tile-new' : ''
+                    } ${tile.isMerged ? 'tile-merged' : ''}`}
+                    style={{
+                      width: cellSize - 8,
+                      height: cellSize - 8,
+                      left: tile.col * cellSize + 4,
+                      top: tile.row * cellSize + 4,
+                      zIndex: tile.isNew || tile.isMerged ? 20 : 10,
+                    }}
+                  >
+                    {tile.value}
+                  </div>
+                ))}
               </div>
             </div>
 
+            {/* 游戏状态提示 */}
             {won && !gameOver && (
-              <div className="text-center bg-green-900/30 p-4 rounded-lg w-full animate-pulse fade-in">
-                <p className="text-xl font-bold text-green-300 mb-2">恭喜获胜!</p>
+              <div className="text-center bg-gradient-to-r from-green-900/50 to-emerald-900/50 p-4 rounded-xl w-full animate-pulse fade-in border border-green-500/30">
+                <p className="text-xl font-bold text-green-300 mb-2">🎉 恭喜获胜!</p>
                 <p className="text-lg text-green-200">你达到了2048!</p>
               </div>
             )}
 
             {gameOver && (
-              <div className="text-center bg-red-900/30 p-4 rounded-lg w-full animate-pulse fade-in">
-                <p className="text-xl font-bold text-red-300 mb-2">游戏结束!</p>
-                <p className="text-lg text-red-200">最终得分: {score}</p>
+              <div className="text-center bg-gradient-to-r from-red-900/50 to-pink-900/50 p-4 rounded-xl w-full animate-pulse fade-in border border-red-500/30">
+                <p className="text-xl font-bold text-red-300 mb-2">💀 游戏结束!</p>
+                <p className="text-lg text-red-200">最终得分: {score.toLocaleString()}</p>
               </div>
             )}
 
-            <div className="text-sm text-gray-300 text-center bg-gray-700/50 p-3 rounded-lg w-full fade-in">
-              <p className="font-medium mb-1">游戏说明</p>
+            {/* 游戏说明 */}
+            <div className="text-sm text-gray-300 text-center bg-gray-700/30 p-4 rounded-xl w-full fade-in border border-gray-600/30">
+              <p className="font-medium mb-2 text-gray-200">🎮 游戏说明</p>
               <p>使用方向键或触摸滑动移动方块</p>
               <p>相同数字的方块会合并</p>
               <p>达到2048获得胜利</p>
             </div>
 
+            {/* 移动端控制 */}
             {isMobile && (
               <div className="w-full mt-4 fade-in">
                 <MobileControls
                   className="w-full"
-                  onDirection={handleDirectionChange}
-                  cellSize={CELL_SIZE}
+                  onDirection={(direction: "up" | "down" | "left" | "right") => {
+                    moveTiles(direction);
+                  }}
+                  cellSize={cellSize}
+                  variant="game"
                 />
               </div>
             )}
