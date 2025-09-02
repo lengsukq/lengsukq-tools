@@ -138,9 +138,22 @@ export function MarkdownPreview() {
       // 添加新的shared参数
       currentUrl.searchParams.set("shared", encodedContent);
 
-      const shareUrl = currentUrl.toString();
-
-      setShareUrl(shareUrl);
+      const longUrl = currentUrl.toString();
+      
+      // 调用短链接API
+      const shortUrlApi = `https://api.mmp.cc/api/dwz?longurl=${encodeURIComponent(longUrl)}`;
+      const response = await fetch(shortUrlApi);
+      const data = await response.json();
+      
+      if (data.status === 200 && data.shorturl) {
+        // 使用短链接
+        setShareUrl(data.shorturl);
+      } else {
+        // 如果短链接生成失败，使用原始长链接
+        console.warn("短链接生成失败，使用原始链接");
+        setShareUrl(longUrl);
+      }
+      
       setShowShareSuccess(true);
 
       // 3秒后隐藏成功消息
@@ -204,7 +217,7 @@ export function MarkdownPreview() {
           <strong className="font-bold">分享成功！</strong>
           <span className="block sm:inline">
             {" "}
-            分享链接已生成，直接通过URL传递数据。
+            短链接已生成，方便分享和传播。
           </span>
         </div>
       )}
