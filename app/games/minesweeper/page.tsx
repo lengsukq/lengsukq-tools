@@ -5,185 +5,269 @@ import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { title, subtitle } from "@/components/primitives";
 import { useMobile } from "@/hooks/use-mobile";
-import { MobileControls } from "@/components/mobile-controls";
 import Link from "next/link";
 
 // 游戏常量
-const DEFAULT_SIZE = { rows: 10, cols: 10, mines: 10 };
-const DIFFICULTIES = {
-  easy: { rows: 8, cols: 8, mines: 10 },
-  medium: { rows: 16, cols: 16, mines: 40 },
-  hard: { rows: 16, cols: 30, mines: 99 }
-};
+const BOARD_SIZES = [
+  { name: "初级", rows: 9, cols: 9, mines: 10 },
+  { name: "中级", rows: 16, cols: 16, mines: 40 },
+  { name: "高级", rows: 16, cols: 30, mines: 99 }
+];
 
-// 单元格类型
-type CellState = 'hidden' | 'revealed' | 'flagged' | 'question' | 'exploded';
-interface Cell {
-  hasMine: boolean;
-  adjacentMines: number;
-  state: CellState;
-  isFirstClick?: boolean;
+const ANIMATION_DURATION = 200;
+const CELL_SIZE = 30;
+const MOBILE_CELL_SIZE = 25;
+
+// 单元格状态
+enum CellState {
+  HIDDEN = "hidden",
+  REVEALED = "revealed",
+  FLAGGED = "flagged"
 }
 
-// 游戏状态类型
-type GameStatus = 'idle' | 'playing' | 'won' | 'lost';
+// 单元格内容
+enum CellContent {
+  EMPTY = 0,
+  MINE = -1,
+  NUMBER_1 = 1,
+  NUMBER_2 = 2,
+  NUMBER_3 = 3,
+  NUMBER_4 = 4,
+  NUMBER_5 = 5,
+  NUMBER_6 = 6,
+  NUMBER_7 = 7,
+  NUMBER_8 = 8
+}
+
+// 单元格接口
+interface Cell {
+  id: number;
+  row: number;
+  col: number;
+  state: CellState;
+  content: CellContent;
+  isMine: boolean;
+  adjacentMines: number;
+}
+
+// 游戏状态
+enum GameState {
+  READY = "ready",
+  PLAYING = "playing",
+  WON = "won",
+  LOST = "lost"
+}
 
 export default function MinesweeperGame() {
   // 游戏状态
   const [board, setBoard] = useState<Cell[][]>([]);
-  const [gameStatus, setGameStatus] = useState<GameStatus>('idle');
+  const [gameState, setGameState] = useState<GameState>(GameState.READY);
+  const [difficulty, setDifficulty] = useState<number>(0); // 0: 初级, 1: 中级, 2: 高级
+  const [flagsCount, setFlagsCount] = useState<number>(0);
   const [timer, setTimer] = useState<number>(0);
-  const [minesLeft, setMinesLeft] = useState<number>(DIFFICULTIES.easy.mines);
-  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
-  const [rows, setRows] = useState<number>(DIFFICULTIES.easy.rows);
-  const [cols, setCols] = useState<number>(DIFFICULTIES.easy.cols);
-  const [mines, setMines] = useState<number>(DIFFICULTIES.easy.mines);
-  const [firstClick, setFirstClick] = useState<boolean>(true);
-  const [revealAnimation, setRevealAnimation] = useState<Set<string>>(new Set());
+  const [gameBoardSize, setGameBoardSize] = useState<{ width: number; height: number }>({ width: 270, height: 270 });
+  const [cellSize, setCellSize] = useState<number>(CELL_SIZE);
+  const [theme, setTheme] = useState<'blue' | 'green' | 'purple' | 'red'>('blue');
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
   
   // 布局相关
   const isMobile = useMobile();
-  const gameRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [cellSize, setCellSize] = useState<number>(32);
-  const [boardSize, setBoardSize] = useState<{ width: number; height: number }>({
-    width: cols * 32,
-    height: rows * 32
-  });
+  const nextId = useRef<number>(1);
+  
+  // 颜色主题
+  const colorThemes = {
+    blue: {
+      hidden: 'bg-gradient-to-br from-blue-600 to-blue-700',
+      revealed: 'bg-gradient-to-br from-blue-200 to-blue-300',
+      mine: 'bg-gradient-to-br from-red-500 to-red-600',
+      flag: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
+      border: 'border-blue-500/30',
+      accent: 'from-blue-500 to-blue-600',
+      numbers: [
+        '', // 0
+        'text-blue-600', // 1
+        'text-green-600', // 2
+        'text-red-600', // 3
+        'text-purple-600', // 4
+        'text-yellow-600', // 5
+        'text-cyan-600', // 6
+        'text-black', // 7
+        'text-gray-600' // 8
+      ]
+    },
+    green: {
+      hidden: 'bg-gradient-to-br from-green-600 to-green-700',
+      revealed: 'bg-gradient-to-br from-green-200 to-green-300',
+      mine: 'bg-gradient-to-br from-red-500 to-red-600',
+      flag: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
+      border: 'border-green-500/30',
+      accent: 'from-green-500 to-green-600',
+      numbers: [
+        '', // 0
+        'text-blue-600', // 1
+        'text-green-600', // 2
+        'text-red-600', // 3
+        'text-purple-600', // 4
+        'text-yellow-600', // 5
+        'text-cyan-600', // 6
+        'text-black', // 7
+        'text-gray-600' // 8
+      ]
+    },
+    purple: {
+      hidden: 'bg-gradient-to-br from-purple-600 to-purple-700',
+      revealed: 'bg-gradient-to-br from-purple-200 to-purple-300',
+      mine: 'bg-gradient-to-br from-red-500 to-red-600',
+      flag: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
+      border: 'border-purple-500/30',
+      accent: 'from-purple-500 to-purple-600',
+      numbers: [
+        '', // 0
+        'text-blue-600', // 1
+        'text-green-600', // 2
+        'text-red-600', // 3
+        'text-purple-600', // 4
+        'text-yellow-600', // 5
+        'text-cyan-600', // 6
+        'text-black', // 7
+        'text-gray-600' // 8
+      ]
+    },
+    red: {
+      hidden: 'bg-gradient-to-br from-red-600 to-red-700',
+      revealed: 'bg-gradient-to-br from-red-200 to-red-300',
+      mine: 'bg-gradient-to-br from-gray-700 to-gray-800',
+      flag: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
+      border: 'border-red-500/30',
+      accent: 'from-red-500 to-red-600',
+      numbers: [
+        '', // 0
+        'text-blue-600', // 1
+        'text-green-600', // 2
+        'text-red-600', // 3
+        'text-purple-600', // 4
+        'text-yellow-600', // 5
+        'text-cyan-600', // 6
+        'text-black', // 7
+        'text-gray-600' // 8
+      ]
+    }
+  };
 
   // 动态调整游戏板大小
   useEffect(() => {
     const updateBoardSize = () => {
-      if (isMobile) {
-        const screenWidth = window.innerWidth;
-        const maxWidth = Math.min(screenWidth - 32, 600);
-        const newCellSize = Math.floor(maxWidth / cols);
-        const newBoardSize = {
-          width: newCellSize * cols,
-          height: newCellSize * rows
-        };
-        setCellSize(newCellSize);
-        setBoardSize(newBoardSize);
-      } else {
-        setCellSize(32);
-        setBoardSize({ width: cols * 32, height: rows * 32 });
-      }
+      const currentDifficulty = BOARD_SIZES[difficulty];
+      const newCellSize = isMobile ? MOBILE_CELL_SIZE : CELL_SIZE;
+      
+      setCellSize(newCellSize);
+      setGameBoardSize({
+        width: currentDifficulty.cols * newCellSize,
+        height: currentDifficulty.rows * newCellSize
+      });
     };
 
     updateBoardSize();
-    window.addEventListener('resize', updateBoardSize);
-    return () => window.removeEventListener('resize', updateBoardSize);
-  }, [isMobile, rows, cols]);
+  }, [difficulty, isMobile]);
 
   // 初始化游戏板
-  const initializeBoard = useCallback(() => {
+  const initializeBoard = useCallback((firstClickRow: number, firstClickCol: number): Cell[][] => {
+    const { rows, cols, mines } = BOARD_SIZES[difficulty];
     const newBoard: Cell[][] = [];
-    for (let y = 0; y < rows; y++) {
-      newBoard[y] = [];
-      for (let x = 0; x < cols; x++) {
-        newBoard[y][x] = {
-          hasMine: false,
-          adjacentMines: 0,
-          state: 'hidden'
-        };
-      }
-    }
-    return newBoard;
-  }, [rows, cols]);
-
-  // 放置地雷
-  const placeMines = useCallback((board: Cell[][], firstClickX: number, firstClickY: number): Cell[][] => {
-    const newBoard = board.map(row => [...row]);
-    const placedMines = new Set<string>();
     
-    // 排除第一次点击的位置及其周围3x3区域
-    const excludeArea = new Set<string>();
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const nx = firstClickX + dx;
-        const ny = firstClickY + dy;
-        if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
-          excludeArea.add(`${nx},${ny}`);
-        }
+    // 创建空板
+    for (let row = 0; row < rows; row++) {
+      const rowCells: Cell[] = [];
+      for (let col = 0; col < cols; col++) {
+        rowCells.push({
+          id: nextId.current++,
+          row,
+          col,
+          state: CellState.HIDDEN,
+          content: CellContent.EMPTY,
+          isMine: false,
+          adjacentMines: 0
+        });
       }
+      newBoard.push(rowCells);
     }
     
-    // 随机放置地雷
-    while (placedMines.size < mines) {
-      const x = Math.floor(Math.random() * cols);
-      const y = Math.floor(Math.random() * rows);
-      const key = `${x},${y}`;
+    // 放置地雷（避开第一次点击的位置及其周围）
+    let minesPlaced = 0;
+    while (minesPlaced < mines) {
+      const row = Math.floor(Math.random() * rows);
+      const col = Math.floor(Math.random() * cols);
       
-      if (!excludeArea.has(key) && !placedMines.has(key)) {
-        newBoard[y][x].hasMine = true;
-        placedMines.add(key);
-      }
-    }
-    
-    return newBoard;
-  }, [cols, rows, mines]);
-
-  // 计算相邻地雷数
-  const calculateAdjacentMines = useCallback((board: Cell[][]): Cell[][] => {
-    const newBoard = board.map(row => [...row]);
-    
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        if (!newBoard[y][x].hasMine) {
-          let count = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const nx = x + dx;
-              const ny = y + dy;
-              if (nx >= 0 && nx < cols && ny >= 0 && ny < rows && newBoard[ny][nx].hasMine) {
-                count++;
+      // 确保不在第一次点击位置及其周围放置地雷
+      const isFirstClickArea = Math.abs(row - firstClickRow) <= 1 && Math.abs(col - firstClickCol) <= 1;
+      
+      if (!newBoard[row][col].isMine && !isFirstClickArea) {
+        newBoard[row][col].isMine = true;
+        newBoard[row][col].content = CellContent.MINE;
+        minesPlaced++;
+        
+        // 更新周围单元格的地雷计数
+        for (let r = Math.max(0, row - 1); r <= Math.min(rows - 1, row + 1); r++) {
+          for (let c = Math.max(0, col - 1); c <= Math.min(cols - 1, col + 1); c++) {
+            if (!(r === row && c === col)) {
+              newBoard[r][c].adjacentMines++;
+              if (newBoard[r][c].adjacentMines > 0) {
+                newBoard[r][c].content = newBoard[r][c].adjacentMines as CellContent;
               }
             }
           }
-          newBoard[y][x].adjacentMines = count;
         }
       }
     }
     
     return newBoard;
-  }, [rows, cols]);
+  }, [difficulty]);
 
   // 重置游戏
   const resetGame = useCallback(() => {
+    setGameState(GameState.READY);
+    setTimer(0);
+    setFlagsCount(0);
+    
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
     
-    setBoard(initializeBoard());
-    setGameStatus('idle');
-    setTimer(0);
-    setMinesLeft(mines);
-    setFirstClick(true);
-    setRevealAnimation(new Set());
-  }, [initializeBoard, mines]);
-
-  // 更改难度
-  const changeDifficulty = useCallback((newDifficulty: 'easy' | 'medium' | 'hard') => {
-    setDifficulty(newDifficulty);
-    setRows(DIFFICULTIES[newDifficulty].rows);
-    setCols(DIFFICULTIES[newDifficulty].cols);
-    setMines(DIFFICULTIES[newDifficulty].mines);
-    resetGame();
-  }, [resetGame]);
-
-  // 开始游戏计时器
-  const startTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
+    // 初始化一个空板，等待第一次点击
+    const { rows, cols } = BOARD_SIZES[difficulty];
+    const emptyBoard: Cell[][] = [];
+    
+    for (let row = 0; row < rows; row++) {
+      const rowCells: Cell[] = [];
+      for (let col = 0; col < cols; col++) {
+        rowCells.push({
+          id: nextId.current++,
+          row,
+          col,
+          state: CellState.HIDDEN,
+          content: CellContent.EMPTY,
+          isMine: false,
+          adjacentMines: 0
+        });
+      }
+      emptyBoard.push(rowCells);
     }
+    
+    setBoard(emptyBoard);
+  }, [difficulty]);
+
+  // 开始计时器
+  const startTimer = useCallback(() => {
+    if (timerRef.current) return;
     
     timerRef.current = setInterval(() => {
       setTimer(prev => prev + 1);
     }, 1000);
   }, []);
 
-  // 停止游戏计时器
+  // 停止计时器
   const stopTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -191,540 +275,373 @@ export default function MinesweeperGame() {
     }
   }, []);
 
-  // 检查游戏是否胜利
-  const checkWin = useCallback((board: Cell[][]): boolean => {
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        if (!board[y][x].hasMine && board[y][x].state === 'hidden') {
-          return false;
-        }
-      }
-    }
-    return true;
-  }, [rows, cols]);
-
-  // 递归揭示空白单元格
-  const revealEmptyCells = useCallback((board: Cell[][], x: number, y: number): Cell[][] => {
-    const newBoard = board.map(row => [...row]);
-    const queue: [number, number][] = [[x, y]];
-    const visited = new Set<string>();
+  // 揭示单元格
+  const revealCell = useCallback((row: number, col: number) => {
+    if (gameState === GameState.WON || gameState === GameState.LOST) return;
+    if (board[row][col].state !== CellState.HIDDEN) return;
     
-    while (queue.length > 0) {
-      const [currentX, currentY] = queue.shift()!;
-      const key = `${currentX},${currentY}`;
+    setIsAnimating(true);
+    
+    // 如果是第一次点击，初始化游戏板
+    if (gameState === GameState.READY) {
+      const newBoard = initializeBoard(row, col);
+      setBoard(newBoard);
+      setGameState(GameState.PLAYING);
+      startTimer();
       
-      if (
-        currentX < 0 || currentX >= cols || 
-        currentY < 0 || currentY >= rows || 
-        visited.has(key) || 
-        newBoard[currentY][currentX].state !== 'hidden'
-      ) {
-        continue;
-      }
+      // 延迟执行揭示操作，确保板已更新
+      setTimeout(() => {
+        revealCell(row, col);
+        setIsAnimating(false);
+      }, 10);
+      return;
+    }
+    
+    const newBoard = [...board];
+    const cell = newBoard[row][col];
+    
+    // 如果是地雷，游戏结束
+    if (cell.isMine) {
+      cell.state = CellState.REVEALED;
+      setBoard(newBoard);
+      setGameState(GameState.LOST);
+      stopTimer();
       
-      visited.add(key);
-      newBoard[currentY][currentX].state = 'revealed';
-      
-      // 添加到动画队列
-      setRevealAnimation(prev => new Set(prev).add(key));
-      
-      // 如果周围没有地雷，继续揭示相邻的单元格
-      if (newBoard[currentY][currentX].adjacentMines === 0 && !newBoard[currentY][currentX].hasMine) {
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx !== 0 || dy !== 0) {
-              queue.push([currentX + dx, currentY + dy]);
+      // 显示所有地雷
+      setTimeout(() => {
+        const finalBoard = [...newBoard];
+        for (let r = 0; r < finalBoard.length; r++) {
+          for (let c = 0; c < finalBoard[r].length; c++) {
+            if (finalBoard[r][c].isMine) {
+              finalBoard[r][c].state = CellState.REVEALED;
             }
           }
         }
-      }
+        setBoard(finalBoard);
+      }, 500);
+      
+      setIsAnimating(false);
+      return;
     }
     
-    return newBoard;
-  }, [cols, rows]);
-
-  // 揭示所有地雷
-  const revealAllMines = useCallback((board: Cell[][], explodedX?: number, explodedY?: number): Cell[][] => {
-    const newBoard = board.map(row => [...row]);
+    // 揭示单元格
+    cell.state = CellState.REVEALED;
     
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        if (newBoard[y][x].hasMine) {
-          if (x === explodedX && y === explodedY) {
-            newBoard[y][x].state = 'exploded';
-          } else if (newBoard[y][x].state !== 'flagged') {
-            newBoard[y][x].state = 'revealed';
+    // 如果是空单元格，递归揭示周围的单元格
+    if (cell.content === CellContent.EMPTY) {
+      const { rows, cols } = BOARD_SIZES[difficulty];
+      
+      const revealAdjacent = (r: number, c: number) => {
+        if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+        if (newBoard[r][c].state !== CellState.HIDDEN) return;
+        
+        newBoard[r][c].state = CellState.REVEALED;
+        
+        if (newBoard[r][c].content === CellContent.EMPTY) {
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (dr === 0 && dc === 0) continue;
+              revealAdjacent(r + dr, c + dc);
+            }
           }
-        } else if (newBoard[y][x].state === 'flagged') {
-          // 错误标记的单元格
-          newBoard[y][x].state = 'question';
+        }
+      };
+      
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          revealAdjacent(row + dr, col + dc);
         }
       }
     }
     
-    return newBoard;
-  }, [rows, cols]);
+    setBoard(newBoard);
+    
+    // 检查是否获胜
+    const { mines } = BOARD_SIZES[difficulty];
+    let revealedCount = 0;
+    
+    for (let r = 0; r < newBoard.length; r++) {
+      for (let c = 0; c < newBoard[r].length; c++) {
+        if (newBoard[r][c].state === CellState.REVEALED && !newBoard[r][c].isMine) {
+          revealedCount++;
+        }
+      }
+    }
+    
+    const totalCells = BOARD_SIZES[difficulty].rows * BOARD_SIZES[difficulty].cols;
+    if (revealedCount === totalCells - mines) {
+      setGameState(GameState.WON);
+      stopTimer();
+      
+      // 自动标记所有地雷
+      setTimeout(() => {
+        const finalBoard = [...newBoard];
+        for (let r = 0; r < finalBoard.length; r++) {
+          for (let c = 0; c < finalBoard[r].length; c++) {
+            if (finalBoard[r][c].isMine && finalBoard[r][c].state === CellState.HIDDEN) {
+              finalBoard[r][c].state = CellState.FLAGGED;
+            }
+          }
+        }
+        setBoard(finalBoard);
+      }, 500);
+    }
+    
+    setIsAnimating(false);
+  }, [board, gameState, difficulty, initializeBoard, startTimer, stopTimer]);
+
+  // 标记单元格（插旗）
+  const toggleFlag = useCallback((row: number, col: number) => {
+    if (gameState === GameState.WON || gameState === GameState.LOST) return;
+    if (board[row][col].state === CellState.REVEALED) return;
+    
+    const newBoard = [...board];
+    const cell = newBoard[row][col];
+    
+    if (cell.state === CellState.HIDDEN) {
+      cell.state = CellState.FLAGGED;
+      setFlagsCount(prev => prev + 1);
+    } else if (cell.state === CellState.FLAGGED) {
+      cell.state = CellState.HIDDEN;
+      setFlagsCount(prev => prev - 1);
+    }
+    
+    setBoard(newBoard);
+  }, [board, gameState]);
 
   // 处理单元格点击
-  const handleCellClick = useCallback((x: number, y: number) => {
-    // 游戏已经结束或已标记的单元格，不处理
-    if (gameStatus === 'won' || gameStatus === 'lost' || board[y][x].state === 'flagged') {
-      return;
-    }
-    
-    let newBoard = [...board];
-    
-    // 第一次点击
-    if (firstClick) {
-      // 放置地雷（排除第一次点击位置）
-      newBoard = placeMines(newBoard, x, y);
-      // 计算相邻地雷数
-      newBoard = calculateAdjacentMines(newBoard);
-      // 标记第一次点击
-      newBoard[y][x].isFirstClick = true;
-      setFirstClick(false);
-      setGameStatus('playing');
-      startTimer();
-    }
-    
-    // 如果点击的是地雷，游戏结束
-    if (newBoard[y][x].hasMine) {
-      newBoard = revealAllMines(newBoard, x, y);
-      setBoard(newBoard);
-      setGameStatus('lost');
-      stopTimer();
-      return;
-    }
-    
-    // 如果点击的是有数字的单元格，直接揭示
-    if (newBoard[y][x].adjacentMines > 0 && newBoard[y][x].state === 'hidden') {
-      const updatedBoard = newBoard.map(row => [...row]);
-      updatedBoard[y][x].state = 'revealed';
-      setBoard(updatedBoard);
-      
-      // 检查是否胜利
-      if (checkWin(updatedBoard)) {
-        setGameStatus('won');
-        stopTimer();
-      }
-      return;
-    }
-    
-    // 揭示空白单元格和其周围的单元格
-    newBoard = revealEmptyCells(newBoard, x, y);
-    setBoard(newBoard);
-    
-    // 检查是否胜利
-    if (checkWin(newBoard)) {
-      setGameStatus('won');
-      stopTimer();
-    }
-  }, [board, gameStatus, firstClick, placeMines, calculateAdjacentMines, startTimer, revealAllMines, revealEmptyCells, checkWin, stopTimer]);
+  const handleCellClick = useCallback((row: number, col: number) => {
+    if (isAnimating) return;
+    revealCell(row, col);
+  }, [revealCell, isAnimating]);
 
-  // 处理右键标记
-  const handleCellRightClick = useCallback((e: React.MouseEvent, x: number, y: number) => {
+  // 处理单元格右键点击
+  const handleCellRightClick = useCallback((e: React.MouseEvent, row: number, col: number) => {
     e.preventDefault();
-    
-    // 游戏已经结束或已揭示的单元格，不处理
-    if (gameStatus === 'won' || gameStatus === 'lost' || board[y][x].state === 'revealed') {
-      return;
-    }
-    
-    // 第一次右键点击也开始游戏
-    if (firstClick) {
-      let newBoard = [...board];
-      // 放置地雷（排除当前点击位置）
-      newBoard = placeMines(newBoard, x, y);
-      // 计算相邻地雷数
-      newBoard = calculateAdjacentMines(newBoard);
-      setBoard(newBoard);
-      setFirstClick(false);
-      setGameStatus('playing');
-      startTimer();
-      return;
-    }
-    
-    const newBoard = board.map(row => [...row]);
-    
-    // 循环切换状态：hidden -> flagged -> question -> hidden
-    switch (newBoard[y][x].state) {
-      case 'hidden':
-        newBoard[y][x].state = 'flagged';
-        setMinesLeft(prev => Math.max(0, prev - 1));
-        break;
-      case 'flagged':
-        newBoard[y][x].state = 'question';
-        setMinesLeft(prev => prev + 1);
-        break;
-      case 'question':
-        newBoard[y][x].state = 'hidden';
-        break;
-    }
-    
-    setBoard(newBoard);
-    
-    // 检查是否胜利
-    if (checkWin(newBoard)) {
-      setGameStatus('won');
-      stopTimer();
-    }
-  }, [board, gameStatus, firstClick, placeMines, calculateAdjacentMines, startTimer, checkWin, stopTimer]);
+    if (isAnimating) return;
+    toggleFlag(row, col);
+  }, [toggleFlag, isAnimating]);
 
-  // 处理双击已揭示单元格（快速揭示周围未标记的单元格）
-  const handleCellDoubleClick = useCallback((x: number, y: number) => {
-    if (gameStatus !== 'playing' || board[y][x].state !== 'revealed' || board[y][x].adjacentMines === 0) {
-      return;
-    }
-    
-    // 计算周围已标记的地雷数量
-    let flaggedCount = 0;
-    const adjacentCells: [number, number][] = [];
-    
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        
-        const nx = x + dx;
-        const ny = y + dy;
-        
-        if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
-          if (board[ny][nx].state === 'flagged') {
-            flaggedCount++;
-          } else if (board[ny][nx].state === 'hidden') {
-            adjacentCells.push([nx, ny]);
-          }
-        }
-      }
-    }
-    
-    // 如果周围标记的地雷数量等于实际地雷数量，揭示周围未标记的单元格
-    if (flaggedCount === board[y][x].adjacentMines) {
-      let newBoard = board.map(row => [...row]);
-      let hitMine = false;
-      
-      // 检查是否点击到地雷
-      for (const [nx, ny] of adjacentCells) {
-        if (newBoard[ny][nx].hasMine) {
-          hitMine = true;
-          break;
-        }
-      }
-      
-      if (hitMine) {
-        // 点击到地雷，游戏结束
-        newBoard = revealAllMines(newBoard);
-        setBoard(newBoard);
-        setGameStatus('lost');
-        stopTimer();
-      } else {
-        // 没有点击到地雷，揭示周围单元格
-        for (const [nx, ny] of adjacentCells) {
-          if (newBoard[ny][nx].adjacentMines === 0) {
-            newBoard = revealEmptyCells(newBoard, nx, ny);
-          } else {
-            newBoard[ny][nx].state = 'revealed';
-            setRevealAnimation(prev => new Set(prev).add(`${nx},${ny}`));
-          }
-        }
-        
-        setBoard(newBoard);
-        
-        // 检查是否胜利
-        if (checkWin(newBoard)) {
-          setGameStatus('won');
-          stopTimer();
-        }
-      }
-    }
-  }, [board, gameStatus, cols, rows, revealAllMines, revealEmptyCells, checkWin, stopTimer]);
+  // 处理单元格长按（移动端）
+  const handleCellLongPress = useCallback((row: number, col: number) => {
+    if (isAnimating) return;
+    toggleFlag(row, col);
+  }, [toggleFlag, isAnimating]);
 
-  // 清理动画队列
-  useEffect(() => {
-    if (revealAnimation.size > 0) {
-      const timer = setTimeout(() => {
-        setRevealAnimation(new Set());
-      }, 300);
-      
-      return () => clearTimeout(timer);
+  // 更改难度
+  const changeDifficulty = useCallback((newDifficulty: number) => {
+    if (gameState === GameState.PLAYING) {
+      if (!confirm('确定要更改难度吗？当前游戏进度将会丢失。')) {
+        return;
+      }
     }
-  }, [revealAnimation]);
+    
+    setDifficulty(newDifficulty);
+    resetGame();
+    
+    // 更改主题
+    const themes: Array<'blue' | 'green' | 'purple' | 'red'> = ['blue', 'green', 'purple', 'red'];
+    setTheme(themes[newDifficulty % themes.length]);
+  }, [gameState, resetGame]);
 
   // 初始化游戏
   useEffect(() => {
     resetGame();
-  }, [resetGame]);
-
-  // 清理定时器
-  useEffect(() => {
+    
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, []);
+  }, [resetGame]);
 
-  // 获取单元格颜色
-  const getCellColor = (adjacentMines: number): string => {
-    const colors: Record<number, string> = {
-      1: 'text-blue-500',
-      2: 'text-green-500',
-      3: 'text-red-500',
-      4: 'text-purple-500',
-      5: 'text-amber-600',
-      6: 'text-cyan-500',
-      7: 'text-pink-500',
-      8: 'text-gray-500'
-    };
-    return colors[adjacentMines] || 'text-gray-300';
-  };
+  // 格式化时间
+  const formatTime = useCallback((seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }, []);
 
   // 渲染游戏板
   const renderBoard = () => {
     return (
       <div 
-        className="grid gap-px bg-gray-600/50 rounded-lg overflow-hidden"
-        style={{ 
-          gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
-          gridTemplateRows: `repeat(${rows}, ${cellSize}px)`,
-          width: `${boardSize.width}px`,
-          height: `${boardSize.height}px`
+        className="grid gap-px bg-gray-600/30 p-1 rounded-lg border-2 border-gray-600/30"
+        style={{
+          gridTemplateColumns: `repeat(${BOARD_SIZES[difficulty].cols}, ${cellSize}px)`,
+          width: `${gameBoardSize.width + 16}px`,
         }}
       >
-        {board.map((row, y) =>
-          row.map((cell, x) => {
-            const isAnimating = revealAnimation.has(`${x},${y}`);
-            let cellContent = '';
-            let cellClassName = '';
-            let emoji = '';
-            
-            switch (cell.state) {
-              case 'hidden':
-                cellClassName = 'bg-gradient-to-br from-gray-400 to-gray-500 hover:from-gray-300 hover:to-gray-400 cursor-pointer active:from-gray-500 active:to-gray-600';
-                break;
-              case 'revealed':
-                cellClassName = 'bg-gray-200';
-                if (cell.hasMine) {
-                  emoji = '💣';
-                } else if (cell.adjacentMines > 0) {
-                  cellContent = cell.adjacentMines.toString();
-                }
-                break;
-              case 'flagged':
-                cellClassName = 'bg-gradient-to-br from-yellow-400 to-amber-500 cursor-pointer';
-                emoji = '🚩';
-                break;
-              case 'question':
-                cellClassName = 'bg-gradient-to-br from-blue-400 to-blue-500 cursor-pointer';
-                emoji = '❓';
-                break;
-              case 'exploded':
-                cellClassName = 'bg-gradient-to-br from-red-500 to-red-600';
-                emoji = '💥';
-                break;
-            }
-            
-            return (
-              <div
-                key={`${x}-${y}`}
-                className={`flex items-center justify-center font-bold text-xl ${cellClassName} transition-all duration-150 ease-out relative ${cell.state === 'revealed' && cell.adjacentMines > 0 ? getCellColor(cell.adjacentMines) : ''} ${isAnimating ? 'animate-pulse scale-95' : ''}`}
-                style={{
-                  width: `${cellSize}px`,
-                  height: `${cellSize}px`,
-                  fontSize: cell.adjacentMines > 0 ? `${Math.max(12, cellSize * 0.5)}px` : 'inherit',
-                  lineHeight: '1',
-                  userSelect: 'none',
-                  minWidth: `${cellSize}px`
-                }}
-                onClick={() => handleCellClick(x, y)}
-                onContextMenu={(e) => handleCellRightClick(e, x, y)}
-                onDoubleClick={() => handleCellDoubleClick(x, y)}
-                tabIndex={0}
-                onKeyPress={(e) => {
-                  if (e.key === ' ' || e.key === 'Enter') {
-                    handleCellClick(x, y);
-                  } else if (e.key === 'f' || e.key === 'F') {
-                    handleCellRightClick(e as any, x, y);
-                  }
-                }}
-              >
-                {emoji || cellContent}
-                {cell.isFirstClick && (
-                  <div className="absolute inset-0 bg-blue-300/30 rounded-sm" />
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
-    );
-  };
-
-  // 渲染游戏状态栏
-  const renderStatusBar = () => {
-    const getFaceEmoji = () => {
-      switch (gameStatus) {
-        case 'idle':
-          return '😊';
-        case 'playing':
-          return '😐';
-        case 'won':
-          return '😎';
-        case 'lost':
-          return '😵';
-        default:
-          return '😊';
-      }
-    };
-
-    return (
-      <div className="flex items-center justify-between gap-4 mb-4 bg-gray-700/50 p-3 rounded-lg">
-        <div className="flex items-center gap-2 bg-gray-800/80 px-3 py-2 rounded-lg">
-          <span className="text-lg">💣</span>
-          <span className="text-xl font-bold text-white">{minesLeft}</span>
-        </div>
-        
-        <Button
-          variant="flat"
-          className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-400 hover:to-gray-500 p-2 rounded-full transition-all duration-300 transform hover:scale-110 active:scale-95"
-          onPress={resetGame}
-          style={{ width: '50px', height: '50px', minWidth: '50px' }}
-        >
-          <span className="text-2xl">{getFaceEmoji()}</span>
-        </Button>
-        
-        <div className="flex items-center gap-2 bg-gray-800/80 px-3 py-2 rounded-lg">
-          <span className="text-lg">⏱️</span>
-          <span className="text-xl font-bold text-white">{timer}</span>
-        </div>
-      </div>
-    );
-  };
-
-  // 渲染难度选择
-  const renderDifficultySelector = () => {
-    return (
-      <div className="flex gap-2 mb-4 flex-wrap justify-center">
-        <Button
-          variant="flat"
-          className={`${difficulty === 'easy' ? 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700' : 'from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700'} text-white rounded-lg transition-all duration-300`}
-          onPress={() => changeDifficulty('easy')}
-        >
-          简单 (8×8)
-        </Button>
-        <Button
-          variant="flat"
-          className={`${difficulty === 'medium' ? 'from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700' : 'from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700'} text-white rounded-lg transition-all duration-300`}
-          onPress={() => changeDifficulty('medium')}
-        >
-          中等 (16×16)
-        </Button>
-        <Button
-          variant="flat"
-          className={`${difficulty === 'hard' ? 'from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' : 'from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700'} text-white rounded-lg transition-all duration-300`}
-          onPress={() => changeDifficulty('hard')}
-        >
-          困难 (16×30)
-        </Button>
-      </div>
-    );
-  };
-
-  // 渲染操作说明
-  const renderInstructions = () => {
-    return (
-      <div className="bg-gray-700/50 rounded-lg p-3 text-center text-xs text-gray-300 mt-4">
-        <div className="font-medium mb-1 text-gray-200">操作说明</div>
-        <div>左键点击揭示单元格</div>
-        <div>右键点击标记地雷</div>
-        <div>双击已揭示的数字单元格快速揭示周围</div>
-        {isMobile && <div>在移动设备上，可以使用下方的控制按钮</div>}
+        {board.map((row, rowIndex) => (
+          row.map((cell, colIndex) => (
+            <div
+              key={cell.id}
+              className={`relative flex items-center justify-center rounded-sm transition-all duration-${ANIMATION_DURATION} cursor-pointer ${
+                cell.state === CellState.HIDDEN 
+                  ? `${colorThemes[theme].hidden} shadow-md hover:shadow-lg transform hover:scale-105` 
+                  : cell.state === CellState.REVEALED 
+                    ? `${colorThemes[theme].revealed} shadow-inner` 
+                    : `${colorThemes[theme].flag} shadow-md`
+              } ${cell.state === CellState.REVEALED && cell.isMine ? colorThemes[theme].mine : ''}`}
+              style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
+              onClick={() => handleCellClick(rowIndex, colIndex)}
+              onContextMenu={(e) => handleCellRightClick(e, rowIndex, colIndex)}
+              onTouchStart={() => {
+                // 长按处理
+                const longPressTimer = setTimeout(() => {
+                  handleCellLongPress(rowIndex, colIndex);
+                }, 500);
+                
+                const handleTouchEnd = () => {
+                  clearTimeout(longPressTimer);
+                  document.removeEventListener('touchend', handleTouchEnd);
+                };
+                
+                document.addEventListener('touchend', handleTouchEnd);
+              }}
+            >
+              {cell.state === CellState.REVEALED && (
+                <>
+                  {cell.isMine ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="black">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+                      </svg>
+                    </div>
+                  ) : cell.content > 0 ? (
+                    <span className={`font-bold ${colorThemes[theme].numbers[cell.content]}`}>
+                      {cell.content}
+                    </span>
+                  ) : null}
+                </>
+              )}
+              
+              {cell.state === CellState.FLAGGED && (
+                <div className="w-full h-full flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                    <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
+                  </svg>
+                </div>
+              )}
+            </div>
+          ))
+        ))}
       </div>
     );
   };
 
   return (
-    <section className="flex flex-col items-center justify-center gap-6 py-6 md:py-10 min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 px-4">
-      <div className="text-center mb-6 w-full max-w-md">
-        <h1 className={title({ size: "lg", color: "blue" })}>扫雷</h1>
+    <section className="flex flex-col items-center justify-center gap-8 py-8 md:py-10 min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 px-4">
+      <div className="text-center mb-6 w-full max-w-lg">
+        <h1 className={title({ size: "lg", color: "blue" })}>扫雷游戏</h1>
         <div className={subtitle({ class: "mt-2 text-gray-300" })}>
-          揭示所有没有地雷的单元格，避开所有地雷！
+          找出所有地雷，但不要踩到它们！使用数字提示周围地雷的数量。
         </div>
       </div>
 
-      <Card className="bg-gray-800/80 border-gray-700/50 shadow-2xl backdrop-blur-sm transition-all duration-300 max-w-4xl w-full mx-auto">
-        <CardBody className="p-4 md:p-6 relative">
-          {/* 游戏状态栏 */}
-          {renderStatusBar()}
-          
-          {/* 难度选择 */}
-          {renderDifficultySelector()}
+      <div className="flex flex-col items-center gap-6">
+        <Card className="bg-gray-800/80 border-gray-700/50 shadow-2xl backdrop-blur-sm transition-all duration-300">
+          <CardBody className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+              <div className="flex gap-4">
+                <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
+                  <div className="text-xs text-gray-400">剩余地雷</div>
+                  <div className="text-2xl font-bold text-white">
+                    {BOARD_SIZES[difficulty].mines - flagsCount}
+                  </div>
+                </div>
+                <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
+                  <div className="text-xs text-gray-400">用时</div>
+                  <div className="text-2xl font-bold text-white">
+                    {formatTime(timer)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="flat"
+                  className={`bg-gradient-to-r ${colorThemes[theme].accent} hover:opacity-90 text-white rounded-lg transition-all duration-300 transform hover:scale-105`}
+                  onPress={resetGame}
+                >
+                  新游戏
+                </Button>
+              </div>
+            </div>
 
-          {/* 游戏板 */}
-          <div className="flex justify-center mb-4">
-            <div 
-              ref={gameRef}
-              className="p-4 bg-gray-700/30 rounded-xl shadow-inner"
-              style={{ 
-                display: 'inline-flex',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}
-            >
+            <div className="flex flex-wrap justify-center gap-2 mb-4">
+              {BOARD_SIZES.map((size, index) => (
+                <Button
+                  key={index}
+                  variant={difficulty === index ? "solid" : "flat"}
+                  className={`transition-all duration-300 ${
+                    difficulty === index 
+                      ? `bg-gradient-to-r ${colorThemes[theme].accent} text-white` 
+                      : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'
+                  }`}
+                  onPress={() => changeDifficulty(index)}
+                >
+                  {size.name}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex justify-center mb-4">
               {renderBoard()}
             </div>
-          </div>
+            
+            <div className="text-center text-gray-400 text-sm mt-4">
+              <p>左键点击: 揭示单元格 | 右键点击: 标记地雷</p>
+              {isMobile && <p className="mt-1">移动端: 点击揭示 | 长按标记地雷</p>}
+            </div>
+          </CardBody>
+        </Card>
 
-          {/* 操作说明 */}
-          {renderInstructions()}
-
-          {/* 游戏状态覆盖层 */}
-          {(gameStatus === 'won' || gameStatus === 'lost') && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50">
-              <Card className="bg-gray-800/95 border-gray-600 shadow-2xl max-w-md w-full mx-4">
-                <CardBody className="p-6 text-center">
-                  <h2 className={`text-2xl font-bold mb-2 ${gameStatus === 'won' ? 'text-green-400' : 'text-red-400'}`}>
-                    {gameStatus === 'won' ? '恭喜你赢了！' : '游戏结束！'}
-                  </h2>
-                  <p className="text-gray-300 mb-4">
-                    {gameStatus === 'won' 
-                      ? `你用了 ${timer} 秒完成了游戏！` 
-                      : '你踩到地雷了！'}
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        {/* 游戏结束覆盖层 */}
+        {(gameState === GameState.WON || gameState === GameState.LOST) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50">
+            <Card className="bg-gray-800/95 border-gray-600 shadow-2xl max-w-md w-full mx-4">
+              <CardBody className="p-6 text-center">
+                <h2 className={`text-2xl font-bold mb-2 ${
+                  gameState === GameState.WON ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {gameState === GameState.WON ? '恭喜你赢了！' : '游戏结束！'}
+                </h2>
+                <p className="text-gray-300 mb-2">
+                  {gameState === GameState.WON 
+                    ? '你成功找到了所有地雷！' 
+                    : '你踩到了地雷！'}
+                </p>
+                <p className="text-gray-300 mb-6">
+                  用时: <span className="text-yellow-400 font-bold">{formatTime(timer)}</span>
+                </p>
+                {gameState === GameState.WON && (
+                  <div className="bg-green-900/50 border border-green-500/30 rounded-lg p-3 mb-6 animate-pulse">
+                    <p className="text-green-400 font-bold">胜利！🎉</p>
+                  </div>
+                )}
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    variant="flat"
+                    className={`bg-gradient-to-r ${colorThemes[theme].accent} hover:opacity-90 text-white rounded-lg transition-all duration-300`}
+                    onPress={resetGame}
+                  >
+                    再玩一次
+                  </Button>
+                  <Link href="/games">
                     <Button
                       variant="flat"
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg transition-all duration-300"
-                      onPress={resetGame}
+                      className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white rounded-lg transition-all duration-300"
                     >
-                      再玩一次
+                      返回游戏列表
                     </Button>
-                    <Link href="/games">
-                      <Button
-                        variant="flat"
-                        className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white rounded-lg transition-all duration-300"
-                      >
-                        返回游戏列表
-                      </Button>
-                    </Link>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-          )}
-        </CardBody>
-      </Card>
-
-      {/* 移动端控制 */}
-      {isMobile && (
-        <MobileControls
-          className="mt-4"
-          onDirection={(dir) => {
-            // 这里可以添加方向控制逻辑
-          }}
-          variant="game"
-          cellSize={cellSize * 2}
-        />
-      )}
+                  </Link>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

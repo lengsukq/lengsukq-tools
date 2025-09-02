@@ -8,60 +8,72 @@ import { useMobile } from "@/hooks/use-mobile";
 import { MobileControls } from "@/components/mobile-controls";
 import Link from "next/link";
 
+// 游戏常量
 const BOARD_SIZE = 4;
-const ANIMATION_DURATION = 200;
+const WINNING_VALUE = 2048;
+const ANIMATION_DURATION = 150;
 
+// 瓦片接口
 interface Tile {
-  id: string;
+  id: number;
   value: number;
   row: number;
   col: number;
-  mergedFrom: string[];
   isNew?: boolean;
   isMerged?: boolean;
-  animate?: {
-    fromRow?: number;
-    fromCol?: number;
-  };
+  mergedFrom?: { row: number; col: number }[];
+  animate?: 'appear' | 'merge' | 'move';
 }
 
+// 游戏状态
 export default function Game2048() {
   // 游戏状态
+  const [gameBoard, setGameBoard] = useState<number[][]>([]);
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [score, setScore] = useState<number>(0);
-  const [bestScore, setBestScore] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('2048-best-score');
-      return saved ? parseInt(saved, 10) : 0;
-    }
-    return 0;
-  });
+  const [bestScore, setBestScore] = useState<number>(0);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [won, setWon] = useState<boolean>(false);
-  const [gameStarted, setGameStarted] = useState<boolean>(false);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
   const [scoreAnimation, setScoreAnimation] = useState<boolean>(false);
-  const [gameBoard, setGameBoard] = useState<number[][]>([]);
+  const [gameStarted, setGameStarted] = useState<boolean>(false);
+  const [tileSize, setTileSize] = useState<number>(80);
+  const [boardSize, setBoardSize] = useState<number>(400);
   
   // 布局相关
-  const [cellSize, setCellSize] = useState<number>(80);
-  const [boardSize, setBoardSize] = useState<number>(320);
   const isMobile = useMobile();
   const gameRef = useRef<HTMLDivElement>(null);
+  const nextTileId = useRef<number>(1);
   
+  // 瓦片颜色主题
+  const tileColors: Record<number, string> = {
+    0: 'bg-gray-700/30',
+    2: 'bg-gradient-to-br from-amber-100 to-amber-200 text-gray-800',
+    4: 'bg-gradient-to-br from-amber-200 to-amber-300 text-gray-800',
+    8: 'bg-gradient-to-br from-orange-300 to-orange-400 text-white',
+    16: 'bg-gradient-to-br from-orange-400 to-orange-500 text-white',
+    32: 'bg-gradient-to-br from-red-400 to-red-500 text-white',
+    64: 'bg-gradient-to-br from-red-500 to-red-600 text-white',
+    128: 'bg-gradient-to-br from-yellow-300 to-yellow-400 text-white',
+    256: 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-white',
+    512: 'bg-gradient-to-br from-yellow-500 to-yellow-600 text-white',
+    1024: 'bg-gradient-to-br from-amber-500 to-amber-600 text-white text-sm',
+    2048: 'bg-gradient-to-br from-amber-600 to-amber-700 text-white text-sm',
+  };
+
   // 动态调整游戏板大小
   useEffect(() => {
     const updateBoardSize = () => {
       if (isMobile) {
         const screenWidth = window.innerWidth;
         const maxWidth = Math.min(screenWidth - 48, 400);
-        const newCellSize = Math.floor(maxWidth / BOARD_SIZE);
-        const newBoardSize = newCellSize * BOARD_SIZE;
-        setCellSize(newCellSize);
+        const newTileSize = Math.floor(maxWidth / BOARD_SIZE);
+        const newBoardSize = newTileSize * BOARD_SIZE;
+        setTileSize(newTileSize);
         setBoardSize(newBoardSize);
       } else {
-        setCellSize(80);
-        setBoardSize(320);
+        setTileSize(80);
+        setBoardSize(400);
       }
     };
 
@@ -70,198 +82,188 @@ export default function Game2048() {
     return () => window.removeEventListener('resize', updateBoardSize);
   }, [isMobile]);
 
-  // 生成随机瓦片
-  const generateRandomTile = useCallback((): Tile | null => {
-    const emptyCells: [number, number][] = [];
-    
-    for (let i = 0; i < BOARD_SIZE; i++) {
-      for (let j = 0; j < BOARD_SIZE; j++) {
-        if (!tiles.some(tile => tile.row === i && tile.col === j)) {
-          emptyCells.push([i, j]);
-        }
-      }
-    }
-
-    if (emptyCells.length === 0) return null;
-
-    const [row, col] = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-    const value = Math.random() < 0.9 ? 2 : 4;
-    const id = `tile-${Date.now()}-${Math.random()}`;
-
-    return {
-      id,
-      value,
-      row,
-      col,
-      mergedFrom: [],
-      isNew: true
-    };
-  }, [tiles]);
-
   // 初始化游戏
   const initializeGame = useCallback(() => {
-    const newTiles: Tile[] = [];
-    const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+    // 创建空游戏板
+    const newBoard: number[][] = Array(BOARD_SIZE).fill(null).map(() => 
+      Array(BOARD_SIZE).fill(0)
+    );
     
-    // 生成两个初始瓦片
-    for (let i = 0; i < 2; i++) {
-      const tile = generateRandomTile();
-      if (tile) {
-        newTiles.push(tile);
-        newBoard[tile.row][tile.col] = tile.value;
-      }
-    }
-
-    setTiles(newTiles);
     setGameBoard(newBoard);
+    setTiles([]);
     setScore(0);
     setGameOver(false);
     setWon(false);
-    setGameStarted(true);
-    setIsAnimating(false);
-  }, [generateRandomTile]);
-
-  // 重置游戏
-  const resetGame = () => {
-    initializeGame();
-  };
-
-  // 获取瓦片颜色
-  const getTileColor = (value: number) => {
-    const colors: Record<number, string> = {
-      2: 'bg-gradient-to-br from-amber-50 to-amber-200 text-gray-800',
-      4: 'bg-gradient-to-br from-amber-200 to-amber-300 text-gray-800',
-      8: 'bg-gradient-to-br from-orange-400 to-orange-500 text-white',
-      16: 'bg-gradient-to-br from-orange-500 to-orange-600 text-white',
-      32: 'bg-gradient-to-br from-rose-500 to-rose-600 text-white',
-      64: 'bg-gradient-to-br from-rose-600 to-rose-700 text-white',
-      128: 'bg-gradient-to-br from-amber-300 to-yellow-400 text-gray-900',
-      256: 'bg-gradient-to-br from-amber-400 to-yellow-500 text-gray-900',
-      512: 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-gray-900',
-      1024: 'bg-gradient-to-br from-yellow-500 to-yellow-700 text-white',
-      2048: 'bg-gradient-to-br from-green-400 to-green-600 text-white',
-    };
+    setGameStarted(false);
+    nextTileId.current = 1;
     
-    return colors[value] || 'bg-gradient-to-br from-violet-600 to-violet-800 text-white';
-  };
+    // 加载最高分
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('2048-best-score');
+      if (saved) {
+        setBestScore(parseInt(saved, 10));
+      }
+    }
+  }, []);
 
-  // 获取瓦片文本大小
-  const getTileTextSize = (value: number) => {
-    if (value < 100) return 'text-3xl';
-    if (value < 1000) return 'text-2xl';
-    return 'text-xl';
-  };
+  // 生成随机瓦片
+  const generateRandomTile = useCallback((): Tile | null => {
+    const emptyCells: { row: number; col: number }[] = [];
+    
+    // 查找所有空单元格
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        if (gameBoard[row][col] === 0) {
+          emptyCells.push({ row, col });
+        }
+      }
+    }
+    
+    if (emptyCells.length === 0) {
+      return null;
+    }
+    
+    // 随机选择一个空单元格
+    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    
+    // 90%概率生成2，10%概率生成4
+    const value = Math.random() < 0.9 ? 2 : 4;
+    
+    return {
+      id: nextTileId.current++,
+      value,
+      row: randomCell.row,
+      col: randomCell.col,
+      isNew: true,
+      animate: 'appear'
+    };
+  }, [gameBoard]);
+
+  // 添加初始瓦片
+  const addInitialTiles = useCallback(() => {
+    const newTiles: Tile[] = [];
+    const newBoard = [...gameBoard];
+    
+    // 添加两个初始瓦片
+    for (let i = 0; i < 2; i++) {
+      const newTile = generateRandomTile();
+      if (newTile) {
+        newTiles.push(newTile);
+        newBoard[newTile.row][newTile.col] = newTile.value;
+      }
+    }
+    
+    setTiles(newTiles);
+    setGameBoard(newBoard);
+    setGameStarted(true);
+  }, [gameBoard, generateRandomTile]);
 
   // 移动瓦片
   const moveTiles = useCallback((direction: 'up' | 'down' | 'left' | 'right') => {
     if (isAnimating || gameOver) return;
-
+    
     setIsAnimating(true);
+    
+    // 创建游戏板副本
     const newBoard = gameBoard.map(row => [...row]);
     const newTiles: Tile[] = [];
     let moved = false;
     let scoreIncrement = 0;
-
+    
     // 根据方向确定遍历顺序
-    const getTraversalOrder = () => {
-      switch (direction) {
-        case 'left':
-          return { row: [0, BOARD_SIZE - 1], col: [0, BOARD_SIZE - 1], step: 1 };
-        case 'right':
-          return { row: [0, BOARD_SIZE - 1], col: [BOARD_SIZE - 1, 0], step: -1 };
-        case 'up':
-          return { row: [0, BOARD_SIZE - 1], col: [0, BOARD_SIZE - 1], step: 1 };
-        case 'down':
-          return { row: [BOARD_SIZE - 1, 0], col: [0, BOARD_SIZE - 1], step: -1 };
-      }
-    };
-
-    const order = getTraversalOrder();
-    const isHorizontal = direction === 'left' || direction === 'right';
-
-    // 遍历每一行/列
-    for (let i = order.row[0]; 
-         isHorizontal ? i <= order.row[1] : i >= order.row[1]; 
-         i += isHorizontal ? 1 : order.step) {
-      const line: {value: number, tile?: Tile}[] = [];
-
-      // 收集非零值
-      for (let j = order.col[0]; 
-           j !== order.col[1] + order.step; 
-           j += order.step) {
-        const value = isHorizontal ? newBoard[i][j] : newBoard[j][i];
-        if (value !== 0) {
-          const tile = tiles.find(t => 
-            isHorizontal ? (t.row === i && t.col === j) : (t.row === j && t.col === i)
-          );
-          line.push({value, tile});
-          newBoard[isHorizontal ? i : j][isHorizontal ? j : i] = 0;
+    const rowStart = direction === 'down' ? BOARD_SIZE - 1 : 0;
+    const rowEnd = direction === 'down' ? -1 : BOARD_SIZE;
+    const rowStep = direction === 'down' ? -1 : 1;
+    
+    const colStart = direction === 'right' ? BOARD_SIZE - 1 : 0;
+    const colEnd = direction === 'right' ? -1 : BOARD_SIZE;
+    const colStep = direction === 'right' ? -1 : 1;
+    
+    // 确定主要和次要遍历方向
+    const isRowPrimary = direction === 'left' || direction === 'right';
+    
+    // 遍历游戏板
+    for (let i = isRowPrimary ? 0 : rowStart; 
+         isRowPrimary ? i < BOARD_SIZE : i !== rowEnd; 
+         i += isRowPrimary ? 1 : rowStep) {
+      
+      const line: number[] = [];
+      const tilePositions: { row: number; col: number }[] = [];
+      
+      // 收集当前行/列的瓦片
+      for (let j = isRowPrimary ? colStart : i; 
+           isRowPrimary ? j !== colEnd : j !== (isRowPrimary ? i : colEnd); 
+           j += isRowPrimary ? colStep : 1) {
+        
+        const row = isRowPrimary ? i : j;
+        const col = isRowPrimary ? j : i;
+        
+        if (newBoard[row][col] !== 0) {
+          line.push(newBoard[row][col]);
+          tilePositions.push({ row, col });
+          newBoard[row][col] = 0;
         }
       }
-
-      // 合并相同值
+      
+      // 合并相同值的瓦片
+      const mergedLine: number[] = [];
+      const mergedPositions: { row: number; col: number }[] = [];
       let mergedCount = 0;
+      
       for (let j = 0; j < line.length; j++) {
-        if (j < line.length - 1 && line[j].value === line[j + 1].value) {
+        if (j < line.length - 1 && line[j] === line[j + 1]) {
           // 合并瓦片
-          const mergedValue = line[j].value * 2;
+          const mergedValue = line[j] * 2;
+          mergedLine.push(mergedValue);
           scoreIncrement += mergedValue;
           
-          // 创建合并后的瓦片
-          const mergedTile: Tile = {
-            id: `merged-${Date.now()}-${j}`,
-            value: mergedValue,
-            row: isHorizontal ? i : j,
-            col: isHorizontal ? j : i,
-            isMerged: true,
-            mergedFrom: []
-          };
-          // 使用临时变量解决类型推断问题
-          const firstTile = line[j].tile;
-          if (firstTile !== undefined) {
-            mergedTile.mergedFrom.push(firstTile.id);
-          }
-          if (line[j + 1] !== undefined) {
-            const secondTile = line[j + 1].tile;
-            if (secondTile !== undefined) {
-              mergedTile.mergedFrom.push(secondTile.id);
-            }
-          }
+          // 记录合并位置
+          const mergedFrom = [tilePositions[j], tilePositions[j + 1]];
+          mergedPositions.push({
+            row: isRowPrimary ? i : (direction === 'up' || direction === 'down' ? j - mergedCount : i),
+            col: isRowPrimary ? (direction === 'left' || direction === 'right' ? j - mergedCount : i) : j
+          });
           
-          line[j] = {value: mergedValue, tile: mergedTile};
-          line.splice(j + 1, 1);
+          // 创建合并后的瓦片
+          newTiles.push({
+            id: nextTileId.current++,
+            value: mergedValue,
+            row: mergedPositions[mergedPositions.length - 1].row,
+            col: mergedPositions[mergedPositions.length - 1].col,
+            isMerged: true,
+            mergedFrom,
+            animate: 'merge'
+          });
+          
+          j++; // 跳过下一个瓦片，因为它已经被合并
           mergedCount++;
+        } else {
+          // 不合并，直接添加
+          mergedLine.push(line[j]);
+          mergedPositions.push({
+            row: isRowPrimary ? i : (direction === 'up' || direction === 'down' ? j - mergedCount : i),
+            col: isRowPrimary ? (direction === 'left' || direction === 'right' ? j - mergedCount : i) : j
+          });
+          
+          // 创建移动后的瓦片
+          if (tilePositions[j].row !== mergedPositions[mergedPositions.length - 1].row || 
+              tilePositions[j].col !== mergedPositions[mergedPositions.length - 1].col) {
+            newTiles.push({
+              id: nextTileId.current++,
+              value: line[j],
+              row: mergedPositions[mergedPositions.length - 1].row,
+              col: mergedPositions[mergedPositions.length - 1].col,
+              animate: 'move'
+            });
+          }
         }
       }
-
-      // 移动瓦片到新位置
-      let newPosition = order.col[0];
-      for (let j = 0; j < line.length; j++) {
-        const targetRow = isHorizontal ? i : newPosition;
-        const targetCol = isHorizontal ? newPosition : i;
-        
-        newBoard[targetRow][targetCol] = line[j].value;
-        
-        if (line[j].tile !== undefined) {
-          // 使用临时变量和非空断言操作符
-          const originalTile = line[j].tile!;
-          const movedTile: Tile = {
-            id: originalTile.id,
-            value: originalTile.value,
-            row: targetRow,
-            col: targetCol,
-            mergedFrom: originalTile.mergedFrom || [],
-            isNew: originalTile.isNew,
-            isMerged: originalTile.isMerged,
-            animate: {
-              fromRow: originalTile.row,
-              fromCol: originalTile.col
-            }
-          };
-          newTiles.push(movedTile);
-        }
-        
-        newPosition += order.step;
+      
+      // 将合并后的行/列放回游戏板
+      for (let j = 0; j < mergedLine.length; j++) {
+        const row = isRowPrimary ? i : (direction === 'up' || direction === 'down' ? j : i);
+        const col = isRowPrimary ? (direction === 'left' || direction === 'right' ? j : i) : j;
+        newBoard[row][col] = mergedLine[j];
       }
       
       if (line.length > 0 || mergedCount > 0) {
@@ -279,11 +281,11 @@ export default function Game2048() {
         const newScore = prev + scoreIncrement;
         // 更新最高分
         if (newScore > bestScore) {
-        setBestScore(newScore);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('2048-best-score', newScore.toString());
+          setBestScore(newScore);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('2048-best-score', newScore.toString());
+          }
         }
-      }
         return newScore;
       });
       setScoreAnimation(true);
@@ -319,7 +321,7 @@ export default function Game2048() {
   // 检查游戏状态
   const checkGameState = useCallback((board: number[][]) => {
     // 检查是否获胜
-    const hasWon = board.some(row => row.some(cell => cell === 2048));
+    const hasWon = board.some(row => row.some(cell => cell === WINNING_VALUE));
     if (hasWon && !won) {
       setWon(true);
     }
@@ -327,19 +329,26 @@ export default function Game2048() {
     // 检查是否游戏结束
     const hasEmptyCell = board.some(row => row.some(cell => cell === 0));
     if (!hasEmptyCell) {
-      // 检查是否可以合并
+      // 检查是否有可合并的相邻瓦片
       let canMerge = false;
-      for (let i = 0; i < BOARD_SIZE; i++) {
-        for (let j = 0; j < BOARD_SIZE; j++) {
-          const current = board[i][j];
-          if (
-            (i < BOARD_SIZE - 1 && board[i + 1][j] === current) ||
-            (j < BOARD_SIZE - 1 && board[i][j + 1] === current)
-          ) {
+      
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          const current = board[row][col];
+          
+          // 检查右侧
+          if (col < BOARD_SIZE - 1 && board[row][col + 1] === current) {
+            canMerge = true;
+            break;
+          }
+          
+          // 检查下方
+          if (row < BOARD_SIZE - 1 && board[row + 1][col] === current) {
             canMerge = true;
             break;
           }
         }
+        
         if (canMerge) break;
       }
       
@@ -348,6 +357,56 @@ export default function Game2048() {
       }
     }
   }, [won]);
+
+  // 重置游戏
+  const resetGame = () => {
+    initializeGame();
+    setTimeout(() => {
+      addInitialTiles();
+    }, 100);
+  };
+
+  // 键盘控制
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isAnimating || (!gameStarted && e.key !== ' ')) return;
+
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          moveTiles('up');
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          moveTiles('down');
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          moveTiles('left');
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          moveTiles('right');
+          break;
+        case ' ':
+          e.preventDefault();
+          if (!gameStarted) {
+            addInitialTiles();
+          }
+          break;
+        case 'r':
+        case 'R':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            resetGame();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAnimating, gameStarted, moveTiles, addInitialTiles, resetGame]);
 
   // 触摸控制
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
@@ -374,74 +433,77 @@ export default function Game2048() {
       }
     }
 
+    if (!gameStarted) {
+      addInitialTiles();
+    }
+
     setTouchStart(null);
   };
 
-  // 键盘控制
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (isAnimating || gameOver || !gameStarted) return;
-
-      switch (e.key) {
-        case 'ArrowLeft':
-          e.preventDefault();
-          moveTiles('left');
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          moveTiles('right');
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          moveTiles('up');
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          moveTiles('down');
-          break;
-        case 'r':
-        case 'R':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            resetGame();
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isAnimating, gameOver, gameStarted, moveTiles, resetGame]);
+  // 移动端控制
+  const handleMobileControl = (direction: 'up' | 'down' | 'left' | 'right') => {
+    moveTiles(direction);
+    if (!gameStarted) {
+      addInitialTiles();
+    }
+  };
 
   // 初始化游戏
   useEffect(() => {
     initializeGame();
-  }, []);
+  }, [initializeGame]);
 
-  // 计算瓦片位置和动画
-  const getTileStyle = (tile: Tile) => {
-    const style: React.CSSProperties = {
-      width: `${cellSize}px`,
-      height: `${cellSize}px`,
-      left: `${tile.col * cellSize}px`,
-      top: `${tile.row * cellSize}px`,
-      zIndex: tile.isNew || tile.isMerged ? 10 : 1,
-      transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
-    };
-
-    if (tile.animate) {
-      // 添加移动动画
-      const translateX = (tile.animate.fromCol! - tile.col) * cellSize;
-      const translateY = (tile.animate.fromRow! - tile.row) * cellSize;
-      style.transform = `translate(${translateX}px, ${translateY}px)`;
-      setTimeout(() => {
-        setTiles(prev => prev.map(t => 
-          t.id === tile.id ? { ...t, animate: undefined } : t
-        ));
-      }, 10);
+  // 渲染游戏板背景
+  const renderBoardBackground = () => {
+    const cells = [];
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        cells.push(
+          <div
+            key={`bg-${row}-${col}`}
+            className="absolute bg-gray-700/30 rounded-lg"
+            style={{
+              width: `${tileSize - 8}px`,
+              height: `${tileSize - 8}px`,
+              left: `${col * tileSize + 4}px`,
+              top: `${row * tileSize + 4}px`,
+            }}
+          />
+        );
+      }
     }
+    return cells;
+  };
 
-    return style;
+  // 渲染瓦片
+  const renderTiles = () => {
+    return tiles.map(tile => {
+      const tileClass = `absolute rounded-lg flex items-center justify-center font-bold text-xl md:text-2xl shadow-lg transition-all duration-${ANIMATION_DURATION} ease-in-out ${tileColors[tile.value] || 'bg-gray-800'}`;
+      
+      // 根据动画类型添加不同的动画效果
+      let animationClass = '';
+      if (tile.animate === 'appear') {
+        animationClass = 'scale-0 animate-in fade-in-90 zoom-in-90';
+      } else if (tile.animate === 'merge') {
+        animationClass = 'scale-110 animate-in fade-in-90 zoom-in-90';
+      }
+      
+      return (
+        <div
+          key={tile.id}
+          className={`${tileClass} ${animationClass}`}
+          style={{
+            width: `${tileSize - 8}px`,
+            height: `${tileSize - 8}px`,
+            left: `${tile.col * tileSize + 4}px`,
+            top: `${tile.row * tileSize + 4}px`,
+            zIndex: tile.value,
+          }}
+        >
+          {tile.value}
+        </div>
+      );
+    });
   };
 
   return (
@@ -471,39 +533,37 @@ export default function Game2048() {
                   <div className="text-2xl font-bold text-white">{bestScore}</div>
                 </div>
               </div>
-              <Button
-                variant="flat"
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg transition-all duration-300 transform hover:scale-105"
-                onPress={resetGame}
-              >
-                重新开始
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="flat"
+                  className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white rounded-lg transition-all duration-300 transform hover:scale-105"
+                  onPress={resetGame}
+                >
+                  新游戏
+                </Button>
+              </div>
             </div>
 
             <div 
               ref={gameRef}
-              className="relative border-4 border-gray-700 rounded-xl overflow-hidden shadow-lg"
+              className="relative bg-gray-700/30 rounded-xl p-2 shadow-inner"
               style={{ width: `${boardSize}px`, height: `${boardSize}px` }}
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
-              {/* 游戏背景网格 */}
-              <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 gap-1.5 bg-gray-800 p-1.5">
-                {Array(16).fill(0).map((_, index) => (
-                  <div key={index} className="bg-gray-700/50 rounded-md"></div>
-                ))}
-              </div>
+              {/* 游戏板背景 */}
+              {renderBoardBackground()}
               
               {/* 瓦片 */}
-              {tiles.map((tile) => (
-                <div
-                  key={tile.id}
-                  className={`absolute rounded-md flex items-center justify-center font-bold ${getTileColor(tile.value)} ${getTileTextSize(tile.value)} shadow-md ${tile.isNew ? 'scale-110' : ''} ${tile.isMerged ? 'scale-125' : ''} transition-all duration-200 ease-out`}
-                  style={getTileStyle(tile)}
-                >
-                  {tile.value}
+              {renderTiles()}
+              
+              {/* 游戏开始提示 */}
+              {!gameStarted && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-lg">
+                  <div className="text-white text-xl font-bold mb-4 animate-bounce">按方向键开始游戏</div>
+                  <div className="text-gray-300 text-sm">或滑动屏幕</div>
                 </div>
-              ))}
+              )}
             </div>
           </CardBody>
         </Card>
@@ -511,43 +571,35 @@ export default function Game2048() {
         {/* 移动端控制 */}
         {isMobile && (
           <MobileControls
-            onDirection={(direction) => moveTiles(direction)}
+            onDirection={handleMobileControl}
             className="mt-4"
             variant="game"
-            cellSize={cellSize}
+            cellSize={tileSize}
           />
         )}
 
-        {/* 游戏结束/获胜覆盖层 */}
+        {/* 游戏结束覆盖层 */}
         {(gameOver || won) && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50">
             <Card className="bg-gray-800/95 border-gray-600 shadow-2xl max-w-md w-full mx-4">
               <CardBody className="p-6 text-center">
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  {gameOver ? '游戏结束！' : '恭喜你获胜！'}
+                <h2 className={`text-2xl font-bold mb-2 ${won ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {won ? '恭喜你赢了！' : '游戏结束！'}
                 </h2>
-                <p className="text-gray-300 mb-6">
-                  {gameOver ? '再接再厉！' : '你已经达到了 2048！'}
-                </p>
-                <p className="text-gray-300 mb-6">
-                  最终得分: <span className="text-yellow-400 font-bold">{score}</span>
-                </p>
+                <p className="text-gray-300 mb-2">{won ? '你成功达到了2048！' : '没有可移动的方块了'}</p>
+                <p className="text-gray-300 mb-6">最终得分: <span className="text-yellow-400 font-bold">{score}</span></p>
+                {score > bestScore && (
+                  <div className="bg-green-900/50 border border-green-500/30 rounded-lg p-3 mb-6 animate-pulse">
+                    <p className="text-green-400 font-bold">新纪录！🎉</p>
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  {won && !gameOver && (
-                    <Button
-                      variant="flat"
-                      className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg transition-all duration-300"
-                      onPress={() => setWon(false)}
-                    >
-                      继续游戏
-                    </Button>
-                  )}
                   <Button
                     variant="flat"
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg transition-all duration-300"
+                    className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white rounded-lg transition-all duration-300"
                     onPress={resetGame}
                   >
-                    重新开始
+                    再玩一次
                   </Button>
                   <Link href="/games">
                     <Button
