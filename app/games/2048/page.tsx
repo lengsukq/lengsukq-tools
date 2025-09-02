@@ -361,7 +361,7 @@ export default function Game2048() {
 
   return (
     <section className="flex flex-col items-center justify-center gap-6 py-8 md:py-10 bg-gray-900 min-h-screen">
-      <style jsx>{`
+      <style>{`
         @keyframes slideIn {
           from {
             transform: scale(0);

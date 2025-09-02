@@ -45,6 +45,11 @@ const tools = [
     href: "/crontab-calculator",
   },
   {
+    title: "Markdown预览",
+    description: "在线Markdown编辑器和预览工具，支持实时预览和可收起的编辑器",
+    href: "/markdown-preview",
+  },
+  {
     title: "小游戏",
     description: "经典游戏集合，包含贪食蛇、俄罗斯方块、2048等休闲游戏",
     href: "/games",
