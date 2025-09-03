@@ -121,11 +121,11 @@ export default function SalaryCalculatorPage() {
     const housingFund = adjustedBase * parseFloat(housingFundRate) || 0;
 
     // 根据开关状态决定是否将公积金计入扣除项
-    const insuranceTotal =
-      pension + medical + unemployment + (includeHousingFund ? 0 : housingFund);
+    // 注意：公积金不应该计入个税计算基数
+    const insuranceTotal = pension + medical + unemployment; // 公积金不计入保险扣除
     const allowanceAmount = parseFloat(allowance) || 0;
 
-    // 计算税前工资（扣除五险一金后）
+    // 计算税前工资（扣除五险一金后，但不扣除公积金）
     const beforeTaxIncome = adjustedBase - insuranceTotal + allowanceAmount;
     
     // 计算个人所得税
@@ -134,9 +134,10 @@ export default function SalaryCalculatorPage() {
     // 计算税后工资
     let monthlyTakeHome = beforeTaxIncome - incomeTax;
     
-    // 如果公积金计入工资，则加上个人缴纳的公积金（仅个人部分，公司部分不计入个人可支配收入）
+    // 如果公积金计入工资，则加上个人和公司缴纳的公积金
     if (includeHousingFund) {
-      monthlyTakeHome += housingFund; // 仅个人部分
+      // 公司缴纳的公积金通常与个人缴纳的比例相同
+      monthlyTakeHome += housingFund * 2; // 个人部分 + 公司部分
     }
 
     setMonthlyResult(monthlyTakeHome);
@@ -393,7 +394,7 @@ export default function SalaryCalculatorPage() {
                 className="text-sm font-medium text-gray-700"
                 htmlFor={includeHousingFundSwitchId}
               >
-                公积金是否计入工资 (仅个人部分)
+                公积金是否计入工资 (含个人和公司部分)
               </label>
               <Switch
                 id={includeHousingFundSwitchId}
@@ -473,9 +474,9 @@ export default function SalaryCalculatorPage() {
                 </p>
               </div>
               <p className="font-semibold">
-                保险总扣除: {" "}
+                保险总扣除（不含公积金）: {" "}
                 <span className="font-bold">
-                  ¥{insuranceTotalDeduction.toFixed(2)}
+                  ¥{(pensionDeduction + medicalDeduction + unemploymentDeduction).toFixed(2)}
                 </span>
               </p>
               <p className="font-semibold">
@@ -497,9 +498,9 @@ export default function SalaryCalculatorPage() {
                   </span>
                 </p>
                 <p>
-                  2. 保险扣除: {" "}
+                  2. 保险扣除（不含公积金）: {" "}
                   <span className="font-medium">
-                    ¥{insuranceTotalDeduction.toFixed(2)}
+                    ¥{(pensionDeduction + medicalDeduction + unemploymentDeduction).toFixed(2)}
                   </span>
                 </p>
                 <p>
@@ -509,9 +510,9 @@ export default function SalaryCalculatorPage() {
                   </span>
                 </p>
                 <p>
-                  4. 税前工资: {" "}
+                  4. 税前工资（不含公积金）: {" "}
                   <span className="font-medium">
-                    ¥{(parseFloat(salaryBase || "0") - insuranceTotalDeduction + parseFloat(allowance || "0")).toFixed(2)}
+                    ¥{(parseFloat(salaryBase || "0") - (pensionDeduction + medicalDeduction + unemploymentDeduction) + parseFloat(allowance || "0")).toFixed(2)}
                   </span>
                 </p>
                 <p>
@@ -524,12 +525,12 @@ export default function SalaryCalculatorPage() {
                   6. 公积金调整: {" "}
                   <span className="font-medium">
                     {includeHousingFund
-                      ? "¥" + housingFundDeduction.toFixed(2) + " (个人部分)"
+                      ? "¥" + (housingFundDeduction * 2).toFixed(2) + " (个人+公司)"
                       : "¥0.00"}
                   </span>
                 </p>
                 <p className="font-semibold pt-2">
-                  税后月薪 = 基数 - 保险扣除 + 补贴 - 个人所得税 + 公积金调整
+                  税后月薪 = 基数 - 保险扣除（不含公积金） + 补贴 - 个人所得税 + 公积金调整
                 </p>
                 <p className="font-semibold">
                   税后月薪 = ¥{monthlyResult.toFixed(2)}
