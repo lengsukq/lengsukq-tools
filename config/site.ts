@@ -1,8 +1,8 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: "Next.js + HeroUI",
-  description: "Make beautiful websites regardless of your design experience.",
+  name: process.env.NEXT_PUBLIC_SITE_NAME || "lengsukq的tools站",
+  description: "各种实用工具集合，提供便捷的在线工具服务。",
   navItems: [
     {
       label: "Home",
