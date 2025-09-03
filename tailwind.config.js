@@ -1,4 +1,5 @@
-const { heroui } = require("@heroui/theme");
+import { heroui } from "@heroui/theme";
+import typography from "@tailwindcss/typography";
 
 /** @type {import('tailwindcss').Config} */
 const config = {
@@ -10,12 +11,13 @@ const config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-sans)", ...require("tailwindcss/defaultTheme").fontFamily.sans],
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
       },
     },
   },
   darkMode: "class",
-  plugins: [heroui()],
+  plugins: [heroui(), typography()],
 };
 
 module.exports = config;
