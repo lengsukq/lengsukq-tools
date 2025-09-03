@@ -7,7 +7,7 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import SyntaxHighlighter from "react-syntax-highlighter";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight, oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { useTheme } from "next-themes";
 
