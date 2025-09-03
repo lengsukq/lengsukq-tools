@@ -44,6 +44,9 @@ export default function SalaryCalculatorPage() {
   const [unemploymentDeduction, setUnemploymentDeduction] = useState(0); // 失业保险扣除
   const [housingFundDeduction, setHousingFundDeduction] = useState(0); // 住房公积金扣除
   const [insuranceTotalDeduction, setInsuranceTotalDeduction] = useState(0); // 保险总扣除
+  
+  // 个人所得税详情
+  const [incomeTaxDeduction, setIncomeTaxDeduction] = useState(0); // 个人所得税扣除
 
   // 公积金是否计入工资
   const [includeHousingFund, setIncludeHousingFund] = useState(false);
@@ -51,6 +54,46 @@ export default function SalaryCalculatorPage() {
   // 生成唯一ID用于Switch组件
   const includeHousingFundSwitchId = useId();
   const showBaseRatioSwitchId = useId();
+
+  // 计算个人所得税
+  const calculateIncomeTax = (taxableIncome: number): number => {
+    // 个人所得税起征点
+    const taxThreshold = 5000;
+    
+    // 如果应纳税所得额小于等于起征点，不缴税
+    if (taxableIncome <= taxThreshold) {
+      return 0;
+    }
+    
+    // 计算应纳税所得额
+    const taxableAmount = taxableIncome - taxThreshold;
+    
+    // 个人所得税税率表（2023年标准）
+    // 税率表：不超过3000元的部分，税率3%；超过3000元至12000元的部分，税率10%；
+    // 超过12000元至25000元的部分，税率20%；超过25000元至35000元的部分，税率25%；
+    // 超过35000元至55000元的部分，税率30%；超过55000元至80000元的部分，税率35%；
+    // 超过80000元的部分，税率45%
+    
+    let tax = 0;
+    
+    if (taxableAmount <= 3000) {
+      tax = taxableAmount * 0.03;
+    } else if (taxableAmount <= 12000) {
+      tax = 3000 * 0.03 + (taxableAmount - 3000) * 0.1;
+    } else if (taxableAmount <= 25000) {
+      tax = 3000 * 0.03 + 9000 * 0.1 + (taxableAmount - 12000) * 0.2;
+    } else if (taxableAmount <= 35000) {
+      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + (taxableAmount - 25000) * 0.25;
+    } else if (taxableAmount <= 55000) {
+      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + 10000 * 0.25 + (taxableAmount - 35000) * 0.3;
+    } else if (taxableAmount <= 80000) {
+      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + 10000 * 0.25 + 20000 * 0.3 + (taxableAmount - 55000) * 0.35;
+    } else {
+      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + 10000 * 0.25 + 20000 * 0.3 + 25000 * 0.35 + (taxableAmount - 80000) * 0.45;
+    }
+    
+    return tax;
+  };
 
   const calculateSalary = useCallback(() => {
     // 保存当前值到localStorage
@@ -82,12 +125,20 @@ export default function SalaryCalculatorPage() {
       pension + medical + unemployment + (includeHousingFund ? 0 : housingFund);
     const allowanceAmount = parseFloat(allowance) || 0;
 
-    // 计算税后工资，如果公积金计入工资，则加上个人和公司缴纳的公积金
-    const monthlyTakeHome =
-      adjustedBase -
-      insuranceTotal +
-      allowanceAmount +
-      (includeHousingFund ? housingFund * 2 : 0);
+    // 计算税前工资（扣除五险一金后）
+    const beforeTaxIncome = adjustedBase - insuranceTotal + allowanceAmount;
+    
+    // 计算个人所得税
+    const incomeTax = calculateIncomeTax(beforeTaxIncome);
+    
+    // 计算税后工资
+    let monthlyTakeHome = beforeTaxIncome - incomeTax;
+    
+    // 如果公积金计入工资，则加上个人和公司缴纳的公积金
+    if (includeHousingFund) {
+      // 公司缴纳的公积金通常与个人缴纳的比例相同
+      monthlyTakeHome += housingFund * 2; // 个人部分 + 公司部分
+    }
 
     setMonthlyResult(monthlyTakeHome);
 
@@ -97,6 +148,9 @@ export default function SalaryCalculatorPage() {
     setUnemploymentDeduction(unemployment);
     setHousingFundDeduction(housingFund);
     setInsuranceTotalDeduction(insuranceTotal);
+    
+    // 保存个人所得税扣除详情用于展示
+    setIncomeTaxDeduction(incomeTax);
 
     // 时薪计算
     const dailyHours = parseFloat(dailyWorkingHours) || 8;
@@ -108,9 +162,13 @@ export default function SalaryCalculatorPage() {
     // 年薪计算
     const bonus = parseFloat(annualBonus) || 0;
     const annualAllowanceAmount = parseFloat(annualAllowance) || 0;
+    
+    // 计算年薪总额（12个月税后工资 + 年终奖 + 年福利补贴）
     const annualTotal = monthlyTakeHome * 12 + bonus + annualAllowanceAmount;
 
     setAnnualResult(annualTotal);
+    
+    // 计算平均月薪（年薪总额/12，包含年终奖和年福利补贴的分摊）
     setAverageMonthlySalary(annualTotal / 12);
   }, [
     salaryBase,
@@ -336,7 +394,7 @@ export default function SalaryCalculatorPage() {
                 className="text-sm font-medium text-gray-700"
                 htmlFor={includeHousingFundSwitchId}
               >
-                公积金是否计入工资
+                公积金是否计入工资 (含个人和公司部分)
               </label>
               <Switch
                 id={includeHousingFundSwitchId}
@@ -391,34 +449,40 @@ export default function SalaryCalculatorPage() {
               <h3 className="text-lg font-semibold">五险一金扣除详情</h3>
               <div className="grid grid-cols-2 gap-2">
                 <p>
-                  养老保险:{" "}
+                  养老保险: {" "}
                   <span className="font-medium">
                     ¥{pensionDeduction.toFixed(2)}
                   </span>
                 </p>
                 <p>
-                  医疗保险:{" "}
+                  医疗保险: {" "}
                   <span className="font-medium">
                     ¥{medicalDeduction.toFixed(2)}
                   </span>
                 </p>
                 <p>
-                  失业保险:{" "}
+                  失业保险: {" "}
                   <span className="font-medium">
                     ¥{unemploymentDeduction.toFixed(2)}
                   </span>
                 </p>
                 <p>
-                  住房公积金:{" "}
+                  住房公积金: {" "}
                   <span className="font-medium">
                     ¥{housingFundDeduction.toFixed(2)}
                   </span>
                 </p>
               </div>
               <p className="font-semibold">
-                保险总扣除:{" "}
+                保险总扣除: {" "}
                 <span className="font-bold">
                   ¥{insuranceTotalDeduction.toFixed(2)}
+                </span>
+              </p>
+              <p className="font-semibold">
+                个人所得税: {" "}
+                <span className="font-bold">
+                  ¥{incomeTaxDeduction.toFixed(2)}
                 </span>
               </p>
             </div>
@@ -428,33 +492,45 @@ export default function SalaryCalculatorPage() {
               <h3 className="text-lg font-semibold">工资计算过程</h3>
               <div className="space-y-1 text-sm">
                 <p>
-                  1. 基数:{" "}
+                  1. 基数: {" "}
                   <span className="font-medium">
                     ¥{parseFloat(salaryBase || "0").toFixed(2)}
                   </span>
                 </p>
                 <p>
-                  2. 保险扣除:{" "}
+                  2. 保险扣除: {" "}
                   <span className="font-medium">
                     ¥{insuranceTotalDeduction.toFixed(2)}
                   </span>
                 </p>
                 <p>
-                  3. 补贴:{" "}
+                  3. 补贴: {" "}
                   <span className="font-medium">
                     ¥{parseFloat(allowance || "0").toFixed(2)}
                   </span>
                 </p>
                 <p>
-                  4. 公积金调整:{" "}
+                  4. 税前工资: {" "}
+                  <span className="font-medium">
+                    ¥{(parseFloat(salaryBase || "0") - insuranceTotalDeduction + parseFloat(allowance || "0")).toFixed(2)}
+                  </span>
+                </p>
+                <p>
+                  5. 个人所得税: {" "}
+                  <span className="font-medium">
+                    ¥{incomeTaxDeduction.toFixed(2)}
+                  </span>
+                </p>
+                <p>
+                  6. 公积金调整: {" "}
                   <span className="font-medium">
                     {includeHousingFund
-                      ? "¥" + (housingFundDeduction * 2).toFixed(2)
+                      ? "¥" + (housingFundDeduction * 2).toFixed(2) + " (个人+公司)"
                       : "¥0.00"}
                   </span>
                 </p>
                 <p className="font-semibold pt-2">
-                  税后月薪 = 基数 - 保险扣除 + 补贴 + 公积金调整
+                  税后月薪 = 基数 - 保险扣除 + 补贴 - 个人所得税 + 公积金调整
                 </p>
                 <p className="font-semibold">
                   税后月薪 = ¥{monthlyResult.toFixed(2)}
