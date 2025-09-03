@@ -134,10 +134,9 @@ export default function SalaryCalculatorPage() {
     // 计算税后工资
     let monthlyTakeHome = beforeTaxIncome - incomeTax;
     
-    // 如果公积金计入工资，则加上个人和公司缴纳的公积金
+    // 如果公积金计入工资，则加上个人缴纳的公积金（仅个人部分，公司部分不计入个人可支配收入）
     if (includeHousingFund) {
-      // 公司缴纳的公积金通常与个人缴纳的比例相同
-      monthlyTakeHome += housingFund * 2; // 个人部分 + 公司部分
+      monthlyTakeHome += housingFund; // 仅个人部分
     }
 
     setMonthlyResult(monthlyTakeHome);
@@ -394,7 +393,7 @@ export default function SalaryCalculatorPage() {
                 className="text-sm font-medium text-gray-700"
                 htmlFor={includeHousingFundSwitchId}
               >
-                公积金是否计入工资 (含个人和公司部分)
+                公积金是否计入工资 (仅个人部分)
               </label>
               <Switch
                 id={includeHousingFundSwitchId}
@@ -525,7 +524,7 @@ export default function SalaryCalculatorPage() {
                   6. 公积金调整: {" "}
                   <span className="font-medium">
                     {includeHousingFund
-                      ? "¥" + (housingFundDeduction * 2).toFixed(2) + " (个人+公司)"
+                      ? "¥" + housingFundDeduction.toFixed(2) + " (个人部分)"
                       : "¥0.00"}
                   </span>
                 </p>
