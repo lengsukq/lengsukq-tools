@@ -10,13 +10,12 @@ const config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-sans)"],
-        mono: ["var(--font-mono)"],
+        sans: ["var(--font-sans)", ...require("tailwindcss/defaultTheme").fontFamily.sans],
       },
     },
   },
   darkMode: "class",
-  plugins: [heroui],
+  plugins: [heroui()],
 };
 
 module.exports = config;
