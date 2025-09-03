@@ -6,6 +6,10 @@ import { Textarea } from "@heroui/input";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneLight, oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { useTheme } from "next-themes";
 
 // 简单的编辑图标
 const EditDocumentIcon = () => (
@@ -83,8 +87,16 @@ const CopyIcon = () => (
 );
 
 export function MarkdownPreview() {
+  const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  
+  // 确保组件已挂载，避免hydration问题
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
   const [markdown, setMarkdown] = useState<string>(
-    "# Markdown预览\n\n这是一个**Markdown**预览工具。\n\n## 功能特点\n\n- 实时预览\n- 可收起的编辑器\n- 支持标准Markdown语法\n\n### 列表示例\n\n1. 第一项\n2. 第二项\n3. 第三项\n\n### 代码示例\n\n```javascript\nfunction helloWorld() {\n  console.log('Hello, World!');\n}\n```\n\n> 这是一个引用块\n\n[链接示例](https://example.com)\n",
+    "# Markdown预览\n\n这是一个**Markdown**预览工具。\n\n## 功能特点\n\n- 实时预览\n- 可收起的编辑器\n- 支持标准Markdown语法\n- 代码语法高亮\n- GitHub风格Markdown扩展\n\n### 列表示例\n\n1. 第一项\n2. 第二项\n3. 第三项\n\n### 代码示例\n\n```javascript\nfunction helloWorld() {\n  console.log('Hello, World!');\n}\n```\n\n```python\ndef hello_world():\n    print(\"Hello, World!\")\n```\n\n> 这是一个引用块\n\n[链接示例](https://example.com)\n",
   );
   const [showEditor, setShowEditor] = useState<boolean>(true);
   const [shareUrl, setShareUrl] = useState<string>("");
@@ -191,6 +203,55 @@ export function MarkdownPreview() {
       });
   };
 
+  // 自定义代码块组件，支持语法高亮
+  const CodeBlock = ({ className, children, ...props }: any) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const lang = match ? match[1] : '';
+    
+    return match ? (
+      <SyntaxHighlighter
+        style={mounted && theme === 'dark' ? oneDark : oneLight}
+        language={lang}
+        PreTag="div"
+        className="rounded-md"
+        customStyle={{
+          margin: '1em 0',
+          backgroundColor: mounted && theme === 'dark' ? '#1e293b' : '#f8fafc',
+        }}
+        {...props}
+      >
+        {String(children).replace(/\n$/, '')}
+      </SyntaxHighlighter>
+    ) : (
+      <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>
+        {children}
+      </code>
+    );
+  };
+
+  // 自定义表格组件
+  const TableComponent = ({ children, ...props }: any) => (
+    <div className="overflow-x-auto my-4">
+      <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-600" {...props}>
+        {children}
+      </table>
+    </div>
+  );
+
+  // 自定义表头组件
+  const ThComponent = ({ children, ...props }: any) => (
+    <th className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-4 py-2 text-left font-semibold" {...props}>
+      {children}
+    </th>
+  );
+
+  // 自定义表格单元格组件
+  const TdComponent = ({ children, ...props }: any) => (
+    <td className="border border-gray-300 dark:border-gray-600 px-4 py-2" {...props}>
+      {children}
+    </td>
+  );
+
   return (
     <div className="w-full max-w-6xl space-y-8">
       <div className="flex justify-between items-center">
@@ -289,7 +350,17 @@ export function MarkdownPreview() {
         </CardHeader>
         <CardBody className="pt-0">
           <div className="prose prose-lg prose-blue max-w-none dark:prose-invert dark:prose-headings:text-gray-200 dark:prose-p:text-gray-300 dark:prose-strong:text-gray-200 dark:prose-code:text-gray-200 dark:prose-pre:bg-gray-800 dark:prose-blockquote:text-gray-300 dark:prose-li:text-gray-300 prose-p:my-4 prose-headings:my-5 prose-ul:my-4 prose-ol:my-4 prose-pre:my-5 prose-blockquote:my-4 min-h-[300px] overflow-auto">
-            <ReactMarkdown>{markdown}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code: CodeBlock,
+                table: TableComponent,
+                th: ThComponent,
+                td: TdComponent,
+              }}
+            >
+              {markdown}
+            </ReactMarkdown>
           </div>
         </CardBody>
       </Card>
