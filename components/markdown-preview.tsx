@@ -7,7 +7,7 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { Prism } from "react-syntax-highlighter";
 import { oneLight, oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { useTheme } from "next-themes";
 
@@ -209,7 +209,7 @@ export function MarkdownPreview() {
     const lang = match ? match[1] : '';
     
     return match ? (
-      <SyntaxHighlighter
+      <Prism
         style={mounted && theme === 'dark' ? oneDark : oneLight}
         language={lang}
         PreTag="div"
@@ -221,7 +221,7 @@ export function MarkdownPreview() {
         {...props}
       >
         {String(children).replace(/\n$/, '')}
-      </SyntaxHighlighter>
+      </Prism>
     ) : (
       <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>
         {children}
