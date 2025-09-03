@@ -15,264 +15,183 @@ export default function SalaryCalculatorPage() {
   };
 
   // 月薪计算相关状态
-  const [salaryBase, setSalaryBase] = useState(""); // 基数
+  const [salaryBase, setSalaryBase] = useState(""); // 月薪基数
+  const [allowance, setAllowance] = useState(""); // 每月补贴
   const [pensionRate, setPensionRate] = useState("0.08"); // 养老保险比例
   const [medicalRate, setMedicalRate] = useState("0.02"); // 医疗保险比例
   const [unemploymentRate, setUnemploymentRate] = useState("0.005"); // 失业保险比例
   const [housingFundRate, setHousingFundRate] = useState("0.12"); // 住房公积金比例
-  const [allowance, setAllowance] = useState("");
+  
+  // 社保缴费基数相关
+  const [socialInsuranceBase, setSocialInsuranceBase] = useState(""); // 社保缴费基数
+  const [useCustomBase, setUseCustomBase] = useState(false); // 是否使用自定义社保基数
 
   // 时薪计算相关状态
   const [dailyWorkingHours, setDailyWorkingHours] = useState("8"); // 日工作时间
   const [monthlyWorkingDays, setMonthlyWorkingDays] = useState("21.75"); // 月平均工作日
-  const [baseRatio, setBaseRatio] = useState("1"); // 基数比例
-  const [showBaseRatio, setShowBaseRatio] = useState(false); // 是否显示基数比例输入框
 
   // 年薪计算相关状态
   const [annualBonus, setAnnualBonus] = useState("");
   const [annualAllowance, setAnnualAllowance] = useState("");
 
   // 计算结果
-  const [monthlyResult, setMonthlyResult] = useState(0);
+  const [monthlyResult, setMonthlyResult] = useState(0); // 最终显示的月薪结果
   const [hourlyResult, setHourlyResult] = useState(0); // 时薪计算结果
   const [annualResult, setAnnualResult] = useState(0);
   const [averageMonthlySalary, setAverageMonthlySalary] = useState(0);
 
-  // 五险一金扣除详情
-  const [pensionDeduction, setPensionDeduction] = useState(0); // 养老保险扣除
-  const [medicalDeduction, setMedicalDeduction] = useState(0); // 医疗保险扣除
-  const [unemploymentDeduction, setUnemploymentDeduction] = useState(0); // 失业保险扣除
-  const [housingFundDeduction, setHousingFundDeduction] = useState(0); // 住房公积金扣除
-  const [insuranceTotalDeduction, setInsuranceTotalDeduction] = useState(0); // 保险总扣除
+  // 扣除项详情
+  const [pensionDeduction, setPensionDeduction] = useState(0);
+  const [medicalDeduction, setMedicalDeduction] = useState(0);
+  const [unemploymentDeduction, setUnemploymentDeduction] = useState(0);
+  const [housingFundDeduction, setHousingFundDeduction] = useState(0);
+  const [incomeTaxDeduction, setIncomeTaxDeduction] = useState(0);
   
-  // 个人所得税详情
-  const [incomeTaxDeduction, setIncomeTaxDeduction] = useState(0); // 个人所得税扣除
-
-  // 公积金是否计入工资
+  // 公积金是否计入工资（显示为总收入）
   const [includeHousingFund, setIncludeHousingFund] = useState(false);
 
-  // 生成唯一ID用于Switch组件
+  // 生成唯一ID
   const includeHousingFundSwitchId = useId();
-  const showBaseRatioSwitchId = useId();
+  const useCustomBaseSwitchId = useId();
 
-  // 计算个人所得税
-  const calculateIncomeTax = (taxableIncome: number): number => {
-    // 个人所得税起征点
+  // 计算个人所得税（使用速算扣除数优化）
+  const calculateIncomeTax = (taxableIncomeBase: number): number => {
     const taxThreshold = 5000;
     
     // 如果应纳税所得额小于等于起征点，不缴税
-    if (taxableIncome <= taxThreshold) {
+    if (taxableIncomeBase <= taxThreshold) {
       return 0;
     }
     
-    // 计算应纳税所得额
-    const taxableAmount = taxableIncome - taxThreshold;
+    // 应纳税所得额（年度累计预扣预缴，此处简化为月度）
+    const taxableAmount = taxableIncomeBase - taxThreshold;
     
-    // 个人所得税税率表（2023年标准）
-    // 税率表：不超过3000元的部分，税率3%；超过3000元至12000元的部分，税率10%；
-    // 超过12000元至25000元的部分，税率20%；超过25000元至35000元的部分，税率25%；
-    // 超过35000元至55000元的部分，税率30%；超过55000元至80000元的部分，税率35%；
-    // 超过80000元的部分，税率45%
-    
-    let tax = 0;
-    
+    // 个人所得税税率表及速算扣除数（2023年标准）
     if (taxableAmount <= 3000) {
-      tax = taxableAmount * 0.03;
+      return taxableAmount * 0.03 - 0;
     } else if (taxableAmount <= 12000) {
-      tax = 3000 * 0.03 + (taxableAmount - 3000) * 0.1;
+      return taxableAmount * 0.10 - 210;
     } else if (taxableAmount <= 25000) {
-      tax = 3000 * 0.03 + 9000 * 0.1 + (taxableAmount - 12000) * 0.2;
+      return taxableAmount * 0.20 - 1410;
     } else if (taxableAmount <= 35000) {
-      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + (taxableAmount - 25000) * 0.25;
+      return taxableAmount * 0.25 - 2760;
     } else if (taxableAmount <= 55000) {
-      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + 10000 * 0.25 + (taxableAmount - 35000) * 0.3;
+      return taxableAmount * 0.30 - 5290;
     } else if (taxableAmount <= 80000) {
-      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + 10000 * 0.25 + 20000 * 0.3 + (taxableAmount - 55000) * 0.35;
+      return taxableAmount * 0.35 - 15160;
     } else {
-      tax = 3000 * 0.03 + 9000 * 0.1 + 13000 * 0.2 + 10000 * 0.25 + 20000 * 0.3 + 25000 * 0.35 + (taxableAmount - 80000) * 0.45;
+      return taxableAmount * 0.45 - 28160;
     }
-    
-    return tax;
   };
 
   const calculateSalary = useCallback(() => {
     // 保存当前值到localStorage
     saveToStorage("salaryBase", salaryBase);
+    saveToStorage("allowance", allowance);
     saveToStorage("pensionRate", pensionRate);
     saveToStorage("medicalRate", medicalRate);
     saveToStorage("unemploymentRate", unemploymentRate);
     saveToStorage("housingFundRate", housingFundRate);
-    saveToStorage("allowance", allowance);
+    saveToStorage("socialInsuranceBase", socialInsuranceBase);
+    saveToStorage("useCustomBase", useCustomBase.toString());
     saveToStorage("dailyWorkingHours", dailyWorkingHours);
     saveToStorage("monthlyWorkingDays", monthlyWorkingDays);
-    saveToStorage("baseRatio", baseRatio);
     saveToStorage("annualBonus", annualBonus);
     saveToStorage("annualAllowance", annualAllowance);
     saveToStorage("includeHousingFund", includeHousingFund.toString());
-    saveToStorage("showBaseRatio", showBaseRatio.toString());
 
-    // 月薪计算
-    const base = parseFloat(salaryBase) || 0;
-    const baseRatioValue = parseFloat(baseRatio) || 1; // 基数比例值，空字符串或无效值时默认为1
-    const adjustedBase = base * baseRatioValue; // 调整后的基数
-    const pension = adjustedBase * parseFloat(pensionRate) || 0;
-    const medical = adjustedBase * parseFloat(medicalRate) || 0;
-    const unemployment = adjustedBase * parseFloat(unemploymentRate) || 0;
-    const housingFund = adjustedBase * parseFloat(housingFundRate) || 0;
-
-    // 根据开关状态决定是否将公积金计入扣除项
-    // 注意：公积金不应该计入个税计算基数
-    const insuranceTotal = pension + medical + unemployment; // 公积金不计入保险扣除
+    // --- 1. 准备基本数据 ---
+    const baseSalary = parseFloat(salaryBase) || 0;
     const allowanceAmount = parseFloat(allowance) || 0;
+    // 应发工资 = 月薪基数 + 补贴
+    const grossMonthlyPay = baseSalary + allowanceAmount; 
+    
+    // 确定社保缴费基数
+    const insuranceBase = useCustomBase ? (parseFloat(socialInsuranceBase) || baseSalary) : baseSalary;
 
-    // 计算税前工资（扣除五险一金后，但不扣除公积金）
-    const beforeTaxIncome = adjustedBase - insuranceTotal + allowanceAmount;
+    // --- 2. 计算五险一金（个人缴纳部分）---
+    const pension = insuranceBase * (parseFloat(pensionRate) || 0);
+    const medical = insuranceBase * (parseFloat(medicalRate) || 0);
+    const unemployment = insuranceBase * (parseFloat(unemploymentRate) || 0);
+    const housingFund = insuranceBase * (parseFloat(housingFundRate) || 0);
     
-    // 计算个人所得税
-    const incomeTax = calculateIncomeTax(beforeTaxIncome);
-    
-    // 计算税后工资
-    let monthlyTakeHome = beforeTaxIncome - incomeTax;
-    
-    // 如果公积金计入工资，则加上个人和公司缴纳的公积金
+    // 五险一金个人缴纳总额，这部分是税前扣除的
+    const totalPreTaxDeductions = pension + medical + unemployment + housingFund;
+
+    // --- 3. 计算个人所得税 ---
+    // 应纳税所得额 = 应发工资 - 五险一金个人缴纳总额
+    const taxableIncomeBase = grossMonthlyPay - totalPreTaxDeductions;
+    const incomeTax = calculateIncomeTax(taxableIncomeBase);
+
+    // --- 4. 计算实际到手工资 ---
+    // 实际到手工资 = 应发工资 - 五险一金 - 个人所得税
+    const actualTakeHomePay = grossMonthlyPay - totalPreTaxDeductions - incomeTax;
+
+    // --- 5. 根据开关，决定最终显示的月薪结果 ---
+    let finalMonthlyResult = actualTakeHomePay;
     if (includeHousingFund) {
-      // 公司缴纳的公积金通常与个人缴纳的比例相同
-      monthlyTakeHome += housingFund * 2; // 个人部分 + 公司部分
+      // 如果计入公积金，则显示总收入 = 实际到手 + 个人公积金 + 公司公积金
+      // 假设公司缴纳比例与个人相同
+      const companyHousingFund = housingFund;
+      finalMonthlyResult = actualTakeHomePay + housingFund + companyHousingFund;
     }
 
-    setMonthlyResult(monthlyTakeHome);
-
-    // 保存五险一金扣除详情用于展示
+    // --- 6. 更新状态以显示结果 ---
+    setMonthlyResult(finalMonthlyResult);
+    
+    // 更新各项扣除明细用于展示
     setPensionDeduction(pension);
     setMedicalDeduction(medical);
     setUnemploymentDeduction(unemployment);
     setHousingFundDeduction(housingFund);
-    setInsuranceTotalDeduction(insuranceTotal);
-    
-    // 保存个人所得税扣除详情用于展示
     setIncomeTaxDeduction(incomeTax);
 
-    // 时薪计算
+    // --- 7. 计算时薪、年薪等衍生数据 ---
     const dailyHours = parseFloat(dailyWorkingHours) || 8;
     const monthlyDays = parseFloat(monthlyWorkingDays) || 21.75;
-    const hourlyWage = monthlyTakeHome / (dailyHours * monthlyDays);
-
+    const hourlyWage = finalMonthlyResult / (dailyHours * monthlyDays);
     setHourlyResult(hourlyWage);
-
-    // 年薪计算
+    
     const bonus = parseFloat(annualBonus) || 0;
     const annualAllowanceAmount = parseFloat(annualAllowance) || 0;
-    
-    // 计算年薪总额（12个月税后工资 + 年终奖 + 年福利补贴）
-    const annualTotal = monthlyTakeHome * 12 + bonus + annualAllowanceAmount;
-
+    const annualTotal = finalMonthlyResult * 12 + bonus + annualAllowanceAmount;
     setAnnualResult(annualTotal);
-    
-    // 计算平均月薪（年薪总额/12，包含年终奖和年福利补贴的分摊）
     setAverageMonthlySalary(annualTotal / 12);
+
   }, [
-    salaryBase,
-    pensionRate,
-    medicalRate,
-    unemploymentRate,
-    housingFundRate,
-    allowance,
-    annualBonus,
-    annualAllowance,
-    includeHousingFund,
-    dailyWorkingHours,
-    monthlyWorkingDays,
-    baseRatio,
+    salaryBase, allowance, pensionRate, medicalRate, unemploymentRate, 
+    housingFundRate, socialInsuranceBase, useCustomBase, dailyWorkingHours, 
+    monthlyWorkingDays, annualBonus, annualAllowance, includeHousingFund
   ]);
 
   useEffect(() => {
     // 在客户端加载时从localStorage中读取保存的值
     if (typeof window !== "undefined") {
-      const storedIncludeHousingFund =
-        localStorage.getItem("includeHousingFund");
-
-      if (storedIncludeHousingFund !== null) {
-        setIncludeHousingFund(storedIncludeHousingFund === "true");
-      }
-
-      const storedShowBaseRatio = localStorage.getItem("showBaseRatio");
-
-      if (storedShowBaseRatio !== null) {
-        setShowBaseRatio(storedShowBaseRatio === "true");
-      }
-
-      const storedSalaryBase = localStorage.getItem("salaryBase");
-
-      if (storedSalaryBase !== null) {
-        setSalaryBase(storedSalaryBase);
-      }
-
-      const storedPensionRate = localStorage.getItem("pensionRate");
-
-      if (storedPensionRate !== null) {
-        setPensionRate(storedPensionRate);
-      }
-
-      const storedMedicalRate = localStorage.getItem("medicalRate");
-
-      if (storedMedicalRate !== null) {
-        setMedicalRate(storedMedicalRate);
-      }
-
-      const storedUnemploymentRate = localStorage.getItem("unemploymentRate");
-
-      if (storedUnemploymentRate !== null) {
-        setUnemploymentRate(storedUnemploymentRate);
-      }
-
-      const storedHousingFundRate = localStorage.getItem("housingFundRate");
-
-      if (storedHousingFundRate !== null) {
-        setHousingFundRate(storedHousingFundRate);
-      }
-
-      const storedAllowance = localStorage.getItem("allowance");
-
-      if (storedAllowance !== null) {
-        setAllowance(storedAllowance);
-      }
-
-      const storedDailyWorkingHours = localStorage.getItem("dailyWorkingHours");
-
-      if (storedDailyWorkingHours !== null) {
-        setDailyWorkingHours(storedDailyWorkingHours);
-      }
-
-      const storedMonthlyWorkingDays =
-        localStorage.getItem("monthlyWorkingDays");
-
-      if (storedMonthlyWorkingDays !== null) {
-        setMonthlyWorkingDays(storedMonthlyWorkingDays);
-      }
-
-      const storedBaseRatio = localStorage.getItem("baseRatio");
-
-      if (storedBaseRatio !== null) {
-        setBaseRatio(storedBaseRatio);
-      }
-
-      const storedAnnualBonus = localStorage.getItem("annualBonus");
-
-      if (storedAnnualBonus !== null) {
-        setAnnualBonus(storedAnnualBonus);
-      }
-
-      const storedAnnualAllowance = localStorage.getItem("annualAllowance");
-
-      if (storedAnnualAllowance !== null) {
-        setAnnualAllowance(storedAnnualAllowance);
-      }
+      setSalaryBase(localStorage.getItem("salaryBase") || "");
+      setAllowance(localStorage.getItem("allowance") || "");
+      setPensionRate(localStorage.getItem("pensionRate") || "0.08");
+      setMedicalRate(localStorage.getItem("medicalRate") || "0.02");
+      setUnemploymentRate(localStorage.getItem("unemploymentRate") || "0.005");
+      setHousingFundRate(localStorage.getItem("housingFundRate") || "0.12");
+      setSocialInsuranceBase(localStorage.getItem("socialInsuranceBase") || "");
+      setUseCustomBase(localStorage.getItem("useCustomBase") === "true");
+      setDailyWorkingHours(localStorage.getItem("dailyWorkingHours") || "8");
+      setMonthlyWorkingDays(localStorage.getItem("monthlyWorkingDays") || "21.75");
+      setAnnualBonus(localStorage.getItem("annualBonus") || "");
+      setAnnualAllowance(localStorage.getItem("annualAllowance") || "");
+      setIncludeHousingFund(localStorage.getItem("includeHousingFund") === "true");
     }
   }, []);
 
   useEffect(() => {
     calculateSalary();
   }, [calculateSalary]);
+  
+  // 用于计算过程展示的中间变量
+  const grossPayForDisplay = (parseFloat(salaryBase) || 0) + (parseFloat(allowance) || 0);
+  const totalDeductionsForDisplay = pensionDeduction + medicalDeduction + unemploymentDeduction + housingFundDeduction;
+  const taxableIncomeForDisplay = grossPayForDisplay - totalDeductionsForDisplay;
+  const takeHomeForDisplay = grossPayForDisplay - totalDeductionsForDisplay - incomeTaxDeduction;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-2">
@@ -284,117 +203,52 @@ export default function SalaryCalculatorPage() {
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">月薪计算</h2>
             <Input
-              label="基数 (元)"
+              label="月薪基数 (元)"
               placeholder="例如: 10000"
               type="number"
               value={salaryBase}
               onValueChange={setSalaryBase}
             />
-            {/* 基数比例是否展示开关 */}
+             <Input
+              label="补贴 (元)"
+              placeholder="例如: 500"
+              type="number"
+              value={allowance}
+              onValueChange={setAllowance}
+            />
+
+            {/* 自定义社保基数开关 */}
             <div className="flex items-center justify-between">
-              <label
-                className="text-sm font-medium text-gray-700"
-                htmlFor={showBaseRatioSwitchId}
-              >
-                是否使用基数比例
+              <label className="text-sm font-medium text-gray-700" htmlFor={useCustomBaseSwitchId}>
+                使用自定义社保缴费基数
               </label>
               <Switch
-                id={showBaseRatioSwitchId}
-                isSelected={showBaseRatio}
-                onValueChange={(value) => {
-                  setShowBaseRatio(value);
-                  // 如果关闭开关，重置基数比例为100%
-                  if (!value) {
-                    setBaseRatio("1");
-                    saveToStorage("baseRatio", "1");
-                  }
-                }}
+                id={useCustomBaseSwitchId}
+                isSelected={useCustomBase}
+                onValueChange={setUseCustomBase}
               />
             </div>
-            {showBaseRatio && (
+            {useCustomBase && (
               <Input
-                label="基数比例 (%)"
-                max="100"
-                min="0"
-                placeholder="例如: 100"
+                label="社保缴费基数 (元)"
+                placeholder="若不填，则按月薪基数计算"
                 type="number"
-                value={
-                  baseRatio === ""
-                    ? ""
-                    : (parseFloat(baseRatio) * 100).toString()
-                }
-                onBlur={() => {
-                  // 失焦时如果为空，默认为100%
-                  if (baseRatio === "" || baseRatio === "0") {
-                    setBaseRatio("1");
-                    saveToStorage("baseRatio", "1");
-                  }
-                  // 触发重新计算
-                  calculateSalary();
-                }}
-                onValueChange={(value) => {
-                  // 允许空字符串输入
-                  if (value === "") {
-                    setBaseRatio("");
-                    saveToStorage("baseRatio", "");
-
-                    return;
-                  }
-
-                  // 限制输入范围在0-100之间
-                  const numValue = parseFloat(value);
-
-                  if (!isNaN(numValue)) {
-                    const clampedValue = Math.min(100, Math.max(0, numValue));
-                    const ratioValue = (clampedValue / 100).toString();
-
-                    setBaseRatio(ratioValue);
-                    saveToStorage("baseRatio", ratioValue);
-                  }
-                }}
+                value={socialInsuranceBase}
+                onValueChange={setSocialInsuranceBase}
               />
             )}
+
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="养老保险比例"
-                placeholder="例如: 0.08"
-                step="0.001"
-                type="number"
-                value={pensionRate}
-                onValueChange={setPensionRate}
-              />
-              <Input
-                label="医疗保险比例"
-                placeholder="例如: 0.02"
-                step="0.001"
-                type="number"
-                value={medicalRate}
-                onValueChange={setMedicalRate}
-              />
-              <Input
-                label="失业保险比例"
-                placeholder="例如: 0.005"
-                step="0.001"
-                type="number"
-                value={unemploymentRate}
-                onValueChange={setUnemploymentRate}
-              />
-              <Input
-                label="住房公积金比例"
-                placeholder="例如: 0.12"
-                step="0.001"
-                type="number"
-                value={housingFundRate}
-                onValueChange={setHousingFundRate}
-              />
+              <Input label="养老保险比例" placeholder="0.08" step="0.001" type="number" value={pensionRate} onValueChange={setPensionRate} />
+              <Input label="医疗保险比例" placeholder="0.02" step="0.001" type="number" value={medicalRate} onValueChange={setMedicalRate} />
+              <Input label="失业保险比例" placeholder="0.005" step="0.001" type="number" value={unemploymentRate} onValueChange={setUnemploymentRate} />
+              <Input label="住房公积金比例" placeholder="0.12" step="0.001" type="number" value={housingFundRate} onValueChange={setHousingFundRate} />
             </div>
+
             {/* 公积金是否计入工资开关 */}
             <div className="flex items-center justify-between">
-              <label
-                className="text-sm font-medium text-gray-700"
-                htmlFor={includeHousingFundSwitchId}
-              >
-                公积金是否计入工资 (含个人和公司部分)
+              <label className="text-sm font-medium text-gray-700" htmlFor={includeHousingFundSwitchId}>
+                结果显示为月度总收入 (含公积金)
               </label>
               <Switch
                 id={includeHousingFundSwitchId}
@@ -402,88 +256,33 @@ export default function SalaryCalculatorPage() {
                 onValueChange={setIncludeHousingFund}
               />
             </div>
-            <Input
-              label="补贴 (元)"
-              placeholder="例如: 500"
-              type="number"
-              value={allowance}
-              onValueChange={setAllowance}
-            />
+            
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="日工作时间 (小时)"
-                placeholder="例如: 8"
-                step="0.1"
-                type="number"
-                value={dailyWorkingHours}
-                onValueChange={(value) => {
-                  setDailyWorkingHours(value);
-                  saveToStorage("dailyWorkingHours", value);
-                }}
-              />
-              <Input
-                label="月平均工作日 (天)"
-                placeholder="例如: 21.75"
-                step="0.1"
-                type="number"
-                value={monthlyWorkingDays}
-                onValueChange={(value) => {
-                  setMonthlyWorkingDays(value);
-                  saveToStorage("monthlyWorkingDays", value);
-                }}
-              />
+              <Input label="日工作时间 (小时)" placeholder="8" step="0.1" type="number" value={dailyWorkingHours} onValueChange={setDailyWorkingHours} />
+              <Input label="月平均工作日 (天)" placeholder="21.75" step="0.1" type="number" value={monthlyWorkingDays} onValueChange={setMonthlyWorkingDays} />
             </div>
+
             <div className="pt-2 space-y-1">
               <p className="text-lg">
-                税后月薪:{" "}
+                {includeHousingFund ? "月度总收入: " : "税后月薪: "}
                 <span className="font-bold">¥{monthlyResult.toFixed(2)}</span>
               </p>
               <p className="text-lg">
-                时薪:{" "}
-                <span className="font-bold">¥{hourlyResult.toFixed(2)}</span>
+                时薪: <span className="font-bold">¥{hourlyResult.toFixed(2)}</span>
               </p>
             </div>
 
-            {/* 五险一金扣除详情 */}
+            {/* 扣除详情 */}
             <div className="pt-4 space-y-2 border-t">
-              <h3 className="text-lg font-semibold">五险一金扣除详情</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <p>
-                  养老保险: {" "}
-                  <span className="font-medium">
-                    ¥{pensionDeduction.toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  医疗保险: {" "}
-                  <span className="font-medium">
-                    ¥{medicalDeduction.toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  失业保险: {" "}
-                  <span className="font-medium">
-                    ¥{unemploymentDeduction.toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  住房公积金: {" "}
-                  <span className="font-medium">
-                    ¥{housingFundDeduction.toFixed(2)}
-                  </span>
-                </p>
+              <h3 className="text-lg font-semibold">扣除项详情</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <p>养老保险: <span className="font-medium">¥{pensionDeduction.toFixed(2)}</span></p>
+                <p>医疗保险: <span className="font-medium">¥{medicalDeduction.toFixed(2)}</span></p>
+                <p>失业保险: <span className="font-medium">¥{unemploymentDeduction.toFixed(2)}</span></p>
+                <p>住房公积金: <span className="font-medium">¥{housingFundDeduction.toFixed(2)}</span></p>
               </div>
               <p className="font-semibold">
-                保险总扣除（不含公积金）: {" "}
-                <span className="font-bold">
-                  ¥{(pensionDeduction + medicalDeduction + unemploymentDeduction).toFixed(2)}
-                </span>
-              </p>
-              <p className="font-semibold">
-                个人所得税: {" "}
-                <span className="font-bold">
-                  ¥{incomeTaxDeduction.toFixed(2)}
-                </span>
+                个人所得税: <span className="font-bold">¥{incomeTaxDeduction.toFixed(2)}</span>
               </p>
             </div>
 
@@ -491,80 +290,33 @@ export default function SalaryCalculatorPage() {
             <div className="pt-4 space-y-2 border-t">
               <h3 className="text-lg font-semibold">工资计算过程</h3>
               <div className="space-y-1 text-sm">
-                <p>
-                  1. 基数: {" "}
-                  <span className="font-medium">
-                    ¥{parseFloat(salaryBase || "0").toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  2. 保险扣除（不含公积金）: {" "}
-                  <span className="font-medium">
-                    ¥{(pensionDeduction + medicalDeduction + unemploymentDeduction).toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  3. 补贴: {" "}
-                  <span className="font-medium">
-                    ¥{parseFloat(allowance || "0").toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  4. 税前工资（不含公积金）: {" "}
-                  <span className="font-medium">
-                    ¥{(parseFloat(salaryBase || "0") - (pensionDeduction + medicalDeduction + unemploymentDeduction) + parseFloat(allowance || "0")).toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  5. 个人所得税: {" "}
-                  <span className="font-medium">
-                    ¥{incomeTaxDeduction.toFixed(2)}
-                  </span>
-                </p>
-                <p>
-                  6. 公积金调整: {" "}
-                  <span className="font-medium">
-                    {includeHousingFund
-                      ? "¥" + (housingFundDeduction * 2).toFixed(2) + " (个人+公司)"
-                      : "¥0.00"}
-                  </span>
-                </p>
+                <p>1. 应发工资 (基数+补贴): <span className="font-medium">¥{grossPayForDisplay.toFixed(2)}</span></p>
+                <p>2. 五险一金个人缴纳: <span className="font-medium">¥{totalDeductionsForDisplay.toFixed(2)}</span></p>
+                <p>3. 应纳税所得额 (1 - 2): <span className="font-medium">¥{taxableIncomeForDisplay > 0 ? taxableIncomeForDisplay.toFixed(2) : '0.00'}</span></p>
+                <p>4. 个人所得税: <span className="font-medium">¥{incomeTaxDeduction.toFixed(2)}</span></p>
                 <p className="font-semibold pt-2">
-                  税后月薪 = 基数 - 保险扣除（不含公积金） + 补贴 - 个人所得税 + 公积金调整
+                  税后到手工资 (1 - 2 - 4): <span className="font-bold text-base">¥{takeHomeForDisplay.toFixed(2)}</span>
                 </p>
-                <p className="font-semibold">
-                  税后月薪 = ¥{monthlyResult.toFixed(2)}
-                </p>
+                {includeHousingFund && (
+                  <p className="font-semibold pt-2">
+                    月度总收入 (到手+个人公积金+公司公积金): 
+                    <span className="font-bold text-base"> ¥{monthlyResult.toFixed(2)}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
           <div className="space-y-2 pt-4 border-t">
             <h2 className="text-xl font-semibold">年薪计算</h2>
-            <Input
-              label="年终奖 (元)"
-              placeholder="例如: 20000"
-              type="number"
-              value={annualBonus}
-              onValueChange={setAnnualBonus}
-            />
-            <Input
-              label="年福利补贴 (元)"
-              placeholder="例如: 5000"
-              type="number"
-              value={annualAllowance}
-              onValueChange={setAnnualAllowance}
-            />
+            <Input label="年终奖 (元)" placeholder="20000" type="number" value={annualBonus} onValueChange={setAnnualBonus} />
+            <Input label="年福利补贴 (元)" placeholder="5000" type="number" value={annualAllowance} onValueChange={setAnnualAllowance} />
             <div className="pt-2 space-y-1">
               <p className="text-lg">
-                年薪总额:{" "}
-                <span className="font-bold">¥{annualResult.toFixed(2)}</span>
+                年度总收入: <span className="font-bold">¥{annualResult.toFixed(2)}</span>
               </p>
               <p className="text-lg">
-                平均月薪:{" "}
-                <span className="font-bold">
-                  ¥{averageMonthlySalary.toFixed(2)}
-                </span>
+                平均月薪: <span className="font-bold">¥{averageMonthlySalary.toFixed(2)}</span>
               </p>
             </div>
           </div>
