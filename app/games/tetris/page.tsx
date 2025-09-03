@@ -5,16 +5,16 @@ import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { title, subtitle } from "@/components/primitives";
 import { useMobile } from "@/hooks/use-mobile";
-import { MobileControls } from "@/components/mobile-controls";
 import Link from "next/link";
 
 // 游戏常量
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
+const CELL_SIZE = 30;
+const MOBILE_CELL_SIZE = 20;
 const INITIAL_SPEED = 1000;
+const SPEED_INCREMENT = 50;
 const MIN_SPEED = 100;
-const SPEED_INCREASE = 50;
-const ANIMATION_DURATION = 100;
 
 // 方块形状
 const TETROMINOS = {
@@ -25,7 +25,7 @@ const TETROMINOS = {
       [0, 0, 0, 0],
       [0, 0, 0, 0]
     ],
-    color: 'from-cyan-400 to-cyan-600'
+    color: "bg-cyan-500"
   },
   J: {
     shape: [
@@ -33,7 +33,7 @@ const TETROMINOS = {
       [1, 1, 1],
       [0, 0, 0]
     ],
-    color: 'from-blue-400 to-blue-600'
+    color: "bg-blue-500"
   },
   L: {
     shape: [
@@ -41,14 +41,14 @@ const TETROMINOS = {
       [1, 1, 1],
       [0, 0, 0]
     ],
-    color: 'from-orange-400 to-orange-600'
+    color: "bg-orange-500"
   },
   O: {
     shape: [
       [1, 1],
       [1, 1]
     ],
-    color: 'from-yellow-400 to-yellow-600'
+    color: "bg-yellow-500"
   },
   S: {
     shape: [
@@ -56,7 +56,7 @@ const TETROMINOS = {
       [1, 1, 0],
       [0, 0, 0]
     ],
-    color: 'from-green-400 to-green-600'
+    color: "bg-green-500"
   },
   T: {
     shape: [
@@ -64,7 +64,7 @@ const TETROMINOS = {
       [1, 1, 1],
       [0, 0, 0]
     ],
-    color: 'from-purple-400 to-purple-600'
+    color: "bg-purple-500"
   },
   Z: {
     shape: [
@@ -72,12 +72,12 @@ const TETROMINOS = {
       [0, 1, 1],
       [0, 0, 0]
     ],
-    color: 'from-red-400 to-red-600'
+    color: "bg-red-500"
   }
 };
 
-// 方块类型
 type TetrominoType = keyof typeof TETROMINOS;
+type BoardType = number[][];
 
 // 游戏状态
 enum GameState {
@@ -87,199 +87,177 @@ enum GameState {
   GAME_OVER = "game_over"
 }
 
-// 方块接口
-interface Tetromino {
-  type: TetrominoType;
-  shape: number[][];
-  position: { x: number; y: number };
-  color: string;
+// 方块位置
+interface Position {
+  x: number;
+  y: number;
 }
 
-// 游戏板接口
-interface Board {
-  grid: number[][];
-  colors: string[][];
+// 当前方块
+interface CurrentPiece {
+  tetromino: TetrominoType;
+  position: Position;
+  shape: number[][];
 }
 
 export default function TetrisGame() {
   // 游戏状态
-  const [board, setBoard] = useState<Board>({ 
-    grid: Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0)),
-    colors: Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(''))
-  });
-  const [currentPiece, setCurrentPiece] = useState<Tetromino | null>(null);
-  const [nextPiece, setNextPiece] = useState<Tetromino | null>(null);
+  const [board, setBoard] = useState<BoardType>([]);
+  const [currentPiece, setCurrentPiece] = useState<CurrentPiece | null>(null);
+  const [nextPiece, setNextPiece] = useState<TetrominoType>("I");
   const [score, setScore] = useState<number>(0);
-  const [lines, setLines] = useState<number>(0);
+  const [bestScore, setBestScore] = useState<number>(0);
   const [level, setLevel] = useState<number>(1);
-  const [highScore, setHighScore] = useState<number>(0);
+  const [lines, setLines] = useState<number>(0);
   const [gameState, setGameState] = useState<GameState>(GameState.READY);
   const [speed, setSpeed] = useState<number>(INITIAL_SPEED);
-  const [isAnimating, setIsAnimating] = useState<boolean>(false);
-  const [gameBoardSize, setGameBoardSize] = useState<number>(300);
-  const [cellSize, setCellSize] = useState<number>(30);
-  const [theme, setTheme] = useState<'blue' | 'purple' | 'green' | 'red'>('blue');
+  const [cellSize, setCellSize] = useState<number>(CELL_SIZE);
   
   // 布局相关
   const isMobile = useMobile();
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
-  const nextId = useRef<number>(1);
   
-  // 颜色主题
-  const colorThemes = {
-    blue: {
-      grid: 'bg-gray-700/20',
-      border: 'border-blue-500/30',
-      accent: 'from-blue-500 to-blue-600',
-      empty: 'bg-gray-800/50',
-      ghost: 'bg-gray-500/30',
-    },
-    purple: {
-      grid: 'bg-gray-700/20',
-      border: 'border-purple-500/30',
-      accent: 'from-purple-500 to-purple-600',
-      empty: 'bg-gray-800/50',
-      ghost: 'bg-gray-500/30',
-    },
-    green: {
-      grid: 'bg-gray-700/20',
-      border: 'border-green-500/30',
-      accent: 'from-green-500 to-green-600',
-      empty: 'bg-gray-800/50',
-      ghost: 'bg-gray-500/30',
-    },
-    red: {
-      grid: 'bg-gray-700/20',
-      border: 'border-red-500/30',
-      accent: 'from-red-500 to-red-600',
-      empty: 'bg-gray-800/50',
-      ghost: 'bg-gray-500/30',
-    }
-  };
-
-  // 动态调整游戏板大小
+  // 动态调整单元格大小
   useEffect(() => {
-    const updateBoardSize = () => {
-      if (isMobile) {
-        const screenWidth = window.innerWidth;
-        const maxWidth = Math.min(screenWidth - 48, 300);
-        const newCellSize = Math.floor(maxWidth / BOARD_WIDTH);
-        const newBoardSize = newCellSize * BOARD_WIDTH;
-        setCellSize(newCellSize);
-        setGameBoardSize(newBoardSize);
-      } else {
-        setCellSize(30);
-        setGameBoardSize(300);
-      }
-    };
-
-    updateBoardSize();
-    window.addEventListener('resize', updateBoardSize);
-    return () => window.removeEventListener('resize', updateBoardSize);
+    setCellSize(isMobile ? MOBILE_CELL_SIZE : CELL_SIZE);
   }, [isMobile]);
-
-  // 创建新方块
-  const createTetromino = useCallback((type?: TetrominoType): Tetromino => {
-    const tetrominoTypes = Object.keys(TETROMINOS) as TetrominoType[];
-    const randomType = type || tetrominoTypes[Math.floor(Math.random() * tetrominoTypes.length)];
-    
-    return {
-      type: randomType,
-      shape: TETROMINOS[randomType].shape.map(row => [...row]),
-      position: { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 },
-      color: TETROMINOS[randomType].color
-    };
+  
+  // 初始化游戏板
+  const initializeBoard = useCallback((): BoardType => {
+    return Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0));
   }, []);
-
+  
+  // 创建新方块
+  const createRandomPiece = useCallback((): TetrominoType => {
+    const tetrominos = Object.keys(TETROMINOS) as TetrominoType[];
+    return tetrominos[Math.floor(Math.random() * tetrominos.length)];
+  }, []);
+  
   // 初始化游戏
   const initializeGame = useCallback(() => {
-    const newBoard: Board = {
-      grid: Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0)),
-      colors: Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(''))
-    };
-    
+    const newBoard = initializeBoard();
     setBoard(newBoard);
+    
+    const firstPiece = createRandomPiece();
+    const next = createRandomPiece();
+    
+    setCurrentPiece({
+      tetromino: firstPiece,
+      position: { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 },
+      shape: TETROMINOS[firstPiece].shape
+    });
+    
+    setNextPiece(next);
     setScore(0);
-    setLines(0);
     setLevel(1);
+    setLines(0);
     setSpeed(INITIAL_SPEED);
     setGameState(GameState.READY);
-    
-    // 创建第一个方块和下一个方块
-    const firstPiece = createTetromino();
-    const next = createTetromino();
-    setCurrentPiece(firstPiece);
-    setNextPiece(next);
-    
-    // 随机选择主题
-    const themes: Array<'blue' | 'purple' | 'green' | 'red'> = ['blue', 'purple', 'green', 'red'];
-    setTheme(themes[Math.floor(Math.random() * themes.length)]);
-  }, [createTetromino]);
-
+  }, [initializeBoard, createRandomPiece]);
+  
   // 开始游戏
   const startGame = useCallback(() => {
-    if (gameState === GameState.READY) {
-      setGameState(GameState.PLAYING);
-    }
-  }, [gameState]);
-
-  // 暂停/继续游戏
-  const togglePause = useCallback(() => {
-    if (gameState === GameState.PLAYING) {
-      setGameState(GameState.PAUSED);
+    if (gameState === GameState.READY || gameState === GameState.GAME_OVER) {
+      initializeGame();
+      setTimeout(() => {
+        setGameState(GameState.PLAYING);
+      }, 100);
     } else if (gameState === GameState.PAUSED) {
       setGameState(GameState.PLAYING);
     }
-  }, [gameState]);
-
-  // 重置游戏
-  const resetGame = useCallback(() => {
-    if (gameLoopRef.current) {
-      clearInterval(gameLoopRef.current);
-      gameLoopRef.current = null;
+  }, [gameState, initializeGame]);
+  
+  // 暂停游戏
+  const pauseGame = useCallback(() => {
+    if (gameState === GameState.PLAYING) {
+      setGameState(GameState.PAUSED);
     }
-    initializeGame();
-  }, [initializeGame]);
-
+  }, [gameState]);
+  
+  // 旋转方块
+  const rotatePiece = useCallback((shape: number[][]): number[][] => {
+    const N = shape.length;
+    const rotated = Array(N).fill(0).map(() => Array(N).fill(0));
+    
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        rotated[j][N - 1 - i] = shape[i][j];
+      }
+    }
+    
+    return rotated;
+  }, []);
+  
   // 检查碰撞
-  const checkCollision = useCallback((piece: Tetromino, board: Board, position: { x: number; y: number }): boolean => {
-    for (let y = 0; y < piece.shape.length; y++) {
-      for (let x = 0; x < piece.shape[y].length; x++) {
-        if (piece.shape[y][x] !== 0) {
+  const checkCollision = useCallback((piece: CurrentPiece, board: BoardType): boolean => {
+    const { shape, position } = piece;
+    
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x] !== 0) {
           const boardX = position.x + x;
           const boardY = position.y + y;
           
           if (
             boardX < 0 || 
             boardX >= BOARD_WIDTH || 
-            boardY >= BOARD_HEIGHT ||
-            (boardY >= 0 && board.grid[boardY][boardX] !== 0)
+            boardY >= BOARD_HEIGHT || 
+            (boardY >= 0 && board[boardY][boardX] !== 0)
           ) {
             return true;
           }
         }
       }
     }
+    
     return false;
   }, []);
-
-  // 旋转方块
-  const rotatePiece = useCallback((piece: Tetromino): Tetromino => {
-    const rotatedShape = piece.shape[0].map((_, i) =>
-      piece.shape.map(row => row[i]).reverse()
-    );
+  
+  // 合并方块到游戏板
+  const mergePieceToBoard = useCallback((piece: CurrentPiece, board: BoardType): BoardType => {
+    const newBoard = board.map(row => [...row]);
+    const { shape, position, tetromino } = piece;
     
-    return {
-      ...piece,
-      shape: rotatedShape
-    };
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x] !== 0) {
+          const boardY = position.y + y;
+          const boardX = position.x + x;
+          
+          if (boardY >= 0) {
+            // 使用数字表示不同类型的方块
+            newBoard[boardY][boardX] = Object.keys(TETROMINOS).indexOf(tetromino) + 1;
+          }
+        }
+      }
+    }
+    
+    return newBoard;
   }, []);
-
+  
+  // 清除完整的行
+  const clearLines = useCallback((board: BoardType): { newBoard: BoardType, linesCleared: number } => {
+    const newBoard = [...board];
+    let linesCleared = 0;
+    
+    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+      if (newBoard[y].every(cell => cell !== 0)) {
+        // 移除完整的行
+        newBoard.splice(y, 1);
+        // 在顶部添加新的空行
+        newBoard.unshift(Array(BOARD_WIDTH).fill(0));
+        linesCleared++;
+        // 重新检查当前行，因为所有行都下移了
+        y++;
+      }
+    }
+    
+    return { newBoard, linesCleared };
+  }, []);
+  
   // 移动方块
   const movePiece = useCallback((direction: 'left' | 'right' | 'down'): boolean => {
-    if (!currentPiece || gameState !== GameState.PLAYING || isAnimating) return false;
-    
-    setIsAnimating(true);
+    if (!currentPiece || gameState !== GameState.PLAYING) return false;
     
     const newPosition = { ...currentPiece.position };
     
@@ -295,430 +273,291 @@ export default function TetrisGame() {
         break;
     }
     
-    if (!checkCollision(currentPiece, board, newPosition)) {
-      setCurrentPiece({
-        ...currentPiece,
-        position: newPosition
-      });
-      setIsAnimating(false);
+    const movedPiece = {
+      ...currentPiece,
+      position: newPosition
+    };
+    
+    if (!checkCollision(movedPiece, board)) {
+      setCurrentPiece(movedPiece);
       return true;
     }
     
     // 如果是向下移动且发生碰撞，则固定方块
     if (direction === 'down') {
-      placePiece();
+      const newBoard = mergePieceToBoard(currentPiece, board);
+      const { newBoard: clearedBoard, linesCleared } = clearLines(newBoard);
+      
+      setBoard(clearedBoard);
+      
+      // 更新分数和等级
+      if (linesCleared > 0) {
+        const newLines = lines + linesCleared;
+        const newScore = score + [40, 100, 300, 1200][linesCleared - 1] * level;
+        const newLevel = Math.floor(newLines / 10) + 1;
+        
+        setLines(newLines);
+        setScore(newScore);
+        
+        if (newScore > bestScore) {
+          setBestScore(newScore);
+        }
+        
+        if (newLevel > level) {
+          setLevel(newLevel);
+          setSpeed(Math.max(MIN_SPEED, INITIAL_SPEED - (newLevel - 1) * SPEED_INCREMENT));
+        }
+      }
+      
+      // 创建新方块
+      const newPiece = {
+        tetromino: nextPiece,
+        position: { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 },
+        shape: TETROMINOS[nextPiece].shape
+      };
+      
+      setNextPiece(createRandomPiece());
+      
+      // 检查游戏是否结束
+      if (checkCollision(newPiece, clearedBoard)) {
+        setGameState(GameState.GAME_OVER);
+      } else {
+        setCurrentPiece(newPiece);
+      }
     }
     
-    setIsAnimating(false);
     return false;
-  }, [currentPiece, board, gameState, checkCollision, isAnimating]);
-
-  // 硬降（直接落到底部）
-  const hardDrop = useCallback(() => {
-    if (!currentPiece || gameState !== GameState.PLAYING || isAnimating) return;
+  }, [board, currentPiece, gameState, nextPiece, level, lines, score, bestScore, checkCollision, mergePieceToBoard, clearLines, createRandomPiece]);
+  
+  // 旋转当前方块
+  const rotateCurrentPiece = useCallback(() => {
+    if (!currentPiece || gameState !== GameState.PLAYING) return;
     
-    setIsAnimating(true);
+    const rotatedShape = rotatePiece(currentPiece.shape);
+    const rotatedPiece = {
+      ...currentPiece,
+      shape: rotatedShape
+    };
+    
+    // 检查旋转后是否碰撞
+    if (!checkCollision(rotatedPiece, board)) {
+      setCurrentPiece(rotatedPiece);
+    }
+  }, [currentPiece, gameState, board, rotatePiece, checkCollision]);
+  
+  // 硬降落（直接落到底部）
+  const hardDrop = useCallback(() => {
+    if (!currentPiece || gameState !== GameState.PLAYING) return;
     
     let newPosition = { ...currentPiece.position };
     
     // 一直向下移动直到碰撞
-    while (!checkCollision(currentPiece, board, { ...newPosition, y: newPosition.y + 1 })) {
+    while (true) {
       newPosition.y += 1;
+      const testPiece = {
+        ...currentPiece,
+        position: newPosition
+      };
+      
+      if (checkCollision(testPiece, board)) {
+        newPosition.y -= 1;
+        break;
+      }
     }
     
-    setCurrentPiece({
+    const droppedPiece = {
       ...currentPiece,
       position: newPosition
-    });
+    };
     
-    // 固定方块
-    placePiece();
-    setIsAnimating(false);
-  }, [currentPiece, board, gameState, checkCollision, isAnimating]);
-
-  // 旋转当前方块
-  const rotateCurrentPiece = useCallback(() => {
-    if (!currentPiece || gameState !== GameState.PLAYING || isAnimating) return;
+    setCurrentPiece(droppedPiece);
     
-    setIsAnimating(true);
-    
-    const rotatedPiece = rotatePiece(currentPiece);
-    
-    // 尝试旋转，如果碰撞则尝试墙踢
-    if (!checkCollision(rotatedPiece, board, currentPiece.position)) {
-      setCurrentPiece(rotatedPiece);
-    } else {
-      // 尝试墙踢
-      const kicks = [
-        { x: 1, y: 0 },  // 右
-        { x: -1, y: 0 }, // 左
-        { x: 0, y: -1 }, // 上
-        { x: 2, y: 0 },  // 右右
-        { x: -2, y: 0 }  // 左左
-      ];
-      
-      for (const kick of kicks) {
-        const newPosition = {
-          x: currentPiece.position.x + kick.x,
-          y: currentPiece.position.y + kick.y
-        };
-        
-        if (!checkCollision(rotatedPiece, board, newPosition)) {
-          setCurrentPiece({
-            ...rotatedPiece,
-            position: newPosition
-          });
-          break;
-        }
-      }
-    }
-    
-    setIsAnimating(false);
-  }, [currentPiece, board, gameState, checkCollision, rotatePiece, isAnimating]);
-
-  // 固定方块到游戏板
-  const placePiece = useCallback(() => {
-    if (!currentPiece) return;
-    
-    const newBoard = { ...board };
-    newBoard.grid = board.grid.map(row => [...row]);
-    newBoard.colors = board.colors.map(row => [...row]);
-    
-    // 将当前方块固定到游戏板
-    for (let y = 0; y < currentPiece.shape.length; y++) {
-      for (let x = 0; x < currentPiece.shape[y].length; x++) {
-        if (currentPiece.shape[y][x] !== 0) {
-          const boardY = currentPiece.position.y + y;
-          const boardX = currentPiece.position.x + x;
-          
-          if (boardY >= 0) {
-            newBoard.grid[boardY][boardX] = 1;
-            newBoard.colors[boardY][boardX] = currentPiece.color;
-          }
-        }
-      }
-    }
-    
-    setBoard(newBoard);
-    
-    // 检查并清除完整的行
-    clearLines(newBoard);
-    
-    // 生成新方块
-    const newPiece = nextPiece || createTetromino();
-    const newNextPiece = createTetromino();
-    
-    setCurrentPiece(newPiece);
-    setNextPiece(newNextPiece);
-    
-    // 检查游戏是否结束
-    if (checkCollision(newPiece, newBoard, newPiece.position)) {
-      setGameState(GameState.GAME_OVER);
-      if (score > highScore) {
-        setHighScore(score);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('tetris-high-score', score.toString());
-        }
-      }
-    }
-  }, [currentPiece, board, nextPiece, createTetromino, checkCollision, score, highScore]);
-
-  // 清除完整的行
-  const clearLines = useCallback((currentBoard: Board) => {
-    const newBoard = { ...currentBoard };
-    newBoard.grid = currentBoard.grid.map(row => [...row]);
-    newBoard.colors = currentBoard.colors.map(row => [...row]);
-    
-    let linesCleared = 0;
-    
-    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
-      if (newBoard.grid[y].every(cell => cell !== 0)) {
-        // 移除该行
-        newBoard.grid.splice(y, 1);
-        newBoard.colors.splice(y, 1);
-        
-        // 在顶部添加新的空行
-        newBoard.grid.unshift(Array(BOARD_WIDTH).fill(0));
-        newBoard.colors.unshift(Array(BOARD_WIDTH).fill(''));
-        
-        linesCleared++;
-        y++; // 重新检查当前行，因为所有行都下移了
-      }
-    }
-    
-    if (linesCleared > 0) {
-      // 更新分数
-      const points = [0, 100, 300, 500, 800]; // 0, 1, 2, 3, 4 行
-      const newScore = score + points[linesCleared] * level;
-      const newLines = lines + linesCleared;
-      const newLevel = Math.floor(newLines / 10) + 1;
-      
-      setScore(newScore);
-      setLines(newLines);
-      setLevel(newLevel);
-      
-      // 每升一级加快速度
-      if (newLevel > level && speed > MIN_SPEED) {
-        setSpeed(prevSpeed => Math.max(prevSpeed - SPEED_INCREASE, MIN_SPEED));
-      }
-      
-      setBoard(newBoard);
-    }
-  }, [score, lines, level, speed]);
-
-  // 游戏循环
+    // 触发一次向下移动来固定方块
+    movePiece('down');
+  }, [currentPiece, gameState, board, checkCollision, movePiece]);
+  
+  // 游戏主循环
   const gameLoop = useCallback(() => {
     if (gameState === GameState.PLAYING) {
       movePiece('down');
     }
   }, [gameState, movePiece]);
-
-  // 开始游戏循环
+  
+  // 游戏循环定时器
   useEffect(() => {
     if (gameState === GameState.PLAYING) {
-      gameLoopRef.current = setInterval(gameLoop, speed);
-    } else if (gameLoopRef.current) {
-      clearInterval(gameLoopRef.current);
-      gameLoopRef.current = null;
+      gameLoopRef.current = setTimeout(gameLoop, speed);
     }
-
+    
     return () => {
       if (gameLoopRef.current) {
-        clearInterval(gameLoopRef.current);
-        gameLoopRef.current = null;
+        clearTimeout(gameLoopRef.current);
       }
     };
   }, [gameState, gameLoop, speed]);
-
-  // 键盘控制
+  
+  // 处理键盘事件
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (gameState !== GameState.PLAYING || isAnimating) return;
-
+      // 防止方向键滚动页面
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+        e.preventDefault();
+      }
+      
       switch (e.key) {
-        case 'ArrowLeft':
-          e.preventDefault();
+        case "ArrowLeft":
           movePiece('left');
           break;
-        case 'ArrowRight':
-          e.preventDefault();
+        case "ArrowRight":
           movePiece('right');
           break;
-        case 'ArrowDown':
-          e.preventDefault();
+        case "ArrowDown":
           movePiece('down');
           break;
-        case 'ArrowUp':
-          e.preventDefault();
+        case "ArrowUp":
           rotateCurrentPiece();
           break;
-        case ' ':
-          e.preventDefault();
+        case " ":
           hardDrop();
           break;
-        case 'p':
-        case 'P':
-          e.preventDefault();
-          togglePause();
-          break;
-        case 'r':
-        case 'R':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            resetGame();
+        case "p":
+        case "P":
+          if (gameState === GameState.PLAYING) {
+            pauseGame();
+          } else if (gameState === GameState.PAUSED) {
+            startGame();
           }
           break;
       }
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, movePiece, rotateCurrentPiece, hardDrop, togglePause, resetGame, isAnimating]);
-
-  // 移动端控制
-  const handleMobileControl = useCallback((action: 'left' | 'right' | 'down' | 'rotate' | 'drop') => {
-    if (gameState !== GameState.PLAYING || isAnimating) return;
     
-    switch (action) {
-      case 'left':
-        movePiece('left');
-        break;
-      case 'right':
-        movePiece('right');
-        break;
-      case 'down':
-        movePiece('down');
-        break;
-      case 'rotate':
-        rotateCurrentPiece();
-        break;
-      case 'drop':
-        hardDrop();
-        break;
-    }
-  }, [gameState, movePiece, rotateCurrentPiece, hardDrop, isAnimating]);
-
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [movePiece, rotateCurrentPiece, hardDrop, gameState, pauseGame, startGame]);
+  
   // 初始化游戏
   useEffect(() => {
-    // 加载最高分
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tetris-high-score');
-      if (saved) {
-        setHighScore(parseInt(saved, 10));
-      }
-    }
-    
     initializeGame();
   }, [initializeGame]);
-
-  // 渲染游戏板网格
-  const renderGrid = () => {
-    const cells = [];
-    for (let y = 0; y < BOARD_HEIGHT; y++) {
-      for (let x = 0; x < BOARD_WIDTH; x++) {
-        cells.push(
-          <div
-            key={`grid-${x}-${y}`}
-            className={`absolute ${colorThemes[theme].grid} rounded-sm`}
-            style={{
-              width: `${cellSize}px`,
-              height: `${cellSize}px`,
-              left: `${x * cellSize}px`,
-              top: `${y * cellSize}px`,
-            }}
-          />
-        );
-      }
-    }
-    return cells;
-  };
-
+  
   // 渲染游戏板
   const renderBoard = () => {
-    const cells = [];
+    // 创建一个包含当前方块的游戏板副本用于渲染
+    const displayBoard = board.map(row => [...row]);
     
-    // 渲染已固定的方块
-    for (let y = 0; y < BOARD_HEIGHT; y++) {
-      for (let x = 0; x < BOARD_WIDTH; x++) {
-        if (board.grid[y][x] !== 0) {
-          cells.push(
-            <div
-              key={`board-${x}-${y}`}
-              className={`absolute rounded-sm shadow-md transition-all duration-${ANIMATION_DURATION} ease-in-out bg-gradient-to-br ${board.colors[y][x]}`}
-              style={{
-                width: `${cellSize}px`,
-                height: `${cellSize}px`,
-                left: `${x * cellSize}px`,
-                top: `${y * cellSize}px`,
-              }}
-            />
-          );
-        }
-      }
-    }
-    
-    // 渲染当前方块
-    if (currentPiece) {
-      for (let y = 0; y < currentPiece.shape.length; y++) {
-        for (let x = 0; x < currentPiece.shape[y].length; x++) {
-          if (currentPiece.shape[y][x] !== 0) {
-            const boardX = currentPiece.position.x + x;
-            const boardY = currentPiece.position.y + y;
+    // 如果有当前方块，将其添加到显示板中
+    if (currentPiece && gameState === GameState.PLAYING) {
+      const { shape, position, tetromino } = currentPiece;
+      const colorIndex = Object.keys(TETROMINOS).indexOf(tetromino) + 1;
+      
+      for (let y = 0; y < shape.length; y++) {
+        for (let x = 0; x < shape[y].length; x++) {
+          if (shape[y][x] !== 0) {
+            const boardY = position.y + y;
+            const boardX = position.x + x;
             
-            if (boardY >= 0) {
-              cells.push(
-                <div
-                  key={`piece-${x}-${y}`}
-                  className={`absolute rounded-sm shadow-lg transition-all duration-${ANIMATION_DURATION} ease-in-out bg-gradient-to-br ${currentPiece.color}`}
-                  style={{
-                    width: `${cellSize}px`,
-                    height: `${cellSize}px`,
-                    left: `${boardX * cellSize}px`,
-                    top: `${boardY * cellSize}px`,
-                  }}
-                />
-              );
+            if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
+              displayBoard[boardY][boardX] = colorIndex;
             }
           }
-        }
-      }
-      
-      // 渲染幽灵方块（显示落点位置）
-      let ghostPosition = { ...currentPiece.position };
-      
-      // 找到最低的可能位置
-      while (!checkCollision(currentPiece, board, { ...ghostPosition, y: ghostPosition.y + 1 })) {
-        ghostPosition.y += 1;
-      }
-      
-      // 渲染幽灵方块
-      for (let y = 0; y < currentPiece.shape.length; y++) {
-        for (let x = 0; x < currentPiece.shape[y].length; x++) {
-          if (currentPiece.shape[y][x] !== 0) {
-            const boardX = ghostPosition.x + x;
-            const boardY = ghostPosition.y + y;
-            
-            if (boardY >= 0) {
-              cells.push(
-                <div
-                  key={`ghost-${x}-${y}`}
-                  className={`absolute rounded-sm transition-all duration-${ANIMATION_DURATION} ease-in-out ${colorThemes[theme].ghost}`}
-                  style={{
-                    width: `${cellSize}px`,
-                    height: `${cellSize}px`,
-                    left: `${boardX * cellSize}px`,
-                    top: `${boardY * cellSize}px`,
-                  }}
-                />
-              );
-            }
-          }
-        }
-      }
-    }
-    
-    return cells;
-  };
-
-  // 渲染下一个方块预览
-  const renderNextPiece = () => {
-    if (!nextPiece) return null;
-    
-    const cells = [];
-    const previewSize = 20;
-    
-    for (let y = 0; y < nextPiece.shape.length; y++) {
-      for (let x = 0; x < nextPiece.shape[y].length; x++) {
-        if (nextPiece.shape[y][x] !== 0) {
-          cells.push(
-            <div
-              key={`next-${x}-${y}`}
-              className={`absolute rounded-sm bg-gradient-to-br ${nextPiece.color}`}
-              style={{
-                width: `${previewSize}px`,
-                height: `${previewSize}px`,
-                left: `${x * previewSize + 10}px`,
-                top: `${y * previewSize + 10}px`,
-              }}
-            />
-          );
         }
       }
     }
     
     return (
-      <div className="relative w-24 h-24 bg-gray-700/50 rounded-lg border border-gray-600/30 flex items-center justify-center">
-        {cells}
+      <div 
+        className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700"
+        style={{
+          width: `${BOARD_WIDTH * cellSize}px`,
+          height: `${BOARD_HEIGHT * cellSize}px`,
+        }}
+      >
+        {/* 网格和方块 */}
+        <div className="absolute inset-0 grid gap-px bg-gray-700" style={{
+          gridTemplateColumns: `repeat(${BOARD_WIDTH}, 1fr)`,
+          gridTemplateRows: `repeat(${BOARD_HEIGHT}, 1fr)`,
+        }}>
+          {displayBoard.flat().map((cell, index) => {
+            const y = Math.floor(index / BOARD_WIDTH);
+            const x = index % BOARD_WIDTH;
+            
+            return (
+              <div 
+                key={`cell-${x}-${y}`}
+                className={`${cell === 0 ? 'bg-gray-900' : TETROMINOS[Object.keys(TETROMINOS)[cell - 1] as TetrominoType].color}`}
+              />
+            );
+          })}
+        </div>
+        
+        {/* 游戏开始提示 */}
+        {gameState === GameState.READY && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="text-white text-xl font-bold mb-2">按空格键开始游戏</div>
+            <div className="text-gray-300 text-sm">使用方向键控制方块移动和旋转</div>
+          </div>
+        )}
+        
+        {/* 暂停提示 */}
+        {gameState === GameState.PAUSED && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="text-white text-xl font-bold mb-2">游戏已暂停</div>
+            <div className="text-gray-300 text-sm">按P键继续游戏</div>
+          </div>
+        )}
+        
+        {/* 游戏结束提示 */}
+        {gameState === GameState.GAME_OVER && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="text-white text-xl font-bold mb-2">游戏结束</div>
+            <div className="text-gray-300 text-sm">按空格键重新开始</div>
+          </div>
+        )}
       </div>
     );
   };
-
+  
+  // 渲染下一个方块预览
+  const renderNextPiece = () => {
+    if (!nextPiece) return null;
+    
+    const shape = TETROMINOS[nextPiece].shape;
+    const color = TETROMINOS[nextPiece].color;
+    const previewSize = cellSize * 0.8;
+    
+    return (
+      <div className="bg-gray-800/80 border border-gray-700 rounded-lg p-4">
+        <h3 className="text-white text-center mb-2 font-medium">下一个方块</h3>
+        <div className="flex justify-center">
+          <div className="relative" style={{ width: `${shape[0].length * previewSize}px`, height: `${shape.length * previewSize}px` }}>
+            {shape.map((row, y) => (
+              row.map((cell, x) => (
+                cell !== 0 && (
+                  <div
+                    key={`next-${x}-${y}`}
+                    className={`absolute ${color}`}
+                    style={{
+                      width: `${previewSize}px`,
+                      height: `${previewSize}px`,
+                      left: `${x * previewSize}px`,
+                      top: `${y * previewSize}px`,
+                    }}
+                  />
+                )
+              ))
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   return (
     <section className="flex flex-col items-center justify-center gap-8 py-8 md:py-10 min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 px-4">
       <div className="text-center mb-6 w-full max-w-lg">
         <h1 className={title({ size: "lg", color: "blue" })}>俄罗斯方块</h1>
         <div className={subtitle({ class: "mt-2 text-gray-300" })}>
-          旋转和移动方块，填满整行来消除它们！尽可能获得高分。
+          旋转和移动方块，填满整行来消除它们！
         </div>
       </div>
 
@@ -729,155 +568,113 @@ export default function TetrisGame() {
               <div className="flex gap-4">
                 <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
                   <div className="text-xs text-gray-400">分数</div>
-                  <div className="text-2xl font-bold text-white">{score}</div>
-                </div>
-                <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
-                  <div className="text-xs text-gray-400">行数</div>
-                  <div className="text-2xl font-bold text-white">{lines}</div>
-                </div>
-                <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
-                  <div className="text-xs text-gray-400">等级</div>
-                  <div className="text-2xl font-bold text-white">{level}</div>
+                  <div className="text-2xl font-bold text-white">
+                    {score}
+                  </div>
                 </div>
                 <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
                   <div className="text-xs text-gray-400">最高分</div>
-                  <div className="text-2xl font-bold text-white">{highScore}</div>
+                  <div className="text-2xl font-bold text-white">
+                    {bestScore}
+                  </div>
+                </div>
+                <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
+                  <div className="text-xs text-gray-400">等级</div>
+                  <div className="text-2xl font-bold text-white">
+                    {level}
+                  </div>
+                </div>
+                <div className="bg-gray-700/80 px-4 py-2 rounded-lg">
+                  <div className="text-xs text-gray-400">行数</div>
+                  <div className="text-2xl font-bold text-white">
+                    {lines}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2">
                 <Button
                   variant="flat"
-                  className={`bg-gradient-to-r ${colorThemes[theme].accent} hover:opacity-90 text-white rounded-lg transition-all duration-300 transform hover:scale-105`}
-                  onPress={gameState === GameState.READY ? startGame : togglePause}
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:opacity-90 text-white rounded-lg transition-all duration-300 transform hover:scale-105"
+                  onPress={startGame}
                 >
-                  {gameState === GameState.READY ? '开始' : 
-                   gameState === GameState.PLAYING ? '暂停' : '继续'}
+                  {gameState === GameState.READY || gameState === GameState.GAME_OVER ? "开始游戏" : 
+                   gameState === GameState.PAUSED ? "继续游戏" : "重新开始"}
                 </Button>
-                <Button
-                  variant="flat"
-                  className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all duration-300 transform hover:scale-105"
-                  onPress={resetGame}
-                >
-                  重置
-                </Button>
+                {gameState === GameState.PLAYING && (
+                  <Button
+                    variant="flat"
+                    className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:opacity-90 text-white rounded-lg transition-all duration-300 transform hover:scale-105"
+                    onPress={pauseGame}
+                  >
+                    暂停
+                  </Button>
+                )}
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-6 items-center">
-              <div 
-                className={`relative border-4 ${colorThemes[theme].border} rounded-xl overflow-hidden shadow-lg transition-all duration-300`}
-                style={{ width: `${gameBoardSize}px`, height: `${gameBoardSize * 2}px` }}
-              >
-                {/* 游戏网格 */}
-                {renderGrid()}
-                 
-                {/* 游戏板 */}
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="flex justify-center">
                 {renderBoard()}
-                
-                {/* 游戏开始提示 */}
-                {gameState === GameState.READY && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="text-white text-xl font-bold mb-4 animate-bounce">按开始按钮开始游戏</div>
-                    <div className="text-gray-300 text-sm">方向键移动，上键旋转，空格键快速下落</div>
-                  </div>
-                )}
-
-                {/* 暂停提示 */}
-                {gameState === GameState.PAUSED && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="text-white text-xl font-bold mb-4 animate-pulse">游戏已暂停</div>
-                    <div className="text-gray-300 text-sm">按继续按钮或P键继续游戏</div>
-                  </div>
-                )}
               </div>
               
               <div className="flex flex-col gap-4">
-                <div className="bg-gray-700/80 px-4 py-3 rounded-lg">
-                  <div className="text-xs text-gray-400 mb-2">下一个方块</div>
-                  {renderNextPiece()}
-                </div>
+                {renderNextPiece()}
                 
-                <div className="text-gray-400 text-sm bg-gray-700/80 px-4 py-3 rounded-lg">
-                  <p className="mb-1">← → : 左右移动</p>
-                  <p className="mb-1">↑ : 旋转方块</p>
-                  <p className="mb-1">↓ : 加速下落</p>
-                  <p className="mb-1">空格 : 直接落底</p>
-                  <p>P : 暂停/继续</p>
+                <div className="bg-gray-800/80 border border-gray-700 rounded-lg p-4">
+                  <h3 className="text-white text-center mb-2 font-medium">操作说明</h3>
+                  <ul className="text-gray-300 text-sm space-y-1">
+                    <li>← → : 左右移动</li>
+                    <li>↑ : 旋转方块</li>
+                    <li>↓ : 加速下落</li>
+                    <li>空格 : 硬降落</li>
+                    <li>P : 暂停/继续</li>
+                  </ul>
                 </div>
               </div>
             </div>
           </CardBody>
         </Card>
 
-        {/* 移动端控制 */}
-        {isMobile && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex gap-4">
+        <div className="mt-4 text-center text-gray-500 text-sm">
+          <p>填满一整行可以消除该行并获得分数</p>
+          <p>随着等级提高，方块下落速度会加快</p>
+          <p>当方块堆到顶部时游戏结束</p>
+        </div>
+      </div>
+      
+      {gameState === GameState.GAME_OVER && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-8 rounded-xl text-center max-w-md">
+            <h2 className="text-3xl font-bold mb-4 text-white">
+              游戏结束！
+            </h2>
+            <p className="text-xl mb-2 text-gray-300">
+              最终得分: <span className="font-bold text-blue-400">{score}</span>
+            </p>
+            <p className="text-lg mb-6 text-gray-300">
+              等级: <span className="font-bold text-purple-400">{level}</span> | 
+              行数: <span className="font-bold text-green-400">{lines}</span>
+            </p>
+            <div className="flex justify-center gap-4">
               <Button
                 variant="flat"
-                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg transition-all duration-300 w-16 h-16"
-                onPress={() => handleMobileControl('rotate')}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:opacity-90 text-white rounded-lg transition-all duration-300 transform hover:scale-105"
+                onPress={startGame}
               >
-                ↻
+                再来一局
               </Button>
               <Button
+                as={Link}
+                href="/games"
                 variant="flat"
-                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all duration-300 w-16 h-16"
-                onPress={() => handleMobileControl('drop')}
+                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:opacity-90 text-white rounded-lg transition-all duration-300 transform hover:scale-105"
               >
-                ↓↓
+                返回游戏列表
               </Button>
             </div>
-            <MobileControls
-              onDirection={(direction) => {
-                if (direction === 'up') handleMobileControl('rotate');
-                else if (direction === 'down') handleMobileControl('drop');
-                else handleMobileControl(direction);
-              }}
-              className="mt-2"
-              variant="game"
-              cellSize={cellSize * 2}
-            />
           </div>
-        )}
-
-        {/* 游戏结束覆盖层 */}
-        {gameState === GameState.GAME_OVER && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50">
-            <Card className="bg-gray-800/95 border-gray-600 shadow-2xl max-w-md w-full mx-4">
-              <CardBody className="p-6 text-center">
-                <h2 className="text-2xl font-bold text-red-400 mb-2">游戏结束！</h2>
-                <p className="text-gray-300 mb-2">方块堆到了顶部！</p>
-                <p className="text-gray-300 mb-6">
-                  最终得分: <span className="text-yellow-400 font-bold">{score}</span>
-                </p>
-                {score > highScore && (
-                  <div className="bg-green-900/50 border border-green-500/30 rounded-lg p-3 mb-6 animate-pulse">
-                    <p className="text-green-400 font-bold">新纪录！🎉</p>
-                  </div>
-                )}
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button
-                    variant="flat"
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-300"
-                    onPress={resetGame}
-                  >
-                    再玩一次
-                  </Button>
-                  <Link href="/games">
-                    <Button
-                      variant="flat"
-                      className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white rounded-lg transition-all duration-300"
-                    >
-                      返回游戏列表
-                    </Button>
-                  </Link>
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
 }
