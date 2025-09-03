@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@heroui/button";
 import { Textarea } from "@heroui/input";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import SyntaxHighlighter from "react-syntax-highlighter/dist/cjs/prism";
 import { oneLight, oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { useTheme } from "next-themes";
 
@@ -205,23 +205,20 @@ export function MarkdownPreview() {
 
   // 自定义代码块组件，支持语法高亮
   const CodeBlock = ({ className, children, ...props }: any) => {
-    const match = /language-(\w+)/.exec(className || '');
+    const match = /(\w+)/.exec(className || '');
     const lang = match ? match[1] : '';
     
     return match ? (
-      <SyntaxHighlighter
-        style={mounted && theme === 'dark' ? oneDark : oneLight}
-        language={lang}
-        PreTag="div"
-        className="rounded-md"
-        customStyle={{
-          margin: '1em 0',
-          backgroundColor: mounted && theme === 'dark' ? '#1e293b' : '#f8fafc',
-        }}
-        {...props}
-      >
-        {String(children).replace(/\n$/, '')}
-      </SyntaxHighlighter>
+      <div className="rounded-md" style={{
+        margin: '1em 0',
+        backgroundColor: mounted && theme === 'dark' ? '#1e293b' : '#f8fafc',
+      }}>
+        <pre className={`language-${lang}`} {...props}>
+          <code className={`language-${lang}`}>
+            {String(children).replace(/\n$/, '')}
+          </code>
+        </pre>
+      </div>
     ) : (
       <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>
         {children}
