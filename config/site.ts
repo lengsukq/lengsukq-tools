@@ -32,6 +32,10 @@ export const siteConfig = {
       label: "电费计算器",
       href: "/electricity-calculator",
     },
+    {
+      label: "流量消耗器",
+      href: "/traffic-consumer",
+    },
   ],
   navMenuItems: [
     {

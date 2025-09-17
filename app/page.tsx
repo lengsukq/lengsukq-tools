@@ -15,6 +15,11 @@ const tools = [
     href: "/electricity-calculator",
   },
   {
+    title: "流量消耗器",
+    description: "通过下载各种资源来消耗流量，支持自定义下载链接和循环下载",
+    href: "/traffic-consumer",
+  },
+  {
     title: "JSON格式化",
     description: "在线JSON格式化、压缩、语法验证工具",
     href: "/json-formatter",
