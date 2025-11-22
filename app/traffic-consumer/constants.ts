@@ -15,6 +15,11 @@ export const PRESET_DOWNLOADS: DownloadResource[] = [
     "url": "https://cachefly.cachefly.net/50mb.test"
   },
   {
+    "key": "tencentgame",
+    "label": "腾讯游戏-静态资源加速1",
+    "url": "https://game.gtimg.cn/images/nz/web202106/index/bc_part1.gif?0.3190485611376561"
+  },
+  {
     "key":"wechat",
     "label": "微信客户端",
     "url": "https://dldir1v6.qq.com/weixin/Universal/Windows/WeChatWin.exe"
@@ -109,11 +114,7 @@ export const PRESET_DOWNLOADS: DownloadResource[] = [
     "label": "阿里系Gw",
     "url": "https://gw.alicdn.com/tfscom/TB1fASCxhjaK1RjSZKzXXXVwXXa.jpg"
   },
-  {
-    "key": "tencentgame",
-    "label": "腾讯游戏-静态资源加速1",
-    "url": "https://game.gtimg.cn/images/nz/web202106/index/bc_part1.gif?0.3190485611376561"
-  },
+
   {
     "key": "wegame",
     "label": "Wegame-静态资源加速",
@@ -149,6 +150,7 @@ export const PRESET_DOWNLOADS: DownloadResource[] = [
     "label": "网易云游戏",
     "url": "https://nsh.gdl.netease.com/cloudgame_macos/NSH_cloud_game_for_mac_1.4.6_2023_06-02-11.dmg"
   },
+
   {
     "key": "vivostatic",
     "label": "VIVO官网静态资源",
