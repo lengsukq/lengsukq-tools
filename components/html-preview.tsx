@@ -100,12 +100,12 @@ const CopyIcon = () => (
 export function HtmlPreview() {
   const { theme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  
+
   // 确保组件已挂载，避免hydration问题
   useEffect(() => {
     setMounted(true);
   }, []);
-  
+
   const [html, setHtml] = useState<string>(
     `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -227,8 +227,9 @@ function greet(name) {
   useEffect(() => {
     if (iframeRef.current) {
       const iframe = iframeRef.current;
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      
+      const iframeDoc =
+        iframe.contentDocument || iframe.contentWindow?.document;
+
       if (iframeDoc) {
         iframeDoc.open();
         iframeDoc.write(html);
@@ -242,7 +243,8 @@ function greet(name) {
   };
 
   const openInNewTab = () => {
-    const newWindow = window.open('', '_blank');
+    const newWindow = window.open("", "_blank");
+
     if (newWindow) {
       newWindow.document.write(html);
       newWindow.document.close();
@@ -252,6 +254,7 @@ function greet(name) {
   const handleShare = async () => {
     if (!html.trim()) {
       alert("内容不能为空");
+
       return;
     }
 
@@ -270,22 +273,24 @@ function greet(name) {
       currentUrl.searchParams.set("shared", encodedContent);
 
       const longUrl = currentUrl.toString();
+
       console.log("生成的长URL:", longUrl);
-      
+
       // 调用后端短链接API
-      const response = await fetch('/api/short-link', {
-        method: 'POST',
+      const response = await fetch("/api/short-link", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ url: longUrl }),
       });
-      
+
       console.log("API响应状态:", response.status);
-      
+
       const data = await response.json();
+
       console.log("API响应数据:", data);
-      
+
       if (data.success && data.shortUrl) {
         // 使用短链接
         console.log("短链接生成成功:", data.shortUrl);
@@ -295,7 +300,7 @@ function greet(name) {
         console.warn("短链接生成失败，使用原始链接。响应数据:", data);
         setShareUrl(longUrl);
       }
-      
+
       setShowShareSuccess(true);
 
       // 3秒后隐藏成功消息
@@ -326,12 +331,13 @@ function greet(name) {
     try {
       // 简单的HTML格式化
       const formatted = html
-        .replace(/></g, '>\n<')
-        .replace(/<(\/?)([^>]+)>/g, '\n$1$2\n')
-        .split('\n')
-        .filter(line => line.trim())
-        .map(line => line.trim())
-        .join('\n');
+        .replace(/></g, ">\n<")
+        .replace(/<(\/?)([^>]+)>/g, "\n$1$2\n")
+        .split("\n")
+        .filter((line) => line.trim())
+        .map((line) => line.trim())
+        .join("\n");
+
       setHtml(formatted);
     } catch (error: any) {
       console.error("格式化失败:", error);
@@ -348,11 +354,11 @@ function greet(name) {
           <Button
             className="font-medium"
             color="primary"
+            isLoading={isSharing}
             size="sm"
             startContent={<ShareIcon />}
             variant="light"
             onPress={handleShare}
-            isLoading={isSharing}
           >
             分享
           </Button>
@@ -444,7 +450,9 @@ function greet(name) {
               className="min-h-[300px] font-mono text-sm"
               placeholder="在此输入HTML代码..."
               value={html}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setHtml(e.target.value)}
+              onChange={(e:any) =>
+                setHtml(e.target.value)
+              }
             />
           </CardBody>
         </Card>
@@ -475,8 +483,8 @@ function greet(name) {
             <iframe
               ref={iframeRef}
               className="w-full min-h-[400px] border-0"
-              title="HTML Preview"
               sandbox="allow-scripts allow-same-origin"
+              title="HTML Preview"
             />
           </div>
         </CardBody>

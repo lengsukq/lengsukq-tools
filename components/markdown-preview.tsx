@@ -7,8 +7,6 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import SyntaxHighlighter from "react-syntax-highlighter/dist/cjs/prism";
-import { oneLight, oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { useTheme } from "next-themes";
 
 // 简单的编辑图标
@@ -89,12 +87,12 @@ const CopyIcon = () => (
 export function MarkdownPreview() {
   const { theme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  
+
   // 确保组件已挂载，避免hydration问题
   useEffect(() => {
     setMounted(true);
   }, []);
-  
+
   const [markdown, setMarkdown] = useState<string>(
     "# Markdown预览\n\n这是一个**Markdown**预览工具。\n\n## 功能特点\n\n- 实时预览\n- 可收起的编辑器\n- 支持标准Markdown语法\n- 代码语法高亮\n- GitHub风格Markdown扩展\n\n### 列表示例\n\n1. 第一项\n2. 第二项\n3. 第三项\n\n### 代码示例\n\n```javascript\nfunction helloWorld() {\n  console.log('Hello, World!');\n}\n```\n\n```python\ndef hello_world():\n    print(\"Hello, World!\")\n```\n\n> 这是一个引用块\n\n[链接示例](https://example.com)\n",
   );
@@ -151,22 +149,24 @@ export function MarkdownPreview() {
       currentUrl.searchParams.set("shared", encodedContent);
 
       const longUrl = currentUrl.toString();
+
       console.log("生成的长URL:", longUrl);
-      
+
       // 调用后端短链接API
-      const response = await fetch('/api/short-link', {
-        method: 'POST',
+      const response = await fetch("/api/short-link", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ url: longUrl }),
       });
-      
+
       console.log("API响应状态:", response.status);
-      
+
       const data = await response.json();
+
       console.log("API响应数据:", data);
-      
+
       if (data.success && data.shortUrl) {
         // 使用短链接
         console.log("短链接生成成功:", data.shortUrl);
@@ -176,7 +176,7 @@ export function MarkdownPreview() {
         console.warn("短链接生成失败，使用原始链接。响应数据:", data);
         setShareUrl(longUrl);
       }
-      
+
       setShowShareSuccess(true);
 
       // 3秒后隐藏成功消息
@@ -205,22 +205,28 @@ export function MarkdownPreview() {
 
   // 自定义代码块组件，支持语法高亮
   const CodeBlock = ({ className, children, ...props }: any) => {
-    const match = /(\w+)/.exec(className || '');
-    const lang = match ? match[1] : '';
-    
+    const match = /(\w+)/.exec(className || "");
+    const lang = match ? match[1] : "";
+
     return match ? (
-      <div className="rounded-md" style={{
-        margin: '1em 0',
-        backgroundColor: mounted && theme === 'dark' ? '#1e293b' : '#f8fafc',
-      }}>
+      <div
+        className="rounded-md"
+        style={{
+          margin: "1em 0",
+          backgroundColor: mounted && theme === "dark" ? "#1e293b" : "#f8fafc",
+        }}
+      >
         <pre className={`language-${lang}`} {...props}>
           <code className={`language-${lang}`}>
-            {String(children).replace(/\n$/, '')}
+            {String(children).replace(/\n$/, "")}
           </code>
         </pre>
       </div>
     ) : (
-      <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>
+      <code
+        className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono"
+        {...props}
+      >
         {children}
       </code>
     );
@@ -229,7 +235,10 @@ export function MarkdownPreview() {
   // 自定义表格组件
   const TableComponent = ({ children, ...props }: any) => (
     <div className="overflow-x-auto my-4">
-      <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-600" {...props}>
+      <table
+        className="min-w-full border-collapse border border-gray-300 dark:border-gray-600"
+        {...props}
+      >
         {children}
       </table>
     </div>
@@ -237,14 +246,20 @@ export function MarkdownPreview() {
 
   // 自定义表头组件
   const ThComponent = ({ children, ...props }: any) => (
-    <th className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-4 py-2 text-left font-semibold" {...props}>
+    <th
+      className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-4 py-2 text-left font-semibold"
+      {...props}
+    >
       {children}
     </th>
   );
 
   // 自定义表格单元格组件
   const TdComponent = ({ children, ...props }: any) => (
-    <td className="border border-gray-300 dark:border-gray-600 px-4 py-2" {...props}>
+    <td
+      className="border border-gray-300 dark:border-gray-600 px-4 py-2"
+      {...props}
+    >
       {children}
     </td>
   );
@@ -348,13 +363,13 @@ export function MarkdownPreview() {
         <CardBody className="pt-0">
           <div className="prose prose-lg prose-blue max-w-none dark:prose-invert dark:prose-headings:text-gray-200 dark:prose-p:text-gray-300 dark:prose-strong:text-gray-200 dark:prose-code:text-gray-200 dark:prose-pre:bg-gray-800 dark:prose-blockquote:text-gray-300 dark:prose-li:text-gray-300 prose-p:my-4 prose-headings:my-5 prose-ul:my-4 prose-ol:my-4 prose-pre:my-5 prose-blockquote:my-4 min-h-[300px] overflow-auto">
             <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
               components={{
                 code: CodeBlock,
                 table: TableComponent,
                 th: ThComponent,
                 td: TdComponent,
               }}
+              remarkPlugins={[remarkGfm]}
             >
               {markdown}
             </ReactMarkdown>
