@@ -36,6 +36,10 @@ export const siteConfig = {
       label: "流量消耗器",
       href: "/traffic-consumer",
     },
+    {
+      label: "HTML预览",
+      href: "/html-preview",
+    },
   ],
   navMenuItems: [
     {
@@ -69,6 +73,10 @@ export const siteConfig = {
     {
       label: "Logout",
       href: "/logout",
+    },
+    {
+      label: "HTML预览",
+      href: "/html-preview",
     },
   ],
   links: {

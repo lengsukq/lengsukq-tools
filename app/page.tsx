@@ -54,6 +54,11 @@ const tools = [
     description: "在线Markdown编辑器和预览工具，支持实时预览和可收起的编辑器",
     href: "/markdown-preview",
   },
+  {
+    title: "HTML预览",
+    description: "在线HTML编辑器和预览工具，支持实时预览和代码分享",
+    href: "/html-preview",
+  },
 ];
 
 export default function Home() {
