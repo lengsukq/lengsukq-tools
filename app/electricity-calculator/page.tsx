@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useId } from "react"; // 导入 useId
+import React, { useCallback, useEffect, useState, useId } from "react";
 import { Input, Select, SelectItem, Card, CardHeader, CardBody, CardFooter, Switch } from "@heroui/react";
+import { calculateElectricityCost } from "./utils";
 
 export default function ElectricityCalculatorPage() {
   const [powerConsumption, setPowerConsumption] = useState("");
@@ -27,88 +28,21 @@ export default function ElectricityCalculatorPage() {
   const enablePeakValleySwitchId = useId();
   const enableCustomPeriodMultiplierSwitchId = useId();
 
-  const calculateElectricityCost = useCallback(() => {
-    const power = parseFloat(powerConsumption);
-
-    if (isNaN(power) || power <= 0) {
-      setResult(0);
-
-      return;
-    }
-
-    let dailyCost = 0;
-
-    if (enablePeakValley) {
-      const peakPrice = parseFloat(peakPricePerKWH);
-      const valleyPrice = parseFloat(valleyPricePerKWH);
-      const peakHours = parseFloat(peakRunTime);
-      const valleyHours = parseFloat(valleyRunTime);
-
-      if (
-        isNaN(peakPrice) ||
-        isNaN(valleyPrice) ||
-        isNaN(peakHours) ||
-        isNaN(valleyHours)
-      ) {
-        setResult(0);
-
-        return;
-      }
-
-      const peakKWHPerDay = (power * peakHours) / 1000;
-      const valleyKWHPerDay = (power * valleyHours) / 1000;
-
-      dailyCost = peakKWHPerDay * peakPrice + valleyKWHPerDay * valleyPrice;
-    } else {
-      const price = parseFloat(pricePerKWH);
-      const runTime = parseFloat(dailyRunTime);
-
-      if (isNaN(price) || isNaN(runTime)) {
-        setResult(0);
-
-        return;
-      }
-      const kwhPerDay = (power * runTime) / 1000;
-
-      dailyCost = kwhPerDay * price;
-    }
-
-    // 计算基础天数（根据period选择）
-    let baseDaysInPeriod = 0;
-
-    switch (period) {
-      case "day":
-        baseDaysInPeriod = 1;
-        break;
-      case "week":
-        baseDaysInPeriod = 7;
-        break;
-      case "month":
-        baseDaysInPeriod = 30; // 简化处理，按30天计算
-        break;
-      case "year":
-        baseDaysInPeriod = 365;
-        break;
-      default:
-        baseDaysInPeriod = 0;
-    }
-
-    let totalDaysToCalculate = 0;
-
-    if (enableCustomPeriodMultiplier) {
-      const multiplier = parseInt(customMultiplier);
-
-      if (isNaN(multiplier) || multiplier <= 0) {
-        setResult(0);
-
-        return;
-      }
-      totalDaysToCalculate = baseDaysInPeriod * multiplier; // 基础天数乘以倍数
-    } else {
-      totalDaysToCalculate = baseDaysInPeriod; // 不启用自定义倍数时，就是基础周期天数
-    }
-
-    setResult(dailyCost * totalDaysToCalculate);
+  const handleCalculate = useCallback(() => {
+    const result = calculateElectricityCost({
+      powerConsumption: parseFloat(powerConsumption) || 0,
+      pricePerKWH: parseFloat(pricePerKWH) || 0,
+      dailyRunTime: parseFloat(dailyRunTime) || 0,
+      period,
+      enablePeakValley,
+      peakPricePerKWH: parseFloat(peakPricePerKWH) || 0,
+      valleyPricePerKWH: parseFloat(valleyPricePerKWH) || 0,
+      peakRunTime: parseFloat(peakRunTime) || 0,
+      valleyRunTime: parseFloat(valleyRunTime) || 0,
+      enableCustomPeriodMultiplier,
+      customMultiplier: parseFloat(customMultiplier) || 0,
+    });
+    setResult(result);
   }, [
     powerConsumption,
     pricePerKWH,
@@ -124,8 +58,8 @@ export default function ElectricityCalculatorPage() {
   ]);
 
   useEffect(() => {
-    calculateElectricityCost();
-  }, [calculateElectricityCost]);
+    handleCalculate();
+  }, [handleCalculate]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-2">

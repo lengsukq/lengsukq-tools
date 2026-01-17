@@ -3,13 +3,8 @@
 import { useState, useCallback } from "react";
 import { Card, CardBody, Button } from "@heroui/react";
 import { useDropzone } from "react-dropzone";
-import { PDFDocument, rgb } from "pdf-lib";
-
-interface ProcessedFile {
-  name: string;
-  pdfBytes: Uint8Array;
-  pages: number;
-}
+import { ProcessedFile } from "./types";
+import { processSingleFile, downloadProcessedFile } from "./utils";
 
 export default function PdfWatermarkRemover() {
   const [files, setFiles] = useState<File[]>([]);
@@ -32,41 +27,6 @@ export default function PdfWatermarkRemover() {
     multiple: true,
   });
 
-  const processSingleFile = async (file: File): Promise<ProcessedFile> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
-    const pages = pdfDoc.getPages();
-
-    // 处理每一页
-    for (const page of pages) {
-      const { width, height } = page.getSize();
-
-      // 计算水印区域（右下角）
-      const watermarkWidth = width / 3;
-      const watermarkHeight = height / 14;
-      const watermarkX = width - watermarkWidth - 10; // 右边距10px
-      const watermarkY = 6; // 底边距6px
-
-      // 用白色矩形覆盖水印区域
-      page.drawRectangle({
-        x: watermarkX,
-        y: watermarkY,
-        width: watermarkWidth,
-        height: watermarkHeight,
-        color: rgb(1, 1, 1), // 白色
-        opacity: 1,
-        borderWidth: 0,
-      });
-    }
-
-    const modifiedPdfBytes = await pdfDoc.save();
-
-    return {
-      name: file.name,
-      pdfBytes: modifiedPdfBytes,
-      pages: pages.length,
-    };
-  };
 
   const handleProcess = async () => {
     if (files.length === 0) return;
@@ -86,15 +46,7 @@ export default function PdfWatermarkRemover() {
   };
 
   const handleDownload = (file: ProcessedFile) => {
-    const blob = new Blob([file.pdfBytes as BlobPart], {
-      type: "application/pdf",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = file.name.replace(".pdf", "_去水印.pdf");
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadProcessedFile(file);
   };
 
   const handleDownloadAll = () => {

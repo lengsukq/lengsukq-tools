@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, Textarea, Card, CardBody } from "@heroui/react";
+import { formatJson as formatJsonUtil, minifyJson as minifyJsonUtil } from "@/utils/json-utils";
 
 export function JsonFormatter() {
   const [input, setInput] = useState("");
@@ -9,39 +10,15 @@ export function JsonFormatter() {
   const [error, setError] = useState("");
 
   const formatJson = () => {
-    try {
-      if (!input.trim()) {
-        setError("请输入JSON字符串");
-        setOutput("");
-
-        return;
-      }
-      const parsed = JSON.parse(input);
-
-      setOutput(JSON.stringify(parsed, null, 2));
-      setError("");
-    } catch {
-      setError("无效的JSON格式");
-      setOutput("");
-    }
+    const result = formatJsonUtil(input);
+    setOutput(result.output);
+    setError(result.error);
   };
 
   const minifyJson = () => {
-    try {
-      if (!input.trim()) {
-        setError("请输入JSON字符串");
-        setOutput("");
-
-        return;
-      }
-      const parsed = JSON.parse(input);
-
-      setOutput(JSON.stringify(parsed));
-      setError("");
-    } catch {
-      setError("无效的JSON格式");
-      setOutput("");
-    }
+    const result = minifyJsonUtil(input);
+    setOutput(result.output);
+    setError(result.error);
   };
 
   const copyToClipboard = async () => {

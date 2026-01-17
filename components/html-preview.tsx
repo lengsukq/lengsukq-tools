@@ -3,96 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Textarea, Card, CardBody, CardHeader, Divider } from "@heroui/react";
 import { useTheme } from "next-themes";
-
-// 图标组件
-const EditDocumentIcon = () => (
-  <svg
-    fill="none"
-    height="20"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-    width="20"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-  </svg>
-);
-
-const EyeIcon = () => (
-  <svg
-    fill="none"
-    height="20"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-    width="20"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
-
-const ExternalLinkIcon = () => (
-  <svg
-    fill="none"
-    height="20"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-    width="20"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-    <polyline points="15,3 21,3 21,9" />
-    <line x1="10" x2="21" y1="14" y2="3" />
-  </svg>
-);
-
-const ShareIcon = () => (
-  <svg
-    fill="none"
-    height="20"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-    width="20"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <circle cx="18" cy="5" r="3" />
-    <circle cx="6" cy="12" r="3" />
-    <circle cx="18" cy="19" r="3" />
-    <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
-    <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
-  </svg>
-);
-
-const CopyIcon = () => (
-  <svg
-    fill="none"
-    height="16"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-    width="16"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <rect height="13" rx="2" ry="2" width="13" x="9" y="9" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
+import { EditDocumentIcon, EyeIcon, ShareIcon, CopyIcon, ExternalLinkIcon } from "./icons/index";
+import { getShareContentFromUrl, generateShareUrl } from "@/utils/share-utils";
 
 export function HtmlPreview() {
   const { theme } = useTheme();
@@ -201,22 +113,10 @@ function greet(name) {
 
   // 从URL参数加载分享内容
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sharedData = urlParams.get("shared");
-
-    if (sharedData) {
-      try {
-        // 隐藏编辑器，只显示预览
-        setShowEditor(false);
-
-        // 解码Base64内容
-        const decodedContent = decodeURIComponent(atob(sharedData));
-
-        setHtml(decodedContent);
-      } catch (error: any) {
-        console.error("加载分享内容失败:", error);
-        alert("加载分享内容失败，链接可能已损坏");
-      }
+    const sharedContent = getShareContentFromUrl();
+    if (sharedContent) {
+      setShowEditor(false);
+      setHtml(sharedContent);
     }
   }, []);
 
@@ -251,7 +151,6 @@ function greet(name) {
   const handleShare = async () => {
     if (!html.trim()) {
       alert("内容不能为空");
-
       return;
     }
 
@@ -259,21 +158,8 @@ function greet(name) {
     setShareUrl("");
 
     try {
-      // 将内容编码为Base64
-      const encodedContent = btoa(encodeURIComponent(html));
-      const currentUrl = new URL(window.location.href);
+      const longUrl = generateShareUrl(html, window.location.href);
 
-      // 移除现有的shared参数
-      currentUrl.searchParams.delete("shared");
-
-      // 添加新的shared参数
-      currentUrl.searchParams.set("shared", encodedContent);
-
-      const longUrl = currentUrl.toString();
-
-      console.log("生成的长URL:", longUrl);
-
-      // 调用后端短链接API
       const response = await fetch("/api/short-link", {
         method: "POST",
         headers: {
@@ -282,25 +168,15 @@ function greet(name) {
         body: JSON.stringify({ url: longUrl }),
       });
 
-      console.log("API响应状态:", response.status);
-
       const data = await response.json();
 
-      console.log("API响应数据:", data);
-
       if (data.success && data.shortUrl) {
-        // 使用短链接
-        console.log("短链接生成成功:", data.shortUrl);
         setShareUrl(data.shortUrl);
       } else {
-        // 如果短链接生成失败，使用原始长链接
-        console.warn("短链接生成失败，使用原始链接。响应数据:", data);
         setShareUrl(longUrl);
       }
 
       setShowShareSuccess(true);
-
-      // 3秒后隐藏成功消息
       setTimeout(() => {
         setShowShareSuccess(false);
       }, 3000);

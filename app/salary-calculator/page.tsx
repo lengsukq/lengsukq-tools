@@ -2,30 +2,25 @@
 
 import React, { useCallback, useEffect, useState, useId } from "react";
 import { Input, Card, CardHeader, CardBody, CardFooter, Button, Switch } from "@heroui/react";
+import { calculateIncomeTax, saveToStorage, loadFromStorage } from "./utils";
+import { DEFAULT_RATES, DEFAULT_WORKING_HOURS } from "./constants";
 
 export default function SalaryCalculatorPage() {
-  // 保存值到localStorage
-  const saveToStorage = (key: string, value: string) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(key, value);
-    }
-  };
-
   // 月薪计算相关状态
   const [salaryBase, setSalaryBase] = useState(""); // 月薪基数
   const [allowance, setAllowance] = useState(""); // 每月补贴
-  const [pensionRate, setPensionRate] = useState("0.08"); // 养老保险比例
-  const [medicalRate, setMedicalRate] = useState("0.02"); // 医疗保险比例
-  const [unemploymentRate, setUnemploymentRate] = useState("0.005"); // 失业保险比例
-  const [housingFundRate, setHousingFundRate] = useState("0.12"); // 住房公积金比例
+  const [pensionRate, setPensionRate] = useState<string>(DEFAULT_RATES.PENSION); // 养老保险比例
+  const [medicalRate, setMedicalRate] = useState<string>(DEFAULT_RATES.MEDICAL); // 医疗保险比例
+  const [unemploymentRate, setUnemploymentRate] = useState<string>(DEFAULT_RATES.UNEMPLOYMENT); // 失业保险比例
+  const [housingFundRate, setHousingFundRate] = useState<string>(DEFAULT_RATES.HOUSING_FUND); // 住房公积金比例
 
   // 社保缴费基数相关
   const [socialInsuranceBase, setSocialInsuranceBase] = useState(""); // 社保缴费基数
   const [useCustomBase, setUseCustomBase] = useState(false); // 是否使用自定义社保基数
 
   // 时薪计算相关状态
-  const [dailyWorkingHours, setDailyWorkingHours] = useState("8"); // 日工作时间
-  const [monthlyWorkingDays, setMonthlyWorkingDays] = useState("21.75"); // 月平均工作日
+  const [dailyWorkingHours, setDailyWorkingHours] = useState<string>(DEFAULT_WORKING_HOURS.DAILY); // 日工作时间
+  const [monthlyWorkingDays, setMonthlyWorkingDays] = useState<string>(DEFAULT_WORKING_HOURS.MONTHLY_DAYS); // 月平均工作日
 
   // 年薪计算相关状态
   const [annualBonus, setAnnualBonus] = useState("");
@@ -51,35 +46,6 @@ export default function SalaryCalculatorPage() {
   const includeHousingFundSwitchId = useId();
   const useCustomBaseSwitchId = useId();
 
-  // 计算个人所得税（使用速算扣除数优化）
-  const calculateIncomeTax = (taxableIncomeBase: number): number => {
-    const taxThreshold = 5000;
-
-    // 如果应纳税所得额小于等于起征点，不缴税
-    if (taxableIncomeBase <= taxThreshold) {
-      return 0;
-    }
-
-    // 应纳税所得额（年度累计预扣预缴，此处简化为月度）
-    const taxableAmount = taxableIncomeBase - taxThreshold;
-
-    // 个人所得税税率表及速算扣除数（2023年标准）
-    if (taxableAmount <= 3000) {
-      return taxableAmount * 0.03 - 0;
-    } else if (taxableAmount <= 12000) {
-      return taxableAmount * 0.1 - 210;
-    } else if (taxableAmount <= 25000) {
-      return taxableAmount * 0.2 - 1410;
-    } else if (taxableAmount <= 35000) {
-      return taxableAmount * 0.25 - 2760;
-    } else if (taxableAmount <= 55000) {
-      return taxableAmount * 0.3 - 5290;
-    } else if (taxableAmount <= 80000) {
-      return taxableAmount * 0.35 - 15160;
-    } else {
-      return taxableAmount * 0.45 - 28160;
-    }
-  };
 
   const calculateSalary = useCallback(() => {
     // 保存当前值到localStorage
@@ -183,15 +149,15 @@ export default function SalaryCalculatorPage() {
     if (typeof window !== "undefined") {
       setSalaryBase(localStorage.getItem("salaryBase") || "");
       setAllowance(localStorage.getItem("allowance") || "");
-      setPensionRate(localStorage.getItem("pensionRate") || "0.08");
-      setMedicalRate(localStorage.getItem("medicalRate") || "0.02");
-      setUnemploymentRate(localStorage.getItem("unemploymentRate") || "0.005");
-      setHousingFundRate(localStorage.getItem("housingFundRate") || "0.12");
+      setPensionRate(localStorage.getItem("pensionRate") || DEFAULT_RATES.PENSION);
+      setMedicalRate(localStorage.getItem("medicalRate") || DEFAULT_RATES.MEDICAL);
+      setUnemploymentRate(localStorage.getItem("unemploymentRate") || DEFAULT_RATES.UNEMPLOYMENT);
+      setHousingFundRate(localStorage.getItem("housingFundRate") || DEFAULT_RATES.HOUSING_FUND);
       setSocialInsuranceBase(localStorage.getItem("socialInsuranceBase") || "");
       setUseCustomBase(localStorage.getItem("useCustomBase") === "true");
-      setDailyWorkingHours(localStorage.getItem("dailyWorkingHours") || "8");
+      setDailyWorkingHours(localStorage.getItem("dailyWorkingHours") || DEFAULT_WORKING_HOURS.DAILY);
       setMonthlyWorkingDays(
-        localStorage.getItem("monthlyWorkingDays") || "21.75",
+        localStorage.getItem("monthlyWorkingDays") || DEFAULT_WORKING_HOURS.MONTHLY_DAYS,
       );
       setAnnualBonus(localStorage.getItem("annualBonus") || "");
       setAnnualAllowance(localStorage.getItem("annualAllowance") || "");

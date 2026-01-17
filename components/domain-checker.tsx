@@ -3,14 +3,12 @@
 import { useState } from "react";
 import { Input, Button, Kbd, Tabs, Tab } from "@heroui/react";
 
-import { BatchQuery } from "./BatchQuery"; // 确保路径正确
+import { BatchQuery } from "./BatchQuery";
+import { WhoisResponse } from "./domain-checker/types";
+import { queryWhois, batchQueryWhois } from "@/utils/whois-api";
+import { WhoisResultDisplay } from "./domain-checker/WhoisResultDisplay";
 
-export interface WhoisResponse {
-  domain: string;
-  isRegistered: boolean;
-  whoisData: any;
-  error?: string;
-}
+export type { WhoisResponse };
 
 export function DomainChecker() {
   const [queryType, setQueryType] = useState<"single" | "batch">("single");
@@ -23,37 +21,7 @@ export function DomainChecker() {
   const handleBatchQuery = async (
     domains: string[],
   ): Promise<WhoisResponse[]> => {
-    const results: WhoisResponse[] = [];
-
-    for (const domain of domains) {
-      try {
-        const response = await fetch("/api/whois", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ domain }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || "查询失败");
-        }
-
-        results.push(data);
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // 添加延迟
-      } catch (err) {
-        results.push({
-          domain: domain,
-          isRegistered: false,
-          whoisData: null,
-          error: err instanceof Error ? err.message : "查询失败",
-        });
-      }
-    }
-
-    return results;
+    return batchQueryWhois(domains);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,22 +31,7 @@ export function DomainChecker() {
     setResult(null);
 
     try {
-      const response = await fetch("/api/whois", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ domain }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json(); // 解析响应体
-
-        throw new Error(data.message || "查询失败"); // 使用 data.message
-      }
-
-      const data = await response.json();
-
+      const data = await queryWhois(domain);
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "查询失败，请稍后重试");
@@ -126,95 +79,7 @@ export function DomainChecker() {
               </div>
             )}
 
-            {result && (
-              <div className="p-4 space-y-4 bg-gray-50 rounded-lg shadow-md">
-                {/* 整体添加阴影 */}
-                <div className="flex items-center justify-between">
-                  {" "}
-                  {/* 使用 justify-between 布局 */}
-                  <div>
-                    <span className="font-semibold text-lg">域名状态：</span>{" "}
-                    {/* 调整字体大小和加粗 */}
-                    <span
-                      className={`ml-2 px-3 py-1 text-sm rounded-full ${
-                        result.isRegistered
-                          ? "bg-red-200 text-red-800"
-                          : "bg-green-200 text-green-800"
-                      }`}
-                    >
-                      {result.isRegistered ? "已被注册" : "可以注册"}
-                    </span>
-                  </div>
-                  <span className="text-gray-500 text-sm">
-                    域名: {result.domain}
-                  </span>{" "}
-                  {/* 显示域名 */}
-                </div>
-
-                {result.whoisData && (
-                  <div className="space-y-3">
-                    {" "}
-                    {/* 调整子元素的间距 */}
-                    {/* DNS Servers */}
-                    {result.whoisData["DNS Serve"] && (
-                      <div>
-                        <div className="font-medium text-gray-700">
-                          DNS 服务器
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {result.whoisData["DNS Serve"].join(", ")}
-                        </div>
-                      </div>
-                    )}
-                    {/* Registration Time */}
-                    {result.whoisData["Registration Time"] && (
-                      <div>
-                        <div className="font-medium text-gray-700">
-                          注册时间
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {result.whoisData["Registration Time"]}
-                        </div>
-                      </div>
-                    )}
-                    {/* Expiration Time */}
-                    {result.whoisData["Expiration Time"] && (
-                      <div>
-                        <div className="font-medium text-gray-700">
-                          到期时间
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {result.whoisData["Expiration Time"]}
-                        </div>
-                      </div>
-                    )}
-                    {/* Registrar URL */}
-                    {result.whoisData["Registrar URL"] && (
-                      <div>
-                        <div className="font-medium text-gray-700">注册商</div>
-                        <a
-                          className="text-blue-600 hover:underline text-sm"
-                          href={result.whoisData["Registrar URL"]}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                        >
-                          {result.whoisData["Registrar URL"]}
-                        </a>
-                      </div>
-                    )}
-                    {/* WHOIS Info */}
-                    <div>
-                      <div className="font-medium text-gray-700">
-                        WHOIS 信息
-                      </div>
-                      <pre className="p-3 mt-2 text-xs bg-gray-100 rounded-lg overflow-x-auto text-gray-800">
-                        {JSON.stringify(result.whoisData, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            {result && <WhoisResultDisplay result={result} />}
 
             <div className="text-sm text-gray-500 text-center">
               按下 <Kbd keys={["enter"]} /> 快速查询
