@@ -40,6 +40,10 @@ export const siteConfig = {
       label: "HTML预览",
       href: "/html-preview",
     },
+    {
+      label: "API 客户端",
+      href: "/api-client",
+    },
   ],
   navMenuItems: [
     {
