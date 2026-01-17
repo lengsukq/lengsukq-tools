@@ -3,8 +3,7 @@
 import { useState } from "react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
-import { Link } from "@heroui/link";
-import { Button } from "@heroui/button";
+import { Link, Button } from "@heroui/react";
 import clsx from "clsx";
 
 import { siteConfig } from "@/config/site";

@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Button } from "@heroui/button";
-import { Textarea } from "@heroui/input";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Divider } from "@heroui/divider";
+import { Button, Textarea, Card, CardBody, CardHeader, Divider } from "@heroui/react";
 import { useTheme } from "next-themes";
 
 // 图标组件

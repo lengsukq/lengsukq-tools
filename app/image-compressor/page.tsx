@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Card, CardBody } from "@heroui/card";
-import { Button } from "@heroui/button";
-import { Slider } from "@heroui/slider";
+import { Card, CardBody, Button, Slider } from "@heroui/react";
 import { useDropzone } from "react-dropzone";
 
 // 防抖hook

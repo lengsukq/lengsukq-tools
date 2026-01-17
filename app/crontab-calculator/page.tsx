@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Select, SelectItem } from "@heroui/select";
+import { Input, Button, Card, CardBody, CardHeader, Select, SelectItem } from "@heroui/react";
 
 interface CronResult {
   nextRuns: string[];

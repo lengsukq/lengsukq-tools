@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@heroui/button";
-import { Textarea } from "@heroui/input";
-import { Card, CardBody } from "@heroui/card";
+import { Button, Textarea, Card, CardBody } from "@heroui/react";
 
 export function JsonFormatter() {
   const [input, setInput] = useState("");

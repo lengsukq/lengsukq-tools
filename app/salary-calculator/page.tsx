@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState, useId } from "react";
-import { Input } from "@heroui/input";
-import { Card, CardHeader, CardBody, CardFooter } from "@heroui/card";
-import { Button } from "@heroui/button";
-import { Switch } from "@heroui/switch";
+import { Input, Card, CardHeader, CardBody, CardFooter, Button, Switch } from "@heroui/react";
 
 export default function SalaryCalculatorPage() {
   // 保存值到localStorage

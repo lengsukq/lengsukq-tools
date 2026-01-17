@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState, useId } from "react"; // 导入 useId
-import { Input } from "@heroui/input";
-import { Select, SelectItem } from "@heroui/select";
-import { Card, CardHeader, CardBody, CardFooter } from "@heroui/card";
-import { Switch } from "@heroui/switch";
+import { Input, Select, SelectItem, Card, CardHeader, CardBody, CardFooter, Switch } from "@heroui/react";
 
 export default function ElectricityCalculatorPage() {
   const [powerConsumption, setPowerConsumption] = useState("");

@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { Kbd } from "@heroui/kbd";
-import { Tabs, Tab } from "@heroui/tabs";
+import { Input, Button, Kbd, Tabs, Tab } from "@heroui/react";
 
 import { BatchQuery } from "./BatchQuery"; // 确保路径正确
 

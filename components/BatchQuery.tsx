@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { Select, SelectItem } from "@heroui/select";
+import { Input, Button, Select, SelectItem } from "@heroui/react";
 import { FixedSizeList as _FixedSizeList } from "react-window";
-import { NumberInput } from "@heroui/number-input";
+import { NumberInput } from "@heroui/react";
 // 导入 addToast 函数，现在明确它接受一个 color 属性
-import { addToast } from "@heroui/toast";
+import { addToast } from "@heroui/react";
 
 import { WhoisResponse } from "./domain-checker";
 

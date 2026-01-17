@@ -1,12 +1,12 @@
-import { heroui } from "@heroui/theme";
-import typography from "@tailwindcss/typography";
+const { heroui } = require("@heroui/react");
+const typography = require("@tailwindcss/typography");
 
 /** @type {import('tailwindcss').Config} */
 const config = {
   content: [
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
+    "./node_modules/@heroui/react/dist/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {

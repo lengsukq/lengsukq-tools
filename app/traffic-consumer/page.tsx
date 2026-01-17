@@ -8,12 +8,7 @@ import React, {
   useReducer,
   useMemo,
 } from "react";
-import { Input } from "@heroui/input";
-import { Card, CardHeader, CardBody } from "@heroui/card";
-import { Button } from "@heroui/button";
-import { Switch } from "@heroui/switch";
-import { Select, SelectItem } from "@heroui/select";
-import { Slider } from "@heroui/slider";
+import { Input, Card, CardHeader, CardBody, Button, Switch, Select, SelectItem, Slider } from "@heroui/react";
 
 import { PRESET_DOWNLOADS } from "./constants";
 
