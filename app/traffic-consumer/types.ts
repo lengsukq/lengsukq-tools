@@ -1,36 +1,34 @@
 /**
- * 流量消耗器组件的类型定义
+ * 流量消耗器类型定义
  */
 
-export interface DownloadHistoryItem {
+export interface TrafficConsumerState {
+  // 配置
   url: string;
-  timestamp: Date;
-  size: number; // in MB
-}
+  threadCount: number;
+  isInfinite: boolean;
+  isRunning: boolean;
 
-export interface DownloadProgress {
-  loadedMB: number;
-  totalMB: number | null;
-  percent: number;
-  speedMbps: number;
-}
+  // 统计数据
+  totalWastedBytes: number; // 已消耗的总字节数
+  currentSpeedBps: number; // 当前速度（字节/秒）
+  runningTimeSeconds: number; // 运行时长（秒）
 
-export interface DownloaderState {
-  isDownloading: boolean;
-  totalDownloadedMB: number;
-  history: DownloadHistoryItem[];
-  currentProgress: DownloadProgress;
+  // 内部状态
+  tasks: number[]; // 每个线程的当前速度（字节/秒）
   error: string | null;
 }
 
-export type DownloaderAction =
-  | { type: "START_DOWNLOAD" }
-  | { type: "STOP_DOWNLOAD" }
+export type TrafficConsumerAction =
+  | { type: "SET_URL"; payload: string }
+  | { type: "SET_THREAD_COUNT"; payload: number }
+  | { type: "SET_INFINITE"; payload: boolean }
+  | { type: "START" }
+  | { type: "STOP" }
   | { type: "RESET" }
-  | { type: "SET_ERROR"; payload: string }
-  | {
-      type: "UPDATE_PROGRESS";
-      payload: Omit<DownloadProgress, "speedMbps">;
-    }
   | { type: "UPDATE_SPEED"; payload: number }
-  | { type: "COMPLETE_DOWNLOAD"; payload: { url: string; size: number } };
+  | { type: "UPDATE_WASTED"; payload: number }
+  | { type: "TICK_TIME" }
+  | { type: "SET_ERROR"; payload: string | null }
+  | { type: "UPDATE_TASK_SPEED"; payload: { index: number; speed: number } }
+  | { type: "CLEAR_TASKS" };
