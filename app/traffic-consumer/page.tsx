@@ -455,9 +455,9 @@ export default function TrafficConsumerPage() {
                   </span>
                   <span>速度: {currentProgress.speedMbps.toFixed(2)} Mbps</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="w-full bg-default-200 rounded-full h-2.5">
                   <div
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-150 ease-linear"
+                    className="bg-primary h-2.5 rounded-full transition-all duration-150 ease-linear"
                     style={{ width: `${currentProgress.percent}%` }}
                   />
                 </div>
@@ -465,7 +465,7 @@ export default function TrafficConsumerPage() {
             )}
 
             {error && (
-              <p className="text-sm text-red-500 text-center">错误: {error}</p>
+              <p className="text-sm text-danger text-center">错误: {error}</p>
             )}
 
             <div className="flex justify-center space-x-4 pt-2">
@@ -496,7 +496,7 @@ export default function TrafficConsumerPage() {
                 {history.map((item, index) => (
                   <div
                     key={index}
-                    className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                    className="flex justify-between items-center p-2 bg-default-100 rounded"
                   >
                     <div className="flex-1 min-w-0">
                       <p

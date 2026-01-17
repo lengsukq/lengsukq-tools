@@ -269,7 +269,7 @@ export default function ImageCompressor() {
       {/* 图片预览模态框 */}
       {previewModal.isOpen && previewModal.image && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-default-900/50 flex items-center justify-center z-50"
           onClick={() => setPreviewModal({ isOpen: false, image: null })}
         >
           <div className="max-w-[90vw] max-h-[90vh] relative">
