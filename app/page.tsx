@@ -59,6 +59,11 @@ const tools = [
     description: "在线HTML编辑器和预览工具，支持实时预览和代码分享",
     href: "/html-preview",
   },
+  {
+    title: "PDF水印去除",
+    description: "批量去除PDF文件右下角水印，支持多文件处理",
+    href: "/pdf-watermark-remover",
+  },
 ];
 
 export default function Home() {
