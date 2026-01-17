@@ -269,7 +269,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     ({ index, style }: { index: number; style: React.CSSProperties }) => {
       return (
         <div
-          className="text-sm text-gray-600 hover:bg-gray-50 p-1 rounded"
+          className="text-sm text-default-600 hover:bg-default-100 p-1 rounded"
           style={style}
         >
           {previewDomains[index]}
@@ -441,7 +441,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         <Button
           className="flex-grow"
           color="primary"
-          disabled={!suffix || loading}
+          disabled={!suffix || loading || previewDomains.length === 0}
           isLoading={loading}
           onClick={handleBatchQuery}
         >
@@ -461,9 +461,9 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
       {/* 预览域名列表显示 */}
       {previewDomains.length > 0 && (
-        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-sm">
+        <div className="p-4 bg-content1 border border-default-200 rounded-lg shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <div className="font-medium text-gray-700">
+            <div className="font-medium text-foreground">
               将要查询的域名列表：({previewDomains.length} 个)
             </div>
             <Button
@@ -474,7 +474,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
               复制
             </Button>
           </div>
-          <div className="bg-gray-800 p-3 rounded">
+          <div className="bg-content2 p-3 rounded">
             <FixedSizeList
               height={listHeight}
               itemCount={previewDomains.length || 0}

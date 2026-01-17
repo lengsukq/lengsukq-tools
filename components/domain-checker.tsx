@@ -50,7 +50,7 @@ export function DomainChecker() {
   return (
     <div className="w-full max-w-4xl mx-auto">
       <Tabs
-        key={queryType}
+        selectedKey={queryType}
         onSelectionChange={(key) => handleTabChange(key as "single" | "batch")}
       >
         <Tab key="single" title="单个查询">
@@ -73,13 +73,15 @@ export function DomainChecker() {
               </Button>
             </div>
 
-            {error && (
+            {error && queryType === "single" && (
               <div className="p-4 text-sm text-red-500 bg-red-50 rounded-lg">
                 {error}
               </div>
             )}
 
-            {result && <WhoisResultDisplay result={result} />}
+            {result && queryType === "single" && (
+              <WhoisResultDisplay result={result} />
+            )}
 
             <div className="text-sm text-gray-500 text-center">
               按下 <Kbd keys={["enter"]} /> 快速查询
