@@ -1,67 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  sql,
+  ensureTables,
+  DEFAULT_EXPIRY_DAYS,
+  MAX_MD_SHARE_BYTES,
+  utf8ByteLength,
+} from "@/lib/db";
+import { generateShareId } from "@/lib/id";
 
-// 内存存储分享的数据
-const shareStore = new Map<
-  string,
-  {
-    content: string;
-    createdAt: number;
-    expiresAt: number;
-  }
->();
-
-// 清理过期数据的函数
-function cleanupExpiredData() {
-  const now = Date.now();
-
-  Array.from(shareStore.entries()).forEach(([key, value]) => {
-    if (value.expiresAt < now) {
-      shareStore.delete(key);
-    }
-  });
+function getExpiresAt(days: number = DEFAULT_EXPIRY_DAYS): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d;
 }
 
-// 生成随机ID
-function generateId() {
-  return Math.random().toString(36).substring(2, 15);
-}
-
-// POST /api/markdown-share - 创建新的分享
 export async function POST(request: NextRequest) {
   try {
-    cleanupExpiredData();
+    await ensureTables();
 
-    const { content } = await request.json();
+    const body = await request.json();
+    const content =
+      typeof body.content === "string" ? body.content : undefined;
+    const expiresInDays =
+      typeof body.expiresInDays === "number" && body.expiresInDays > 0
+        ? body.expiresInDays
+        : DEFAULT_EXPIRY_DAYS;
 
-    if (!content || typeof content !== "string") {
+    if (!content || !content.trim()) {
       return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
     }
 
-    const id = generateId();
-    const createdAt = Date.now();
-    const expiresAt = createdAt + 10 * 60 * 1000; // 10分钟过期
+    if (utf8ByteLength(content) > MAX_MD_SHARE_BYTES) {
+      return NextResponse.json(
+        { error: `内容不能超过 ${MAX_MD_SHARE_BYTES.toLocaleString()} 字节` },
+        { status: 400 },
+      );
+    }
 
-    shareStore.set(id, {
-      content,
-      createdAt,
-      expiresAt,
-    });
+    const id = generateShareId();
+    const expiresAt = getExpiresAt(expiresInDays);
+
+    await sql`
+      INSERT INTO md_shares (id, content, expires_at)
+      VALUES (${id}, ${content}, ${expiresAt.toISOString()})
+    `;
+
+    const shareUrl = `${request.nextUrl.origin}/markdown-preview?share=${id}`;
 
     return NextResponse.json({
       id,
-      shareUrl: `${request.nextUrl.origin}/markdown-preview?share=${id}`,
+      shareUrl,
+      expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {
     console.error("创建分享失败:", error);
-
     return NextResponse.json({ error: "创建分享失败" }, { status: 500 });
   }
 }
 
-// GET /api/markdown-share?id=xxx - 获取分享内容
 export async function GET(request: NextRequest) {
   try {
-    cleanupExpiredData();
+    await ensureTables();
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -70,9 +69,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "缺少分享ID" }, { status: 400 });
     }
 
-    const shareData = shareStore.get(id);
+    const rows = await sql`
+      SELECT content, expires_at
+      FROM md_shares
+      WHERE id = ${id} AND expires_at > NOW()
+    `;
 
-    if (!shareData) {
+    const row = rows[0];
+    if (!row) {
       return NextResponse.json(
         { error: "分享不存在或已过期" },
         { status: 404 },
@@ -80,12 +84,11 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      content: shareData.content,
-      expiresAt: shareData.expiresAt,
+      content: row.content,
+      expiresAt: (row.expires_at as Date).toISOString(),
     });
   } catch (error) {
     console.error("获取分享失败:", error);
-
     return NextResponse.json({ error: "获取分享失败" }, { status: 500 });
   }
 }

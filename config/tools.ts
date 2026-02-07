@@ -66,6 +66,11 @@ export const TOOLS: Tool[] = [
     href: "/pdf-watermark-remover",
   },
   {
+    title: "短链接",
+    description: "将长链接缩短，支持自定义短链，默认 30 天有效",
+    href: "/short-link",
+  },
+  {
     title: "API 客户端",
     description: "类似 Postman 的工具，通过服务器代理绕过 CORS 限制",
     href: "/api-client",

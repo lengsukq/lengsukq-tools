@@ -6,13 +6,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTheme } from "next-themes";
 import { EditDocumentIcon, EyeIcon, ShareIcon, CopyIcon } from "./icons/index";
-import { getShareContentFromUrl, generateShareUrl } from "@/utils/share-utils";
+import {
+  getShareContentFromUrl,
+  generateShareUrl,
+} from "@/utils/share-utils";
 
 export function MarkdownPreview() {
   const { theme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  // 确保组件已挂载，避免hydration问题
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -26,8 +28,24 @@ export function MarkdownPreview() {
   const [showShareSuccess, setShowShareSuccess] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
 
-  // 从URL参数加载分享内容
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get("share");
+    if (shareId) {
+      fetch(`/api/markdown-share?id=${encodeURIComponent(shareId)}`)
+        .then((res) => {
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then((data) => {
+          if (data?.content) {
+            setShowEditor(false);
+            setMarkdown(data.content);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
     const sharedContent = getShareContentFromUrl();
     if (sharedContent) {
       setShowEditor(false);
@@ -49,28 +67,34 @@ export function MarkdownPreview() {
     setShareUrl("");
 
     try {
-      const longUrl = generateShareUrl(markdown, window.location.href);
-
-      const response = await fetch("/api/short-link", {
+      let longUrl: string;
+      const mdRes = await fetch("/api/markdown-share", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: markdown }),
+      });
+      const mdData = await mdRes.json();
+      if (mdData.shareUrl) {
+        longUrl = mdData.shareUrl;
+      } else {
+        longUrl = generateShareUrl(markdown, window.location.href);
+      }
+
+      const linkRes = await fetch("/api/short-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: longUrl }),
       });
+      const linkData = await linkRes.json();
 
-      const data = await response.json();
-
-      if (data.success && data.shortUrl) {
-        setShareUrl(data.shortUrl);
+      if (linkData.success && linkData.shortUrl) {
+        setShareUrl(linkData.shortUrl);
       } else {
         setShareUrl(longUrl);
       }
 
       setShowShareSuccess(true);
-      setTimeout(() => {
-        setShowShareSuccess(false);
-      }, 3000);
+      setTimeout(() => setShowShareSuccess(false), 3000);
     } catch (error) {
       console.error("分享失败:", error);
       alert("分享失败，请重试");
