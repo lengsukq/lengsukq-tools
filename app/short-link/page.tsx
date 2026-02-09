@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardBody,
@@ -10,6 +10,10 @@ import {
   Divider,
 } from "@heroui/react";
 import { CopyIcon } from "@/components/icons/index";
+import { ShareHistory } from "@/components/ShareHistory";
+import {
+  addShareHistory,
+} from "@/utils/share-history";
 
 const SHORT_CODE_PLACEHOLDER = "留空则自动生成";
 
@@ -20,6 +24,7 @@ export default function ShortLinkPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +62,16 @@ export default function ShortLinkPage() {
       }
       if (data.shortUrl) {
         setShortUrl(data.shortUrl);
+        // 添加到历史记录
+        addShareHistory({
+          type: "short-link",
+          shortUrl: data.shortUrl,
+          originalUrl: trimmedUrl,
+          customCode: customCode.trim() || undefined,
+          expiresAt: data.expiresAt,
+        });
+        // 触发历史记录刷新
+        setHistoryKey((prev) => prev + 1);
       }
     } catch {
       setError("生成短链接失败，请重试");
@@ -155,6 +170,10 @@ export default function ShortLinkPage() {
             </Card>
           </>
         )}
+
+        <Divider className="my-6" />
+
+        <ShareHistory key={historyKey} type="short-link" />
       </div>
     </section>
   );

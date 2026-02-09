@@ -57,16 +57,16 @@ export const ShareIcon = () => (
   </svg>
 );
 
-export const CopyIcon = () => (
+export const CopyIcon = ({ size = 16 }: { size?: number }) => (
   <svg
     fill="none"
-    height="16"
+    height={size}
     stroke="currentColor"
     strokeLinecap="round"
     strokeLinejoin="round"
     strokeWidth="2"
     viewBox="0 0 24 24"
-    width="16"
+    width={size}
     xmlns="http://www.w3.org/2000/svg"
   >
     <rect height="13" rx="2" ry="2" width="13" x="9" y="9" />
@@ -89,5 +89,58 @@ export const ExternalLinkIcon = () => (
     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
     <polyline points="15,3 21,3 21,9" />
     <line x1="10" x2="21" y1="14" y2="3" />
+  </svg>
+);
+
+export const TrashIcon = ({ size = 20 }: { size?: number }) => (
+  <svg
+    fill="none"
+    height={size}
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+    width={size}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <polyline points="3,6 5,6 21,6" />
+    <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
+  </svg>
+);
+
+export const ClockIcon = ({ size = 20 }: { size?: number }) => (
+  <svg
+    fill="none"
+    height={size}
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+    width={size}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12,6 12,12 16,14" />
+  </svg>
+);
+
+export const HistoryIcon = ({ size = 20 }: { size?: number }) => (
+  <svg
+    fill="none"
+    height={size}
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+    width={size}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12,6 12,12 16,14" />
+    <path d="M8,3v4H4" />
+    <path d="M12,3a10,10,0,1,0,8.6,5" />
   </svg>
 );

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Button, Textarea, Card, CardBody, CardHeader, Divider } from "@heroui/react";
+import { Button, Textarea, Card, CardBody, CardHeader, Divider, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTheme } from "next-themes";
@@ -10,6 +10,12 @@ import {
   getShareContentFromUrl,
   generateShareUrl,
 } from "@/utils/share-utils";
+import {
+  addShareHistory,
+} from "@/utils/share-history";
+import { ShareHistory } from "@/components/ShareHistory";
+
+const CUSTOM_CODE_PLACEHOLDER = "留空则自动生成";
 
 export function MarkdownPreview() {
   const { theme } = useTheme();
@@ -27,6 +33,10 @@ export function MarkdownPreview() {
   const [isSharing, setIsSharing] = useState<boolean>(false);
   const [showShareSuccess, setShowShareSuccess] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [customCode, setCustomCode] = useState<string>("");
+  const [shareError, setShareError] = useState<string>("");
+  const [historyKey, setHistoryKey] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -59,21 +69,32 @@ export function MarkdownPreview() {
 
   const handleShare = async () => {
     if (!markdown.trim()) {
-      alert("内容不能为空");
+      setShareError("内容不能为空");
       return;
     }
 
     setIsSharing(true);
     setShareUrl("");
+    setShareError("");
 
     try {
       let longUrl: string;
+      const mdBody: { content: string; code?: string } = { content: markdown };
+      if (customCode.trim()) mdBody.code = customCode.trim();
+
       const mdRes = await fetch("/api/markdown-share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: markdown }),
+        body: JSON.stringify(mdBody),
       });
       const mdData = await mdRes.json();
+
+      if (!mdRes.ok) {
+        setShareError(mdData.error || "生成分享失败");
+        setIsSharing(false);
+        return;
+      }
+
       if (mdData.shareUrl) {
         longUrl = mdData.shareUrl;
       } else {
@@ -87,23 +108,49 @@ export function MarkdownPreview() {
       });
       const linkData = await linkRes.json();
 
+      let finalUrl = longUrl;
       if (linkData.success && linkData.shortUrl) {
-        setShareUrl(linkData.shortUrl);
-      } else {
-        setShareUrl(longUrl);
+        finalUrl = linkData.shortUrl;
       }
 
+      setShareUrl(finalUrl);
+
+      // 添加到历史记录
+      addShareHistory({
+        type: "markdown",
+        shortUrl: finalUrl,
+        contentPreview: markdown.slice(0, 100),
+        customCode: customCode.trim() || undefined,
+        expiresAt: mdData.expiresAt,
+      });
+      // 触发历史记录刷新
+      setHistoryKey((prev) => prev + 1);
+
+      setShowShareModal(false);
+      setCustomCode("");
       setShowShareSuccess(true);
       setTimeout(() => setShowShareSuccess(false), 3000);
     } catch (error) {
       console.error("分享失败:", error);
-      alert("分享失败，请重试");
+      setShareError("分享失败，请重试");
     } finally {
       setIsSharing(false);
     }
   };
 
+  const openShareModal = () => {
+    setShareError("");
+    setShowShareModal(true);
+  };
+
+  const closeShareModal = () => {
+    setShowShareModal(false);
+    setCustomCode("");
+    setShareError("");
+  };
+
   const copyToClipboard = () => {
+    if (!shareUrl) return;
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => {
@@ -186,10 +233,9 @@ export function MarkdownPreview() {
           <Button
             className="font-medium"
             color="primary"
-            isLoading={isSharing}
             startContent={<ShareIcon />}
             variant="light"
-            onPress={handleShare}
+            onPress={openShareModal}
           >
             分享
           </Button>
@@ -246,6 +292,49 @@ export function MarkdownPreview() {
           </CardBody>
         </Card>
       )}
+
+      {/* 分享对话框 */}
+      <Modal
+        isOpen={showShareModal}
+        onClose={closeShareModal}
+        size="md"
+      >
+        <ModalContent>
+          <ModalHeader>
+            <h3 className="text-lg font-semibold">创建分享链接</h3>
+          </ModalHeader>
+          <ModalBody>
+            <Input
+              label="自定义分享代码（可选）"
+              placeholder={CUSTOM_CODE_PLACEHOLDER}
+              description="2～32 位，仅支持字母、数字、下划线和连字符"
+              value={customCode}
+              onValueChange={setCustomCode}
+              isInvalid={!!shareError}
+              errorMessage={shareError}
+              classNames={{ input: "font-mono" }}
+              autoFocus
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="light"
+              onPress={closeShareModal}
+              isDisabled={isSharing}
+            >
+              取消
+            </Button>
+            <Button
+              color="primary"
+              onPress={handleShare}
+              isLoading={isSharing}
+            >
+              生成分享链接
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       {showEditor && (
         <Card className="shadow-md border border-gray-200 dark:border-gray-700">
           <CardHeader className="pb-4">
@@ -288,6 +377,10 @@ export function MarkdownPreview() {
           </div>
         </CardBody>
       </Card>
+
+      <Divider className="my-6" />
+
+      <ShareHistory key={historyKey} type="markdown" />
     </div>
   );
 }
