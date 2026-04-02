@@ -28,6 +28,22 @@ export function parseQuxiangFromLine(line: string): QuxiangRecordInput[] {
   return results;
 }
 
+/** 按领取码去重，保留首次出现（与入库唯一键一致，避免重复粘贴或同一码多次出现） */
+function dedupeQuxiangRecordsByCode(
+  records: QuxiangRecordInput[],
+): QuxiangRecordInput[] {
+  const seen = new Set<string>();
+  const out: QuxiangRecordInput[] = [];
+  for (const record of records) {
+    if (seen.has(record.code)) {
+      continue;
+    }
+    seen.add(record.code);
+    out.push(record);
+  }
+  return out;
+}
+
 export function parseQuxiangFromText(
   text: string,
 ): { parsed: QuxiangRecordInput[]; unparsedLines: string[] } {
@@ -48,6 +64,9 @@ export function parseQuxiangFromText(
     }
   }
 
-  return { parsed, unparsedLines };
+  return {
+    parsed: dedupeQuxiangRecordsByCode(parsed),
+    unparsedLines,
+  };
 }
 
