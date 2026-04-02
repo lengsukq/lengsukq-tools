@@ -58,34 +58,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // 领取码在全局应唯一：如果已存在且绑定到不同的手机号或月份，则拒绝导入
-      const existingResult = await (sql as any)`
-        SELECT phone, year_month
-        FROM quxiang_codes
-        WHERE code = ${code}
-      `;
-      const existing = (existingResult ?? []) as {
-        phone: string;
-        year_month: string | null;
-      }[];
-
-      if (existing.length > 0) {
-        const conflict = existing.find(
-          (row) => row.phone !== phone || row.year_month !== yearMonth,
-        );
-        if (conflict) {
-          results.push({
-            index,
-            ok: false,
-            error: "该领取码已存在于其他手机号或月份，禁止重复使用",
-          });
-          continue;
-        }
-        // 已存在且绑定同一个手机号和月份，当作成功跳过
-        results.push({ index, ok: true });
-        continue;
-      }
-
+      // 同一领取码后导入的覆盖先前记录（解析结果与归类更新）
+      await sql`DELETE FROM quxiang_codes WHERE code = ${code}`;
       await sql`
         INSERT INTO quxiang_codes (raw_text, code, phone, year_month, is_sold, sold_price)
         VALUES (${record.rawText}, ${code}, ${phone}, ${yearMonth}, ${isSold}, ${soldPrice})
