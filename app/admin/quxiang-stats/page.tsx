@@ -7,7 +7,6 @@ import {
   CardBody,
   CardHeader,
   Chip,
-  DatePicker,
   Input,
   Modal,
   ModalBody,
@@ -29,6 +28,7 @@ import {
 
 import type { QuxiangRecordInput } from "@/lib/quxiang";
 import { parseQuxiangFromText } from "@/lib/quxiang";
+import { YearMonthPicker } from "./components/year-month-picker";
 
 type ParsedRow = QuxiangRecordInput & {
   id: number;
@@ -45,6 +45,15 @@ type SavedRecord = {
   soldPrice: string | null;
   createdAt: string;
   rawText: string;
+};
+
+type EditableSavedRecord = {
+  id: number;
+  code: string;
+  phone: string;
+  yearMonth: string;
+  isSold: boolean;
+  soldPrice: string;
 };
 
 type StatsItem = {
@@ -114,8 +123,20 @@ export default function QuxiangStatsPage() {
   const [soldFilter, setSoldFilter] = useState<"all" | "sold" | "unsold">(
     "all",
   );
+  const [minSoldPrice, setMinSoldPrice] = useState("");
+  const [maxSoldPrice, setMaxSoldPrice] = useState("");
   const [querying, setQuerying] = useState(false);
   const [savedList, setSavedList] = useState<SavedRecord[]>([]);
+  const [selectedSavedIds, setSelectedSavedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [bulkSavedIsSold, setBulkSavedIsSold] = useState(false);
+  const [bulkSavedPrice, setBulkSavedPrice] = useState("");
+  const [bulkUpdatingSaved, setBulkUpdatingSaved] = useState(false);
+  const [editSavedOpen, setEditSavedOpen] = useState(false);
+  const [editingSaved, setEditingSaved] = useState<EditableSavedRecord | null>(
+    null,
+  );
   const [stats, setStats] = useState<StatsItem[]>([]);
   const [loadingStats, setLoadingStats] = useState(false);
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -339,6 +360,13 @@ export default function QuxiangStatsPage() {
         params.set("isSold", "false");
       }
 
+      if (minSoldPrice.trim()) {
+        params.set("minSoldPrice", minSoldPrice.trim());
+      }
+      if (maxSoldPrice.trim()) {
+        params.set("maxSoldPrice", maxSoldPrice.trim());
+      }
+
       const response = await fetch(
         `/api/admin/quxiang/list?${params.toString()}`,
       );
@@ -378,6 +406,107 @@ export default function QuxiangStatsPage() {
       setStats(data.items ?? []);
     } finally {
       setLoadingStats(false);
+    }
+  }
+
+  function openEditSaved(item: SavedRecord) {
+    setEditingSaved({
+      id: item.id,
+      code: item.code,
+      phone: item.phone ?? "",
+      yearMonth: item.yearMonth ?? "",
+      isSold: item.isSold,
+      soldPrice: item.soldPrice ?? "",
+    });
+    setEditSavedOpen(true);
+  }
+
+  async function handleSaveEditedSaved() {
+    if (!editingSaved) return;
+    const payload = {
+      id: editingSaved.id,
+      code: editingSaved.code,
+      phone: editingSaved.phone,
+      yearMonth: editingSaved.yearMonth,
+      isSold: editingSaved.isSold,
+      soldPrice: editingSaved.soldPrice || null,
+    };
+
+    const response = await fetch("/api/admin/quxiang/update", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = (await response.json().catch(() => null)) as
+      | { item: SavedRecord; error?: string }
+      | null;
+
+    if (!response.ok || !data?.item) {
+      // 简单失败处理：保持弹窗打开，用户可继续修改；必要时可加 toast
+      return;
+    }
+
+    setSavedList((current) =>
+      current.map((row) => (row.id === data.item.id ? data.item : row)),
+    );
+    setEditSavedOpen(false);
+    setEditingSaved(null);
+  }
+
+  async function handleBulkUpdateSaved() {
+    if (selectedSavedIds.size === 0) return;
+    setBulkUpdatingSaved(true);
+    try {
+      const ids = Array.from(selectedSavedIds)
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+      if (ids.length === 0) return;
+
+      const nextIsSold = bulkSavedIsSold;
+      const soldPrice =
+        nextIsSold && bulkSavedPrice.trim().length > 0
+          ? Number(bulkSavedPrice)
+          : null;
+
+      const response = await fetch("/api/admin/quxiang/bulk-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ids,
+          isSold: nextIsSold,
+          soldPrice,
+        }),
+      });
+
+      const data = (await response.json().catch(() => null)) as
+        | { ok: true; updatedIds: number[] }
+        | { ok: false; error: string }
+        | null;
+
+      if (!response.ok || !data || (data as any).ok !== true) {
+        return;
+      }
+
+      setSavedList((current) =>
+        current.map((row) =>
+          ids.includes(row.id)
+            ? {
+                ...row,
+                isSold: nextIsSold,
+                soldPrice:
+                  nextIsSold && soldPrice !== null ? String(soldPrice) : null,
+              }
+            : row,
+        ),
+      );
+      setSelectedSavedIds(new Set());
+    } finally {
+      setBulkUpdatingSaved(false);
     }
   }
 
@@ -525,17 +654,13 @@ export default function QuxiangStatsPage() {
                 </Select>
               </div>
               <div className="flex flex-col gap-1">
-                <DatePicker
+                <YearMonthPicker
                   className="max-w-xs"
                   label="统一日期（可选，按月，YYYY-MM）"
-                  variant="bordered"
-                  onChange={(value) => {
-                    if (!value) return;
-                    const year = "year" in value ? value.year : undefined;
-                    const monthNumber =
-                      "month" in value ? Number(value.month) : undefined;
-                    if (!year || !monthNumber) return;
-                    const ym = `${year}-${String(monthNumber).padStart(2, "0")}`;
+                  ariaLabel="统一日期"
+                  size="sm"
+                  onChange={(ym) => {
+                    if (!ym) return;
                     setParsedRows((rows) =>
                       rows.map((row) => ({
                         ...row,
@@ -694,17 +819,17 @@ export default function QuxiangStatsPage() {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Input
-                          aria-label="日期"
-                          placeholder="YYYY-MM"
+                        <YearMonthPicker
+                          className="max-w-[10rem]"
+                          ariaLabel="解析结果日期"
                           size="sm"
-                          value={row.yearMonth ?? ""}
-                          onChange={(e) =>
+                          value={row.yearMonth ?? null}
+                          onChange={(ym) => {
                             updateRow(row.id, (prev) => ({
                               ...prev,
-                              yearMonth: e.target.value || undefined,
-                            }))
-                          }
+                              yearMonth: ym ?? undefined,
+                            }));
+                          }}
                         />
                       </TableCell>
                       <TableCell className="text-xs">
@@ -818,25 +943,12 @@ export default function QuxiangStatsPage() {
               ) : null}
             </div>
             <div className="flex flex-col gap-1">
-              <DatePicker
+              <YearMonthPicker
                 className="max-w-xs"
                 label="日期（可选，按月筛选，YYYY-MM）"
-                variant="bordered"
-                onChange={(value) => {
-                  if (!value) {
-                    setFilterYearMonth("");
-                    return;
-                  }
-                  const year = "year" in value ? value.year : undefined;
-                  const monthNumber =
-                    "month" in value ? Number(value.month) : undefined;
-                  if (!year || !monthNumber) {
-                    setFilterYearMonth("");
-                    return;
-                  }
-                  const ym = `${year}-${String(monthNumber).padStart(2, "0")}`;
-                  setFilterYearMonth(ym);
-                }}
+                ariaLabel="归档筛选日期"
+                value={filterYearMonth || null}
+                onChange={(ym) => setFilterYearMonth(ym ?? "")}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -862,6 +974,28 @@ export default function QuxiangStatsPage() {
                 <SelectItem key="unsold">仅未售出</SelectItem>
               </Select>
             </div>
+            <div className="flex flex-col gap-1">
+              <Input
+                label="最低价格"
+                placeholder="0"
+                size="sm"
+                type="number"
+                className="w-32"
+                value={minSoldPrice}
+                onChange={(e) => setMinSoldPrice(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Input
+                label="最高价格"
+                placeholder="0"
+                size="sm"
+                type="number"
+                className="w-32"
+                value={maxSoldPrice}
+                onChange={(e) => setMaxSoldPrice(e.target.value)}
+              />
+            </div>
             <Button
               color="primary"
               isLoading={querying}
@@ -885,6 +1019,34 @@ export default function QuxiangStatsPage() {
             >
               复制本页所有兑换码
             </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Switch
+                size="sm"
+                isSelected={bulkSavedIsSold}
+                onChange={(e) => setBulkSavedIsSold(e.target.checked)}
+              >
+                批量设为已售出
+              </Switch>
+              <Input
+                aria-label="批量售出价格"
+                placeholder="价格"
+                size="sm"
+                type="number"
+                className="w-28"
+                value={bulkSavedPrice}
+                onChange={(e) => setBulkSavedPrice(e.target.value)}
+                isDisabled={!bulkSavedIsSold}
+              />
+              <Button
+                size="sm"
+                variant="flat"
+                isLoading={bulkUpdatingSaved}
+                isDisabled={selectedSavedIds.size === 0}
+                onPress={handleBulkUpdateSaved}
+              >
+                应用到已选
+              </Button>
+            </div>
           </div>
 
           <div className="max-h-64 overflow-auto rounded-medium border border-default-200">
@@ -895,6 +1057,22 @@ export default function QuxiangStatsPage() {
                 table: "min-w-full",
               }}
               shadow="none"
+              selectionMode="multiple"
+              selectedKeys={selectedSavedIds}
+              onSelectionChange={(keys) => {
+                if (keys === "all") {
+                  setSelectedSavedIds(
+                    new Set(savedList.map((item) => String(item.id))),
+                  );
+                  return;
+                }
+                const next = new Set(
+                  Array.from(keys instanceof Set ? keys : []).map((k) =>
+                    String(k),
+                  ),
+                );
+                setSelectedSavedIds(next);
+              }}
             >
               <TableHeader>
                 <TableColumn>领取码</TableColumn>
@@ -903,10 +1081,11 @@ export default function QuxiangStatsPage() {
                 <TableColumn>是否售出</TableColumn>
                 <TableColumn>售出价格</TableColumn>
                 <TableColumn>创建时间</TableColumn>
+                <TableColumn>操作</TableColumn>
               </TableHeader>
               <TableBody emptyContent="暂无数据">
                 {savedList.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow key={String(item.id)}>
                     <TableCell className="text-xs">{item.code}</TableCell>
                     <TableCell className="text-xs">
                       {item.phone ?? "-"}
@@ -923,6 +1102,15 @@ export default function QuxiangStatsPage() {
                     <TableCell className="text-xs">
                       {new Date(item.createdAt).toLocaleString()}
                     </TableCell>
+                    <TableCell className="text-xs">
+                      <Button
+                        size="sm"
+                        variant="light"
+                        onPress={() => openEditSaved(item)}
+                      >
+                        编辑
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -930,6 +1118,110 @@ export default function QuxiangStatsPage() {
           </div>
         </CardBody>
       </Card>
+
+      <Modal isOpen={editSavedOpen} onOpenChange={setEditSavedOpen}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                编辑归档记录
+              </ModalHeader>
+              <ModalBody className="space-y-3">
+                <Input
+                  label="领取码"
+                  value={editingSaved?.code ?? ""}
+                  onChange={(e) =>
+                    setEditingSaved((prev) =>
+                      prev ? { ...prev, code: e.target.value } : prev,
+                    )
+                  }
+                />
+                <Select
+                  label="手机号"
+                  placeholder="选择手机号"
+                  selectedKeys={
+                    editingSaved?.phone
+                      ? new Set([editingSaved.phone])
+                      : new Set<string>()
+                  }
+                  onSelectionChange={(keys) => {
+                    if (keys === "all") return;
+                    const next =
+                      keys instanceof Set ? Array.from(keys)[0] : undefined;
+                    const phoneValue =
+                      next === undefined ? "" : String(next);
+                    setEditingSaved((prev) =>
+                      prev ? { ...prev, phone: phoneValue } : prev,
+                    );
+                  }}
+                  isDisabled={phones.length === 0}
+                >
+                  {phones.map((p) => (
+                    <SelectItem key={p.value}>{p.value}</SelectItem>
+                  ))}
+                </Select>
+                <YearMonthPicker
+                  label="日期（按月，YYYY-MM）"
+                  ariaLabel="编辑归档日期"
+                  value={editingSaved?.yearMonth ?? null}
+                  onChange={(ym) => {
+                    if (!ym) {
+                      setEditingSaved((prev) =>
+                        prev ? { ...prev, yearMonth: "" } : prev,
+                      );
+                      return;
+                    }
+                    setEditingSaved((prev) =>
+                      prev ? { ...prev, yearMonth: ym } : prev,
+                    );
+                  }}
+                />
+                <Switch
+                  isSelected={editingSaved?.isSold ?? false}
+                  onChange={(e) =>
+                    setEditingSaved((prev) =>
+                      prev ? { ...prev, isSold: e.target.checked } : prev,
+                    )
+                  }
+                >
+                  是否售出
+                </Switch>
+                <Input
+                  label="售出价格"
+                  placeholder="0.00"
+                  type="number"
+                  value={editingSaved?.soldPrice ?? ""}
+                  onChange={(e) =>
+                    setEditingSaved((prev) =>
+                      prev ? { ...prev, soldPrice: e.target.value } : prev,
+                    )
+                  }
+                />
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  variant="light"
+                  onPress={() => {
+                    setEditingSaved(null);
+                    onClose();
+                  }}
+                >
+                  取消
+                </Button>
+                <Button
+                  color="primary"
+                  onPress={async () => {
+                    await handleSaveEditedSaved();
+                    onClose();
+                  }}
+                >
+                  保存
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       <Modal
         isOpen={configModalOpen}

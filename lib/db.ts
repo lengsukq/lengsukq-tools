@@ -55,6 +55,10 @@ export async function ensureTables(): Promise<void> {
     ALTER COLUMN phone SET NOT NULL
   `;
   await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS quxiang_codes_code_idx
+    ON quxiang_codes (code)
+  `;
+  await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS quxiang_codes_code_phone_year_month_idx
     ON quxiang_codes (code, COALESCE(phone, ''), COALESCE(year_month, ''))
   `;

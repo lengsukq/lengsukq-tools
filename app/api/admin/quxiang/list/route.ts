@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { sql } from "@/lib/db";
+import { ensureTables, sql } from "@/lib/db";
 import { isAdminRequest } from "@/lib/admin-auth";
 
 type Row = {
@@ -19,11 +19,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  await ensureTables();
+
   const { searchParams } = new URL(request.url);
   const phone = searchParams.get("phone");
   const phonesParam = searchParams.get("phones");
   const yearMonth = searchParams.get("yearMonth");
   const isSoldParam = searchParams.get("isSold");
+  const minSoldPriceParam = searchParams.get("minSoldPrice");
+  const maxSoldPriceParam = searchParams.get("maxSoldPrice");
 
   const conditions: string[] = [];
   const values: unknown[] = [];
@@ -53,6 +57,24 @@ export async function GET(request: NextRequest) {
   if (isSoldParam === "true" || isSoldParam === "false") {
     conditions.push(`is_sold = $${values.length + 1}`);
     values.push(isSoldParam === "true");
+  }
+
+  if (minSoldPriceParam && minSoldPriceParam.trim().length > 0) {
+    const min = Number(minSoldPriceParam);
+    if (!Number.isFinite(min)) {
+      return NextResponse.json({ error: "minSoldPrice 非法" }, { status: 400 });
+    }
+    conditions.push(`sold_price >= $${values.length + 1}`);
+    values.push(min);
+  }
+
+  if (maxSoldPriceParam && maxSoldPriceParam.trim().length > 0) {
+    const max = Number(maxSoldPriceParam);
+    if (!Number.isFinite(max)) {
+      return NextResponse.json({ error: "maxSoldPrice 非法" }, { status: 400 });
+    }
+    conditions.push(`sold_price <= $${values.length + 1}`);
+    values.push(max);
   }
 
   const whereClause =
