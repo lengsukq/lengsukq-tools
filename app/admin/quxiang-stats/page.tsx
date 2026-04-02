@@ -60,6 +60,33 @@ type PhoneItem = {
   value: string;
 };
 
+/** 复制用：每行「手机号 月份 码1、码2…」，不同手机号+月份组合换行；顺序与当前列表一致 */
+function buildQuxiangSavedListCopyText(records: SavedRecord[]): string {
+  const GROUP_SEP = "\u0001";
+  const groups = new Map<string, string[]>();
+  const order: string[] = [];
+
+  for (const item of records) {
+    const phone = item.phone ?? "";
+    const yearMonth = item.yearMonth ?? "";
+    const key = `${phone}${GROUP_SEP}${yearMonth}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key)!.push(item.code);
+  }
+
+  return order
+    .map((key) => {
+      const [phone, yearMonth] = key.split(GROUP_SEP);
+      const codes = groups.get(key)!.join("、");
+      const prefix = [phone, yearMonth].filter((s) => s.length > 0).join(" ");
+      return prefix.length > 0 ? `${prefix} ${codes}` : codes;
+    })
+    .join("\n");
+}
+
 // 可滚动表格内：Popover 默认 shouldCloseOnScroll 会在滚动时关闭下拉，需关闭；v2 文档见 https://v2.heroui.com/docs/components/select
 const PARSED_TABLE_SELECT_POPOVER_PROPS = {
   placement: "bottom-start" as const,
@@ -848,15 +875,7 @@ export default function QuxiangStatsPage() {
               size="sm"
               onPress={async () => {
                 if (savedList.length === 0) return;
-                const lines = savedList.map((item) => {
-                  const parts = [
-                    item.phone ?? "",
-                    item.yearMonth ?? "",
-                    item.code,
-                  ];
-                  return parts.join(" ").trim();
-                });
-                const text = lines.join("\n");
+                const text = buildQuxiangSavedListCopyText(savedList);
                 try {
                   await navigator.clipboard.writeText(text);
                 } catch {
