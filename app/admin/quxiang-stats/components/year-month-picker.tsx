@@ -43,12 +43,6 @@ export function YearMonthPicker({
     setSelectedMonth(externalMonth || nowMonth);
   }, [externalYear, externalMonth, nowMonth, nowYear]);
 
-  useEffect(() => {
-    if (!value) {
-      onChange(`${selectedYear}-${selectedMonth}`);
-    }
-  }, [onChange, selectedMonth, selectedYear, value]);
-
   const applyValue = (year: string, month: string) => {
     if (!year || !month) return;
     onChange(`${year}-${month}`);
