@@ -153,7 +153,7 @@ export default function QuxiangStatsPage() {
     if (!hasUnsaved) {
       return false;
     }
-    // 所有行都必须有手机号和月份
+    // 所有行都必须有手机号和日期（YYYY-MM）
     const allHasPhoneAndMonth = parsedRows.every(
       (row) => row.phone && row.phone.trim() !== "" && row.yearMonth && row.yearMonth.trim() !== "",
     );
@@ -376,7 +376,7 @@ export default function QuxiangStatsPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-bold">趣象统计</h1>
           <p className="text-sm text-default-500">
-            粘贴短信内容（可一次多条），系统会自动识别“领取码为XXX”中的领取码，并支持按手机号和月份进行归档管理。
+            粘贴短信内容（可一次多条），系统会自动识别“领取码为XXX”中的领取码，并支持按手机号和日期（YYYY-MM）进行归档管理。
           </p>
           <p className="text-xs text-default-400">
             示例： 【西安象非象】您已成功订购权益会员，领取码为5epRc9，领取方式...
@@ -447,7 +447,7 @@ export default function QuxiangStatsPage() {
           <CardHeader className="flex flex-col items-start gap-1">
             <h2 className="text-sm font-semibold">解析结果与归类</h2>
             <p className="text-xs text-default-500">
-              为解析出的领取码指定手机号与月份，然后批量保存到数据库。所有行都需要填写手机号和月份后才能保存。
+              为解析出的领取码指定手机号与日期（YYYY-MM），然后批量保存到数据库。所有行都需要填写手机号和日期后才能保存。
             </p>
           </CardHeader>
           <CardBody className="space-y-3">
@@ -500,7 +500,7 @@ export default function QuxiangStatsPage() {
               <div className="flex flex-col gap-1">
                 <DatePicker
                   className="max-w-xs"
-                  label="统一月份（可选，按月）"
+                  label="统一日期（可选，按月，YYYY-MM）"
                   variant="bordered"
                   onChange={(value) => {
                     if (!value) return;
@@ -564,7 +564,7 @@ export default function QuxiangStatsPage() {
                 </div>
                 {!canSave && parsedRows.length > 0 ? (
                   <span className="text-xs text-warning-600">
-                    请先为所有领取码填写手机号和月份。
+                    请先为所有领取码填写手机号和日期（YYYY-MM）。
                   </span>
                 ) : null}
               </div>
@@ -592,7 +592,7 @@ export default function QuxiangStatsPage() {
                 <TableHeader>
                   <TableColumn>领取码</TableColumn>
                   <TableColumn>手机号</TableColumn>
-                  <TableColumn>月份</TableColumn>
+                  <TableColumn>日期（YYYY-MM）</TableColumn>
                   <TableColumn>是否售出</TableColumn>
                   <TableColumn>售出价格</TableColumn>
                   <TableColumn>状态</TableColumn>
@@ -668,7 +668,7 @@ export default function QuxiangStatsPage() {
                       </TableCell>
                       <TableCell>
                         <Input
-                          aria-label="月份"
+                          aria-label="日期"
                           placeholder="YYYY-MM"
                           size="sm"
                           value={row.yearMonth ?? ""}
@@ -744,7 +744,7 @@ export default function QuxiangStatsPage() {
         <CardHeader className="flex flex-col items-start gap-1">
           <h2 className="text-sm font-semibold">归档查询</h2>
           <p className="text-xs text-default-500">
-            根据手机号和月份查询历史记录，支持部分条件留空。
+            根据手机号和日期（YYYY-MM）查询历史记录，支持部分条件留空。
           </p>
         </CardHeader>
         <CardBody className="space-y-3">
@@ -793,7 +793,7 @@ export default function QuxiangStatsPage() {
             <div className="flex flex-col gap-1">
               <DatePicker
                 className="max-w-xs"
-                label="月份（可选，按月筛选）"
+                label="日期（可选，按月筛选，YYYY-MM）"
                 variant="bordered"
                 onChange={(value) => {
                   if (!value) {
@@ -880,7 +880,7 @@ export default function QuxiangStatsPage() {
               <TableHeader>
                 <TableColumn>领取码</TableColumn>
                 <TableColumn>手机号</TableColumn>
-                <TableColumn>月份</TableColumn>
+                <TableColumn>日期（YYYY-MM）</TableColumn>
                 <TableColumn>是否售出</TableColumn>
                 <TableColumn>售出价格</TableColumn>
                 <TableColumn>创建时间</TableColumn>
@@ -1057,7 +1057,7 @@ export default function QuxiangStatsPage() {
 
       <Card>
         <CardHeader className="flex flex-col items-start gap-1">
-          <h2 className="text-sm font-semibold">按手机号与月份统计</h2>
+          <h2 className="text-sm font-semibold">按手机号与日期（YYYY-MM）统计</h2>
           <p className="text-xs text-default-500">
             统计每个手机号在每个月的领取码总数、售出数量以及售出总金额。
           </p>
