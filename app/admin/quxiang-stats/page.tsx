@@ -504,9 +504,11 @@ export default function QuxiangStatsPage() {
                   variant="bordered"
                   onChange={(value) => {
                     if (!value) return;
-                    const iso = value.toString(); // e.g. 2026-04-01
-                    const [year, month] = iso.split("-");
-                    const ym = `${year}-${month}`;
+                    const year = "year" in value ? value.year : undefined;
+                    const monthNumber =
+                      "month" in value ? Number(value.month) : undefined;
+                    if (!year || !monthNumber) return;
+                    const ym = `${year}-${String(monthNumber).padStart(2, "0")}`;
                     setParsedRows((rows) =>
                       rows.map((row) => ({
                         ...row,
@@ -798,9 +800,14 @@ export default function QuxiangStatsPage() {
                     setFilterYearMonth("");
                     return;
                   }
-                  const iso = value.toString();
-                  const [year, month] = iso.split("-");
-                  const ym = `${year}-${month}`;
+                  const year = "year" in value ? value.year : undefined;
+                  const monthNumber =
+                    "month" in value ? Number(value.month) : undefined;
+                  if (!year || !monthNumber) {
+                    setFilterYearMonth("");
+                    return;
+                  }
+                  const ym = `${year}-${String(monthNumber).padStart(2, "0")}`;
                   setFilterYearMonth(ym);
                 }}
               />
