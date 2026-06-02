@@ -1,13 +1,23 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Input, Button, Select, SelectItem, NumberInput, addToast } from "@heroui/react";
+import {
+  Input,
+  Button,
+  Select,
+  SelectItem,
+  NumberInput,
+  addToast,
+} from "@heroui/react";
 import { FixedSizeList as _FixedSizeList } from "react-window";
+
 import { WhoisResponse } from "../domain-checker/types";
-import { applyDomainFilter } from "@/utils/domain-patterns";
-import { isValidDomainPart } from "@/utils/domain-validator";
+
 import { BatchConfig, PositionConfig } from "./types";
 import { DOMAIN_FILTER_OPTIONS, LIST_CONFIG } from "./constants";
+
+import { applyDomainFilter } from "@/utils/domain-patterns";
+import { isValidDomainPart } from "@/utils/domain-validator";
 
 const FixedSizeList = _FixedSizeList as any;
 
@@ -61,6 +71,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           return;
         }
         domains.push(`${current}.${suffix}`);
+
         return;
       }
 
@@ -73,6 +84,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
       } else if (pos.type === "letter") {
         for (let i = 0; i < 26; i++) {
           const letter = String.fromCharCode(97 + i);
+
           generateCombinations(current + letter, index + 1);
         }
       } else if (pos.type === "input" && pos.value) {
@@ -81,6 +93,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     };
 
     generateCombinations("", 0);
+
     return domains;
   }, [batchConfig, suffix, isAllNumbers]);
 
@@ -129,12 +142,14 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
    */
   const handleBatchQuery = async () => {
     const validationError = validateDomainConfig();
+
     if (validationError) {
       addToast({
         title: validationError.includes("后缀") ? "查询前提示" : "校验错误",
         description: validationError,
         color: validationError.includes("后缀") ? "warning" : "danger",
       });
+
       return;
     }
 
@@ -146,7 +161,10 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
     const domains = previewDomains;
     const totalDomains = domains.length;
     const threadCount = Math.min(
-      Math.max(LIST_CONFIG.MIN_THREAD_COUNT, Math.floor(batchConfig.threadCount)),
+      Math.max(
+        LIST_CONFIG.MIN_THREAD_COUNT,
+        Math.floor(batchConfig.threadCount),
+      ),
       LIST_CONFIG.MAX_THREAD_COUNT,
     );
     let completedCount = 0;
@@ -156,7 +174,10 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
       for (let i = 0; i < chunkDomains.length; i++) {
         if (isStopped) {
-          console.log(`Thread stopped proactively before querying: ${chunkDomains[i]}`);
+          console.log(
+            `Thread stopped proactively before querying: ${chunkDomains[i]}`,
+          );
+
           return;
         }
 
@@ -166,7 +187,10 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           const result = await onQuery([domain]);
 
           if (isStopped) {
-            console.log(`Query for ${domain} completed but stop signal received.`);
+            console.log(
+              `Query for ${domain} completed but stop signal received.`,
+            );
+
             return;
           }
 
@@ -244,11 +268,13 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
         description: "预览域名列表为空，无法复制。",
         color: "warning",
       });
+
       return;
     }
 
     try {
       const domainsText = previewDomains.join("\n");
+
       await navigator.clipboard.writeText(domainsText);
       addToast({
         title: "复制成功",
@@ -317,6 +343,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
   const updatePositionType = (index: number, type: string) => {
     const newPositions = [...batchConfig.positions];
+
     newPositions[index] = {
       ...batchConfig.positions[index],
       type: type as PositionConfig["type"],
@@ -327,6 +354,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
 
   const updatePositionValue = (index: number, value: string) => {
     const newPositions = [...batchConfig.positions];
+
     newPositions[index] = { ...batchConfig.positions[index], value };
     setBatchConfig({ ...batchConfig, positions: newPositions });
   };
@@ -403,6 +431,7 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
             }
             onChange={(e) => {
               const value = e.target.value;
+
               setBatchConfig({
                 ...batchConfig,
                 domainFilter: value === "none" ? null : value,
@@ -428,9 +457,13 @@ export function BatchQuery({ suffix, onQuery }: BatchQueryProps) {
           value={batchConfig.threadCount}
           onChange={(value) => {
             const numValue = Math.min(
-              Math.max(LIST_CONFIG.MIN_THREAD_COUNT, Math.floor(value as number)),
+              Math.max(
+                LIST_CONFIG.MIN_THREAD_COUNT,
+                Math.floor(value as number),
+              ),
               LIST_CONFIG.MAX_THREAD_COUNT,
             );
+
             setBatchConfig({ ...batchConfig, threadCount: numValue });
           }}
         />

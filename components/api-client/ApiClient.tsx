@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Input,
   Button,
@@ -13,7 +13,6 @@ import {
   Tabs,
   Tab,
   Chip,
-  Divider,
   Modal,
   ModalContent,
   ModalHeader,
@@ -23,8 +22,21 @@ import {
   ScrollShadow,
   Tooltip,
 } from "@heroui/react";
-import { ApiRequest, ApiResponse, Header, HttpMethod, QueryParam, RequestHistory } from "@/app/api-client/types";
-import { HTTP_METHODS, BODY_TYPES, DEFAULT_HEADERS, STORAGE_KEYS } from "@/app/api-client/constants";
+
+import {
+  ApiRequest,
+  ApiResponse,
+  Header,
+  HttpMethod,
+  QueryParam,
+  RequestHistory,
+} from "@/app/api-client/types";
+import {
+  HTTP_METHODS,
+  BODY_TYPES,
+  DEFAULT_HEADERS,
+  STORAGE_KEYS,
+} from "@/app/api-client/constants";
 
 export function ApiClient() {
   const [method, setMethod] = useState<HttpMethod>("GET");
@@ -34,19 +46,27 @@ export function ApiClient() {
     DEFAULT_HEADERS.map((h) => ({ ...h, enabled: true })),
   );
   const [body, setBody] = useState("");
-  const [bodyType, setBodyType] = useState<"json" | "text" | "form-urlencoded" | "form-data">("json");
+  const [bodyType, setBodyType] = useState<
+    "json" | "text" | "form-urlencoded" | "form-data"
+  >("json");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<RequestHistory[]>([]);
-  const { isOpen: isHistoryOpen, onOpen: onHistoryOpen, onClose: onHistoryClose } = useDisclosure();
+  const {
+    isOpen: isHistoryOpen,
+    onOpen: onHistoryOpen,
+    onClose: onHistoryClose,
+  } = useDisclosure();
 
   // 从 localStorage 加载历史记录
   useEffect(() => {
     const savedHistory = localStorage.getItem(STORAGE_KEYS.HISTORY);
+
     if (savedHistory) {
       try {
         const parsed = JSON.parse(savedHistory);
+
         setHistory(parsed);
       } catch {
         // 忽略解析错误
@@ -55,9 +75,11 @@ export function ApiClient() {
 
     // 加载保存的请求
     const saved = localStorage.getItem(STORAGE_KEYS.REQUESTS);
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+
         if (parsed.url) setUrl(parsed.url);
         if (parsed.method) setMethod(parsed.method);
         if (parsed.headers) setHeaders(parsed.headers);
@@ -71,16 +93,22 @@ export function ApiClient() {
   }, []);
 
   // 构建完整的 URL（包含 query parameters）
-  const buildFullUrl = useCallback((baseUrl: string, params: QueryParam[]): string => {
-    const enabledParams = params.filter((p) => p.enabled && p.key.trim());
-    if (enabledParams.length === 0) return baseUrl;
+  const buildFullUrl = useCallback(
+    (baseUrl: string, params: QueryParam[]): string => {
+      const enabledParams = params.filter((p) => p.enabled && p.key.trim());
 
-    const urlObj = new URL(baseUrl);
-    enabledParams.forEach((param) => {
-      urlObj.searchParams.append(param.key.trim(), param.value.trim());
-    });
-    return urlObj.toString();
-  }, []);
+      if (enabledParams.length === 0) return baseUrl;
+
+      const urlObj = new URL(baseUrl);
+
+      enabledParams.forEach((param) => {
+        urlObj.searchParams.append(param.key.trim(), param.value.trim());
+      });
+
+      return urlObj.toString();
+    },
+    [],
+  );
 
   // 保存请求到 localStorage
   const saveRequest = useCallback(() => {
@@ -92,6 +120,7 @@ export function ApiClient() {
       body,
       bodyType,
     };
+
     localStorage.setItem(STORAGE_KEYS.REQUESTS, JSON.stringify(request));
   }, [method, url, queryParams, headers, body, bodyType]);
 
@@ -113,6 +142,7 @@ export function ApiClient() {
       };
 
       const newHistory = [historyItem, ...history].slice(0, 50); // 最多保存 50 条
+
       setHistory(newHistory);
       localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(newHistory));
     },
@@ -121,8 +151,13 @@ export function ApiClient() {
 
   // 更新 query param
   const updateQueryParam = useCallback(
-    (index: number, field: "key" | "value" | "enabled", value: string | boolean) => {
+    (
+      index: number,
+      field: "key" | "value" | "enabled",
+      value: string | boolean,
+    ) => {
       const newParams = [...queryParams];
+
       newParams[index] = { ...newParams[index], [field]: value };
       setQueryParams(newParams);
     },
@@ -144,8 +179,13 @@ export function ApiClient() {
 
   // 更新 header
   const updateHeader = useCallback(
-    (index: number, field: "key" | "value" | "enabled", value: string | boolean) => {
+    (
+      index: number,
+      field: "key" | "value" | "enabled",
+      value: string | boolean,
+    ) => {
       const newHeaders = [...headers];
+
       newHeaders[index] = { ...newHeaders[index], [field]: value };
       setHeaders(newHeaders);
     },
@@ -183,6 +223,7 @@ export function ApiClient() {
   const deleteHistory = useCallback(
     (id: string) => {
       const newHistory = history.filter((h) => h.id !== id);
+
       setHistory(newHistory);
       localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(newHistory));
     },
@@ -194,6 +235,7 @@ export function ApiClient() {
     if (!response) return;
     try {
       const text = formatResponseBody(response.body);
+
       await navigator.clipboard.writeText(text);
       // 可以添加 toast 提示
     } catch (err) {
@@ -205,6 +247,7 @@ export function ApiClient() {
   const sendRequest = useCallback(async () => {
     if (!url.trim()) {
       setError("请输入 URL");
+
       return;
     }
 
@@ -218,6 +261,7 @@ export function ApiClient() {
 
       // 构建 headers 对象
       const requestHeaders: Record<string, string> = {};
+
       headers
         .filter((h) => h.enabled && h.key.trim())
         .forEach((h) => {
@@ -226,6 +270,7 @@ export function ApiClient() {
 
       // 处理 body
       let requestBody: any = null;
+
       if (body.trim() && method !== "GET" && method !== "HEAD") {
         if (bodyType === "json") {
           try {
@@ -233,11 +278,13 @@ export function ApiClient() {
           } catch {
             setError("JSON 格式错误");
             setLoading(false);
+
             return;
           }
         } else if (bodyType === "form-urlencoded") {
           // 解析 form-urlencoded 格式
           const pairs = body.split("&").map((pair) => pair.split("="));
+
           requestBody = Object.fromEntries(
             pairs.map(([key, value]) => [
               decodeURIComponent(key || ""),
@@ -250,7 +297,10 @@ export function ApiClient() {
         }
 
         // 设置 Content-Type（如果未设置）
-        if (!requestHeaders["Content-Type"] && !requestHeaders["content-type"]) {
+        if (
+          !requestHeaders["Content-Type"] &&
+          !requestHeaders["content-type"]
+        ) {
           if (bodyType === "json") {
             requestHeaders["Content-Type"] = "application/json";
           } else if (bodyType === "text") {
@@ -283,6 +333,7 @@ export function ApiClient() {
       if (!proxyResponse.ok) {
         setError(data.error || "请求失败");
         setLoading(false);
+
         return;
       }
 
@@ -301,7 +352,17 @@ export function ApiClient() {
     } finally {
       setLoading(false);
     }
-  }, [url, method, queryParams, headers, body, bodyType, buildFullUrl, saveRequest, saveToHistory]);
+  }, [
+    url,
+    method,
+    queryParams,
+    headers,
+    body,
+    bodyType,
+    buildFullUrl,
+    saveRequest,
+    saveToHistory,
+  ]);
 
   // 格式化响应 body
   const formatResponseBody = useCallback((body: any): string => {
@@ -312,14 +373,17 @@ export function ApiClient() {
       if (body.type === "binary") {
         return `[二进制数据: ${body.contentType}]`;
       }
+
       return JSON.stringify(body, null, 2);
     }
+
     return String(body);
   }, []);
 
   // 格式化时间
   const formatTime = useCallback((timestamp: number) => {
     const date = new Date(timestamp);
+
     return date.toLocaleString("zh-CN", {
       month: "2-digit",
       day: "2-digit",
@@ -343,9 +407,7 @@ export function ApiClient() {
               onChange={(e) => setMethod(e.target.value as HttpMethod)}
             >
               {HTTP_METHODS.map((m) => (
-                <SelectItem key={m}>
-                  {m}
-                </SelectItem>
+                <SelectItem key={m}>{m}</SelectItem>
               ))}
             </Select>
             <div className="flex-1">
@@ -360,11 +422,13 @@ export function ApiClient() {
                   }
                 }}
               />
-              {isGetRequest && queryParams.length > 0 && queryParams.some((p) => p.enabled && p.key.trim()) && (
-                <p className="text-xs text-default-400 mt-1 truncate">
-                  完整 URL: {buildFullUrl(url, queryParams)}
-                </p>
-              )}
+              {isGetRequest &&
+                queryParams.length > 0 &&
+                queryParams.some((p) => p.enabled && p.key.trim()) && (
+                  <p className="text-xs text-default-400 mt-1 truncate">
+                    完整 URL: {buildFullUrl(url, queryParams)}
+                  </p>
+                )}
             </div>
             <Button color="primary" isLoading={loading} onClick={sendRequest}>
               发送
@@ -401,37 +465,43 @@ export function ApiClient() {
                     <div key={index} className="flex gap-2 items-center">
                       <Input
                         className="flex-1"
+                        disabled={!param.enabled}
                         placeholder="参数名"
                         size="sm"
                         value={param.key}
-                        onChange={(e) => updateQueryParam(index, "key", e.target.value)}
-                        disabled={!param.enabled}
+                        onChange={(e) =>
+                          updateQueryParam(index, "key", e.target.value)
+                        }
                       />
                       <Input
                         className="flex-1"
+                        disabled={!param.enabled}
                         placeholder="参数值"
                         size="sm"
                         value={param.value}
-                        onChange={(e) => updateQueryParam(index, "value", e.target.value)}
-                        disabled={!param.enabled}
+                        onChange={(e) =>
+                          updateQueryParam(index, "value", e.target.value)
+                        }
                       />
                       <Button
-                        size="sm"
-                        variant={param.enabled ? "solid" : "bordered"}
-                        color={param.enabled ? "success" : "default"}
                         isIconOnly
-                        onClick={() => updateQueryParam(index, "enabled", !param.enabled)}
+                        color={param.enabled ? "success" : "default"}
+                        size="sm"
                         title={param.enabled ? "禁用" : "启用"}
+                        variant={param.enabled ? "solid" : "bordered"}
+                        onClick={() =>
+                          updateQueryParam(index, "enabled", !param.enabled)
+                        }
                       >
                         {param.enabled ? "✓" : "✗"}
                       </Button>
                       <Button
-                        size="sm"
-                        variant="light"
-                        color="danger"
                         isIconOnly
-                        onClick={() => removeQueryParam(index)}
+                        color="danger"
+                        size="sm"
                         title="删除"
+                        variant="light"
+                        onClick={() => removeQueryParam(index)}
                       >
                         ×
                       </Button>
@@ -447,9 +517,7 @@ export function ApiClient() {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <h3 className="text-sm font-semibold">Headers</h3>
-                <p className="text-xs text-default-400 mt-0.5">
-                  请求头信息
-                </p>
+                <p className="text-xs text-default-400 mt-0.5">请求头信息</p>
               </div>
               <Button size="sm" variant="light" onClick={addHeader}>
                 添加 Header
@@ -460,37 +528,41 @@ export function ApiClient() {
                 <div key={index} className="flex gap-2 items-center">
                   <Input
                     className="flex-1"
+                    disabled={!header.enabled}
                     placeholder="Key"
                     size="sm"
                     value={header.key}
                     onChange={(e) => updateHeader(index, "key", e.target.value)}
-                    disabled={!header.enabled}
                   />
                   <Input
                     className="flex-1"
+                    disabled={!header.enabled}
                     placeholder="Value"
                     size="sm"
                     value={header.value}
-                    onChange={(e) => updateHeader(index, "value", e.target.value)}
-                    disabled={!header.enabled}
+                    onChange={(e) =>
+                      updateHeader(index, "value", e.target.value)
+                    }
                   />
                   <Button
-                    size="sm"
-                    variant={header.enabled ? "solid" : "bordered"}
-                    color={header.enabled ? "success" : "default"}
                     isIconOnly
-                    onClick={() => updateHeader(index, "enabled", !header.enabled)}
+                    color={header.enabled ? "success" : "default"}
+                    size="sm"
                     title={header.enabled ? "禁用" : "启用"}
+                    variant={header.enabled ? "solid" : "bordered"}
+                    onClick={() =>
+                      updateHeader(index, "enabled", !header.enabled)
+                    }
                   >
                     {header.enabled ? "✓" : "✗"}
                   </Button>
                   <Button
-                    size="sm"
-                    variant="light"
-                    color="danger"
                     isIconOnly
-                    onClick={() => removeHeader(index)}
+                    color="danger"
+                    size="sm"
                     title="删除"
+                    variant="light"
+                    onClick={() => removeHeader(index)}
                   >
                     ×
                   </Button>
@@ -505,24 +577,24 @@ export function ApiClient() {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <h3 className="text-sm font-semibold">Body</h3>
-                  <p className="text-xs text-default-400 mt-0.5">
-                    请求体内容
-                  </p>
+                  <p className="text-xs text-default-400 mt-0.5">请求体内容</p>
                 </div>
                 <Select
                   className="w-48"
-                  size="sm"
                   selectedKeys={[bodyType]}
+                  size="sm"
                   onChange={(e) => setBodyType(e.target.value as any)}
                 >
                   {BODY_TYPES.map((type) => (
-                    <SelectItem key={type.key}>
-                      {type.label}
-                    </SelectItem>
+                    <SelectItem key={type.key}>{type.label}</SelectItem>
                   ))}
                 </Select>
               </div>
               <Textarea
+                classNames={{
+                  input: "font-mono text-sm",
+                }}
+                minRows={8}
                 placeholder={
                   bodyType === "json"
                     ? '{"key": "value"}'
@@ -532,10 +604,6 @@ export function ApiClient() {
                 }
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                minRows={8}
-                classNames={{
-                  input: "font-mono text-sm",
-                }}
               />
             </div>
           )}
@@ -560,14 +628,18 @@ export function ApiClient() {
           <CardHeader className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Chip
-                color={response.status >= 200 && response.status < 300 ? "success" : "danger"}
-                variant="flat"
+                color={
+                  response.status >= 200 && response.status < 300
+                    ? "success"
+                    : "danger"
+                }
                 size="lg"
+                variant="flat"
               >
                 {response.status} {response.statusText}
               </Chip>
               {response.time && (
-                <Chip variant="flat" size="sm">
+                <Chip size="sm" variant="flat">
                   {response.time}ms
                 </Chip>
               )}
@@ -583,12 +655,12 @@ export function ApiClient() {
               <Tab key="body" title="Body">
                 <div className="mt-4">
                   <Textarea
-                    value={formatResponseBody(response.body)}
                     readOnly
-                    minRows={15}
                     classNames={{
                       input: "font-mono text-sm",
                     }}
+                    minRows={15}
+                    value={formatResponseBody(response.body)}
                   />
                 </div>
               </Tab>
@@ -596,8 +668,12 @@ export function ApiClient() {
                 <div className="mt-4 space-y-2">
                   {Object.entries(response.headers).map(([key, value]) => (
                     <div key={key} className="flex gap-2 text-sm">
-                      <span className="font-semibold min-w-[200px]">{key}:</span>
-                      <span className="text-default-600 break-all">{value}</span>
+                      <span className="font-semibold min-w-[200px]">
+                        {key}:
+                      </span>
+                      <span className="text-default-600 break-all">
+                        {value}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -608,17 +684,27 @@ export function ApiClient() {
       )}
 
       {/* 历史记录模态框 */}
-      <Modal isOpen={isHistoryOpen} onClose={onHistoryClose} size="2xl" scrollBehavior="inside">
+      <Modal
+        isOpen={isHistoryOpen}
+        scrollBehavior="inside"
+        size="2xl"
+        onClose={onHistoryClose}
+      >
         <ModalContent>
           <ModalHeader>请求历史</ModalHeader>
           <ModalBody>
             {history.length === 0 ? (
-              <div className="text-center text-default-400 py-8">暂无历史记录</div>
+              <div className="text-center text-default-400 py-8">
+                暂无历史记录
+              </div>
             ) : (
               <ScrollShadow className="max-h-[500px]">
                 <div className="space-y-2">
                   {history.map((item) => (
-                    <Card key={item.id} className="cursor-pointer hover:bg-default-100">
+                    <Card
+                      key={item.id}
+                      className="cursor-pointer hover:bg-default-100"
+                    >
                       <CardBody>
                         <div className="flex items-center justify-between">
                           <div
@@ -626,25 +712,27 @@ export function ApiClient() {
                             onClick={() => loadHistoryRequest(item)}
                           >
                             <div className="flex items-center gap-2 mb-1">
-                              <Chip size="sm" variant="flat" color="primary">
+                              <Chip color="primary" size="sm" variant="flat">
                                 {item.request.method}
                               </Chip>
-                              <span className="font-semibold text-sm">{item.name}</span>
+                              <span className="font-semibold text-sm">
+                                {item.name}
+                              </span>
                             </div>
                             <div className="text-xs text-default-400">
                               {formatTime(item.timestamp)}
                             </div>
                           </div>
                           <Button
-                            size="sm"
-                            variant="light"
-                            color="danger"
                             isIconOnly
+                            color="danger"
+                            size="sm"
+                            title="删除"
+                            variant="light"
                             onClick={(e) => {
                               e.stopPropagation();
                               deleteHistory(item.id);
                             }}
-                            title="删除"
                           >
                             ×
                           </Button>

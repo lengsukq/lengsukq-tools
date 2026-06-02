@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { Button, Textarea, Card, CardBody } from "@heroui/react";
-import { formatJson as formatJsonUtil, minifyJson as minifyJsonUtil } from "@/utils/json-utils";
+
+import {
+  formatJson as formatJsonUtil,
+  minifyJson as minifyJsonUtil,
+} from "@/utils/json-utils";
 
 export function JsonFormatter() {
   const [input, setInput] = useState("");
@@ -11,12 +15,14 @@ export function JsonFormatter() {
 
   const formatJson = () => {
     const result = formatJsonUtil(input);
+
     setOutput(result.output);
     setError(result.error);
   };
 
   const minifyJson = () => {
     const result = minifyJsonUtil(input);
+
     setOutput(result.output);
     setError(result.error);
   };

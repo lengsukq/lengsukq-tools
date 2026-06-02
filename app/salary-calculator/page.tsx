@@ -1,8 +1,17 @@
 "use client";
 
 import React, { useCallback, useEffect, useState, useId } from "react";
-import { Input, Card, CardHeader, CardBody, CardFooter, Button, Switch } from "@heroui/react";
-import { calculateIncomeTax, saveToStorage, loadFromStorage } from "./utils";
+import {
+  Input,
+  Card,
+  CardHeader,
+  CardBody,
+  CardFooter,
+  Button,
+  Switch,
+} from "@heroui/react";
+
+import { calculateIncomeTax, saveToStorage } from "./utils";
 import { DEFAULT_RATES, DEFAULT_WORKING_HOURS } from "./constants";
 
 export default function SalaryCalculatorPage() {
@@ -11,16 +20,24 @@ export default function SalaryCalculatorPage() {
   const [allowance, setAllowance] = useState(""); // 每月补贴
   const [pensionRate, setPensionRate] = useState<string>(DEFAULT_RATES.PENSION); // 养老保险比例
   const [medicalRate, setMedicalRate] = useState<string>(DEFAULT_RATES.MEDICAL); // 医疗保险比例
-  const [unemploymentRate, setUnemploymentRate] = useState<string>(DEFAULT_RATES.UNEMPLOYMENT); // 失业保险比例
-  const [housingFundRate, setHousingFundRate] = useState<string>(DEFAULT_RATES.HOUSING_FUND); // 住房公积金比例
+  const [unemploymentRate, setUnemploymentRate] = useState<string>(
+    DEFAULT_RATES.UNEMPLOYMENT,
+  ); // 失业保险比例
+  const [housingFundRate, setHousingFundRate] = useState<string>(
+    DEFAULT_RATES.HOUSING_FUND,
+  ); // 住房公积金比例
 
   // 社保缴费基数相关
   const [socialInsuranceBase, setSocialInsuranceBase] = useState(""); // 社保缴费基数
   const [useCustomBase, setUseCustomBase] = useState(false); // 是否使用自定义社保基数
 
   // 时薪计算相关状态
-  const [dailyWorkingHours, setDailyWorkingHours] = useState<string>(DEFAULT_WORKING_HOURS.DAILY); // 日工作时间
-  const [monthlyWorkingDays, setMonthlyWorkingDays] = useState<string>(DEFAULT_WORKING_HOURS.MONTHLY_DAYS); // 月平均工作日
+  const [dailyWorkingHours, setDailyWorkingHours] = useState<string>(
+    DEFAULT_WORKING_HOURS.DAILY,
+  ); // 日工作时间
+  const [monthlyWorkingDays, setMonthlyWorkingDays] = useState<string>(
+    DEFAULT_WORKING_HOURS.MONTHLY_DAYS,
+  ); // 月平均工作日
 
   // 年薪计算相关状态
   const [annualBonus, setAnnualBonus] = useState("");
@@ -45,7 +62,6 @@ export default function SalaryCalculatorPage() {
   // 生成唯一ID
   const includeHousingFundSwitchId = useId();
   const useCustomBaseSwitchId = useId();
-
 
   const calculateSalary = useCallback(() => {
     // 保存当前值到localStorage
@@ -149,15 +165,27 @@ export default function SalaryCalculatorPage() {
     if (typeof window !== "undefined") {
       setSalaryBase(localStorage.getItem("salaryBase") || "");
       setAllowance(localStorage.getItem("allowance") || "");
-      setPensionRate(localStorage.getItem("pensionRate") || DEFAULT_RATES.PENSION);
-      setMedicalRate(localStorage.getItem("medicalRate") || DEFAULT_RATES.MEDICAL);
-      setUnemploymentRate(localStorage.getItem("unemploymentRate") || DEFAULT_RATES.UNEMPLOYMENT);
-      setHousingFundRate(localStorage.getItem("housingFundRate") || DEFAULT_RATES.HOUSING_FUND);
+      setPensionRate(
+        localStorage.getItem("pensionRate") || DEFAULT_RATES.PENSION,
+      );
+      setMedicalRate(
+        localStorage.getItem("medicalRate") || DEFAULT_RATES.MEDICAL,
+      );
+      setUnemploymentRate(
+        localStorage.getItem("unemploymentRate") || DEFAULT_RATES.UNEMPLOYMENT,
+      );
+      setHousingFundRate(
+        localStorage.getItem("housingFundRate") || DEFAULT_RATES.HOUSING_FUND,
+      );
       setSocialInsuranceBase(localStorage.getItem("socialInsuranceBase") || "");
       setUseCustomBase(localStorage.getItem("useCustomBase") === "true");
-      setDailyWorkingHours(localStorage.getItem("dailyWorkingHours") || DEFAULT_WORKING_HOURS.DAILY);
+      setDailyWorkingHours(
+        localStorage.getItem("dailyWorkingHours") ||
+          DEFAULT_WORKING_HOURS.DAILY,
+      );
       setMonthlyWorkingDays(
-        localStorage.getItem("monthlyWorkingDays") || DEFAULT_WORKING_HOURS.MONTHLY_DAYS,
+        localStorage.getItem("monthlyWorkingDays") ||
+          DEFAULT_WORKING_HOURS.MONTHLY_DAYS,
       );
       setAnnualBonus(localStorage.getItem("annualBonus") || "");
       setAnnualAllowance(localStorage.getItem("annualAllowance") || "");

@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Card, CardBody, Button } from "@heroui/react";
 import { useDropzone } from "react-dropzone";
+
 import { ProcessedFile } from "./types";
 import { processSingleFile, downloadProcessedFile } from "./utils";
 
@@ -14,8 +15,9 @@ export default function PdfWatermarkRemover() {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const pdfFiles = acceptedFiles.filter(
-      (file) => file.type === "application/pdf"
+      (file) => file.type === "application/pdf",
     );
+
     setFiles((prev) => [...prev, ...pdfFiles]);
   }, []);
 
@@ -27,7 +29,6 @@ export default function PdfWatermarkRemover() {
     multiple: true,
   });
 
-
   const handleProcess = async () => {
     if (files.length === 0) return;
 
@@ -37,6 +38,7 @@ export default function PdfWatermarkRemover() {
 
     for (let i = 0; i < files.length; i++) {
       const result = await processSingleFile(files[i]);
+
       results.push(result);
       setProgress({ current: i + 1, total: files.length });
     }
@@ -75,11 +77,10 @@ export default function PdfWatermarkRemover() {
               </span>
               <div className="text-sm text-default-700 dark:text-default-300">
                 <p className="mb-1">
-                  • 请确认水印下没有衬任何内容，否则水印下方的内容会被一并覆盖为白色
+                  •
+                  请确认水印下没有衬任何内容，否则水印下方的内容会被一并覆盖为白色
                 </p>
-                <p>
-                  • 请确保上传的PDF未加密且可编辑，否则无法去除水印
-                </p>
+                <p>• 请确保上传的PDF未加密且可编辑，否则无法去除水印</p>
               </div>
             </div>
           </div>
@@ -99,7 +100,8 @@ export default function PdfWatermarkRemover() {
 
           <div className="bg-default-100 dark:bg-default-50 p-3 rounded-lg text-xs text-default-500 dark:text-default-400">
             <p className="mb-1">
-              <strong>水印位置说明：</strong>本工具会自动识别并去除PDF文件右下角区域的水印
+              <strong>水印位置说明：</strong>
+              本工具会自动识别并去除PDF文件右下角区域的水印
               （宽度约为页面宽度的1/3，高度约为页面高度的1/14）
             </p>
             <p>
@@ -139,10 +141,10 @@ export default function PdfWatermarkRemover() {
                 已选择 {files.length} 个文件
               </p>
               <Button
-                color="primary"
-                onPress={handleProcess}
-                isDisabled={processing}
                 className="w-full"
+                color="primary"
+                isDisabled={processing}
+                onPress={handleProcess}
               >
                 {processing
                   ? `处理中... ${progress.current}/${progress.total}`
@@ -161,11 +163,7 @@ export default function PdfWatermarkRemover() {
                 处理完成 ({processedFiles.length} 个文件)
               </h2>
               {processedFiles.length > 1 && (
-                <Button
-                  color="primary"
-                  size="sm"
-                  onPress={handleDownloadAll}
-                >
+                <Button color="primary" size="sm" onPress={handleDownloadAll}>
                   全部下载
                 </Button>
               )}
@@ -178,9 +176,7 @@ export default function PdfWatermarkRemover() {
                 >
                   <div>
                     <p className="font-medium">{file.name}</p>
-                    <p className="text-sm text-default-500">
-                      {file.pages} 页
-                    </p>
+                    <p className="text-sm text-default-500">{file.pages} 页</p>
                   </div>
                   <Button
                     color="primary"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Card,
   CardBody,
@@ -9,11 +9,10 @@ import {
   Input,
   Divider,
 } from "@heroui/react";
+
 import { CopyIcon } from "@/components/icons/index";
 import { ShareHistory } from "@/components/ShareHistory";
-import {
-  addShareHistory,
-} from "@/utils/share-history";
+import { addShareHistory } from "@/utils/share-history";
 
 const SHORT_CODE_PLACEHOLDER = "留空则自动生成";
 
@@ -32,8 +31,10 @@ export default function ShortLinkPage() {
     setShortUrl("");
 
     const trimmedUrl = url.trim();
+
     if (!trimmedUrl) {
       setError("请输入要缩短的链接");
+
       return;
     }
 
@@ -41,12 +42,14 @@ export default function ShortLinkPage() {
       new URL(trimmedUrl);
     } catch {
       setError("链接格式无效");
+
       return;
     }
 
     setLoading(true);
     try {
       const body: { url: string; code?: string } = { url: trimmedUrl };
+
       if (customCode.trim()) body.code = customCode.trim();
 
       const res = await fetch("/api/short-link", {
@@ -58,6 +61,7 @@ export default function ShortLinkPage() {
 
       if (!res.ok) {
         setError(data.error || "生成失败");
+
         return;
       }
       if (data.shortUrl) {
@@ -108,31 +112,31 @@ export default function ShortLinkPage() {
             </h2>
           </CardHeader>
           <CardBody className="pt-0">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form className="space-y-4" onSubmit={handleSubmit}>
               <Input
-                label="原链接"
-                placeholder="https://example.com/very/long/url"
-                value={url}
-                onValueChange={setUrl}
-                isInvalid={!!error && !shortUrl}
-                errorMessage={error && !shortUrl ? error : undefined}
-                type="url"
                 autoComplete="url"
                 classNames={{ input: "font-mono text-sm" }}
+                errorMessage={error && !shortUrl ? error : undefined}
+                isInvalid={!!error && !shortUrl}
+                label="原链接"
+                placeholder="https://example.com/very/long/url"
+                type="url"
+                value={url}
+                onValueChange={setUrl}
               />
               <Input
+                classNames={{ input: "font-mono" }}
+                description="2～32 位，仅支持字母、数字、下划线和连字符"
                 label="自定义短链（可选）"
                 placeholder={SHORT_CODE_PLACEHOLDER}
-                description="2～32 位，仅支持字母、数字、下划线和连字符"
                 value={customCode}
                 onValueChange={setCustomCode}
-                classNames={{ input: "font-mono" }}
               />
               <Button
-                type="submit"
+                className="w-full"
                 color="primary"
                 isLoading={loading}
-                className="w-full"
+                type="submit"
               >
                 生成
               </Button>
@@ -159,8 +163,8 @@ export default function ShortLinkPage() {
                   <Button
                     color="primary"
                     size="sm"
-                    variant="flat"
                     startContent={<CopyIcon />}
+                    variant="flat"
                     onPress={copyToClipboard}
                   >
                     {copied ? "已复制" : "复制"}

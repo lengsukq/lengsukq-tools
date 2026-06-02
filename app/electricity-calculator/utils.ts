@@ -22,8 +22,12 @@ export interface ElectricityCalculationParams {
 export const calculateElectricityCost = (
   params: ElectricityCalculationParams,
 ): number => {
-  const { powerConsumption, enablePeakValley, period, enableCustomPeriodMultiplier } =
-    params;
+  const {
+    powerConsumption,
+    enablePeakValley,
+    period,
+    enableCustomPeriodMultiplier,
+  } = params;
 
   if (isNaN(powerConsumption) || powerConsumption <= 0) {
     return 0;

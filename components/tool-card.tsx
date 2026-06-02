@@ -15,17 +15,17 @@ export function ToolCard({ title, description, href }: ToolCardProps) {
 
   return (
     <Link
-      href={href}
       className="group block w-full h-full transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+      href={href}
     >
       <Card
+        isHoverable
+        isPressable
         className={`w-full h-full border-2 transition-all duration-300 ${
           isActive
             ? "border-primary bg-primary/5 shadow-lg"
             : "border-default-200 hover:border-primary/50 hover:shadow-md"
         }`}
-        isPressable
-        isHoverable
       >
         <CardBody className="p-5">
           <div className="flex flex-col gap-3">
@@ -48,10 +48,10 @@ export function ToolCard({ title, description, href }: ToolCardProps) {
                 viewBox="0 0 24 24"
               >
                 <path
+                  d="M9 5l7 7-7 7"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M9 5l7 7-7 7"
                 />
               </svg>
             </div>

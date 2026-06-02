@@ -44,9 +44,13 @@ export const saveToStorage = (key: string, value: string): void => {
 /**
  * 从 localStorage 读取值
  */
-export const loadFromStorage = (key: string, defaultValue: string = ""): string => {
+export const loadFromStorage = (
+  key: string,
+  defaultValue: string = "",
+): string => {
   if (typeof window !== "undefined") {
     return localStorage.getItem(key) || defaultValue;
   }
+
   return defaultValue;
 };

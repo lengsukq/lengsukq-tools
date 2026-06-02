@@ -5,8 +5,9 @@ import { Input, Button, Kbd, Tabs, Tab } from "@heroui/react";
 
 import { BatchQuery } from "./BatchQuery";
 import { WhoisResponse } from "./domain-checker/types";
-import { queryWhois, batchQueryWhois } from "@/utils/whois-api";
 import { WhoisResultDisplay } from "./domain-checker/WhoisResultDisplay";
+
+import { queryWhois, batchQueryWhois } from "@/utils/whois-api";
 
 export type { WhoisResponse };
 
@@ -32,6 +33,7 @@ export function DomainChecker() {
 
     try {
       const data = await queryWhois(domain);
+
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "查询失败，请稍后重试");

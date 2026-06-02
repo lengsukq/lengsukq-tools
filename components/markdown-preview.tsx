@@ -1,18 +1,28 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Button, Textarea, Card, CardBody, CardHeader, Divider, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
+import {
+  Button,
+  Textarea,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Input,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTheme } from "next-themes";
+
 import { EditDocumentIcon, EyeIcon, ShareIcon, CopyIcon } from "./icons/index";
-import {
-  getShareContentFromUrl,
-  generateShareUrl,
-} from "@/utils/share-utils";
-import {
-  addShareHistory,
-} from "@/utils/share-history";
+
+import { getShareContentFromUrl, generateShareUrl } from "@/utils/share-utils";
+import { addShareHistory } from "@/utils/share-history";
 import { ShareHistory } from "@/components/ShareHistory";
 
 const CUSTOM_CODE_PLACEHOLDER = "留空则自动生成";
@@ -41,10 +51,12 @@ export function MarkdownPreview() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shareId = params.get("share");
+
     if (shareId) {
       fetch(`/api/markdown-share?id=${encodeURIComponent(shareId)}`)
         .then((res) => {
           if (!res.ok) return null;
+
           return res.json();
         })
         .then((data) => {
@@ -54,9 +66,11 @@ export function MarkdownPreview() {
           }
         })
         .catch(() => {});
+
       return;
     }
     const sharedContent = getShareContentFromUrl();
+
     if (sharedContent) {
       setShowEditor(false);
       setMarkdown(sharedContent);
@@ -70,6 +84,7 @@ export function MarkdownPreview() {
   const handleShare = async () => {
     if (!markdown.trim()) {
       setShareError("内容不能为空");
+
       return;
     }
 
@@ -80,6 +95,7 @@ export function MarkdownPreview() {
     try {
       let longUrl: string;
       const mdBody: { content: string; code?: string } = { content: markdown };
+
       if (customCode.trim()) mdBody.code = customCode.trim();
 
       const mdRes = await fetch("/api/markdown-share", {
@@ -92,6 +108,7 @@ export function MarkdownPreview() {
       if (!mdRes.ok) {
         setShareError(mdData.error || "生成分享失败");
         setIsSharing(false);
+
         return;
       }
 
@@ -109,6 +126,7 @@ export function MarkdownPreview() {
       const linkData = await linkRes.json();
 
       let finalUrl = longUrl;
+
       if (linkData.success && linkData.shortUrl) {
         finalUrl = linkData.shortUrl;
       }
@@ -294,41 +312,33 @@ export function MarkdownPreview() {
       )}
 
       {/* 分享对话框 */}
-      <Modal
-        isOpen={showShareModal}
-        onClose={closeShareModal}
-        size="md"
-      >
+      <Modal isOpen={showShareModal} size="md" onClose={closeShareModal}>
         <ModalContent>
           <ModalHeader>
             <h3 className="text-lg font-semibold">创建分享链接</h3>
           </ModalHeader>
           <ModalBody>
             <Input
+              autoFocus
+              classNames={{ input: "font-mono" }}
+              description="2～32 位，仅支持字母、数字、下划线和连字符"
+              errorMessage={shareError}
+              isInvalid={!!shareError}
               label="自定义分享代码（可选）"
               placeholder={CUSTOM_CODE_PLACEHOLDER}
-              description="2～32 位，仅支持字母、数字、下划线和连字符"
               value={customCode}
               onValueChange={setCustomCode}
-              isInvalid={!!shareError}
-              errorMessage={shareError}
-              classNames={{ input: "font-mono" }}
-              autoFocus
             />
           </ModalBody>
           <ModalFooter>
             <Button
+              isDisabled={isSharing}
               variant="light"
               onPress={closeShareModal}
-              isDisabled={isSharing}
             >
               取消
             </Button>
-            <Button
-              color="primary"
-              onPress={handleShare}
-              isLoading={isSharing}
-            >
+            <Button color="primary" isLoading={isSharing} onPress={handleShare}>
               生成分享链接
             </Button>
           </ModalFooter>

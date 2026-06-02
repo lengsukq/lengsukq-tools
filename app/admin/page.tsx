@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import Link from "next/link";
 import { Card, CardBody, CardHeader } from "@heroui/react";
@@ -31,4 +31,3 @@ export default function AdminHomePage() {
     </section>
   );
 }
-

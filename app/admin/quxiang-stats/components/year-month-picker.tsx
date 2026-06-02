@@ -35,7 +35,9 @@ export function YearMonthPicker({
   );
 
   const [externalYear, externalMonth] = (value ?? "").split("-");
-  const [selectedYear, setSelectedYear] = useState(externalYear || String(nowYear));
+  const [selectedYear, setSelectedYear] = useState(
+    externalYear || String(nowYear),
+  );
   const [selectedMonth, setSelectedMonth] = useState(externalMonth || nowMonth);
 
   useEffect(() => {
@@ -50,16 +52,22 @@ export function YearMonthPicker({
 
   return (
     <div className={className}>
-      {label ? <div className="mb-1 text-sm text-foreground-600">{label}</div> : null}
+      {label ? (
+        <div className="mb-1 text-sm text-foreground-600">{label}</div>
+      ) : null}
       <div className="flex gap-2">
         <Select
           aria-label={ariaLabel ? `${ariaLabel}-year` : "年份"}
           placeholder="年份"
+          selectedKeys={
+            selectedYear ? new Set([selectedYear]) : new Set<string>()
+          }
           size={size}
-          selectedKeys={selectedYear ? new Set([selectedYear]) : new Set<string>()}
           onSelectionChange={(keys) => {
             if (keys === "all") return;
-            const year = keys instanceof Set ? String(Array.from(keys)[0] ?? "") : "";
+            const year =
+              keys instanceof Set ? String(Array.from(keys)[0] ?? "") : "";
+
             setSelectedYear(year);
             applyValue(year, selectedMonth);
           }}
@@ -71,14 +79,15 @@ export function YearMonthPicker({
         <Select
           aria-label={ariaLabel ? `${ariaLabel}-month` : "月份"}
           placeholder="月份"
-          size={size}
           selectedKeys={
             selectedMonth ? new Set([selectedMonth]) : new Set<string>()
           }
+          size={size}
           onSelectionChange={(keys) => {
             if (keys === "all") return;
             const month =
               keys instanceof Set ? String(Array.from(keys)[0] ?? "") : "";
+
             setSelectedMonth(month);
             applyValue(selectedYear, month);
           }}
@@ -91,4 +100,3 @@ export function YearMonthPicker({
     </div>
   );
 }
-

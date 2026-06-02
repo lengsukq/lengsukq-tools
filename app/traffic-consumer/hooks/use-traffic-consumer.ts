@@ -1,8 +1,8 @@
 "use client";
 
 import { useReducer, useRef, useCallback, useEffect } from "react";
+
 import { trafficConsumerReducer, initialState } from "../reducer";
-import { TrafficConsumerState } from "../types";
 
 /**
  * 流量消耗器核心 Hook
@@ -34,19 +34,25 @@ export const useTrafficConsumer = () => {
 
       // 初始化任务速度（按照原始逻辑：const index = this.tasks.push(speed) - 1）
       tasksRef.current[taskIndex] = 0;
-      dispatch({ type: "UPDATE_TASK_SPEED", payload: { index: taskIndex, speed: 0 } });
+      dispatch({
+        type: "UPDATE_TASK_SPEED",
+        payload: { index: taskIndex, speed: 0 },
+      });
 
       try {
         // 添加随机参数避免缓存（按照原始逻辑：params: { [id]: id }）
         const urlToUse = currentUrlRef.current;
         let urlWithParams: string;
+
         try {
           const urlObj = new URL(urlToUse);
+
           urlObj.searchParams.set(taskId, taskId);
           urlWithParams = urlObj.toString();
         } catch {
           // 如果 URL 解析失败，直接拼接参数
           const separator = urlToUse.includes("?") ? "&" : "?";
+
           urlWithParams = `${urlToUse}${separator}${taskId}=${taskId}`;
         }
 
@@ -114,7 +120,10 @@ export const useTrafficConsumer = () => {
       } finally {
         // 清理任务速度（按照原始逻辑：delete that.tasks[index]）
         delete tasksRef.current[taskIndex];
-        dispatch({ type: "UPDATE_TASK_SPEED", payload: { index: taskIndex, speed: 0 } });
+        dispatch({
+          type: "UPDATE_TASK_SPEED",
+          payload: { index: taskIndex, speed: 0 },
+        });
       }
     },
     [],
@@ -140,28 +149,31 @@ export const useTrafficConsumer = () => {
     const currentThreadCount = state.threadCount;
     const currentIsInfinite = state.isInfinite;
 
-      // 每秒更新速度和运行时间（按照原始逻辑）
-      timerRef.current = setInterval(() => {
-        // 计算总速度（所有任务速度之和）
-        // 按照原始逻辑：this.tasks.reduce(function (prev, curr) { return prev + curr; }, 0)
-        const totalSpeed = tasksRef.current.reduce(
-          (prev: number, curr: number) => prev + (curr || 0),
-          0,
-        );
-        dispatch({ type: "UPDATE_SPEED", payload: totalSpeed });
-        dispatch({ type: "TICK_TIME" });
-      }, 1000);
+    // 每秒更新速度和运行时间（按照原始逻辑）
+    timerRef.current = setInterval(() => {
+      // 计算总速度（所有任务速度之和）
+      // 按照原始逻辑：this.tasks.reduce(function (prev, curr) { return prev + curr; }, 0)
+      const totalSpeed = tasksRef.current.reduce(
+        (prev: number, curr: number) => prev + (curr || 0),
+        0,
+      );
+
+      dispatch({ type: "UPDATE_SPEED", payload: totalSpeed });
+      dispatch({ type: "TICK_TIME" });
+    }, 1000);
 
     // 核心循环逻辑：do...while 无限循环（完全按照原始逻辑）
     do {
       await new Promise<void>((resolve) => {
         // 创建多个并发下载任务
         const downloadTasks: Promise<void>[] = [];
+
         // 确保 tasks 数组有足够长度
         tasksRef.current = new Array(currentThreadCount).fill(0);
-        
+
         for (let i = 0; i < currentThreadCount; i++) {
           const taskId = Math.random().toString(36).substring(2, 12);
+
           downloadTasks.push(download(taskId, i));
         }
         // 等待所有任务完成（按照原始逻辑：Promise.all(task).finally(resolve)）

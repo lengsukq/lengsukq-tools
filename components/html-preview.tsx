@@ -1,9 +1,24 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Button, Textarea, Card, CardBody, CardHeader, Divider } from "@heroui/react";
+import {
+  Button,
+  Textarea,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+} from "@heroui/react";
 import { useTheme } from "next-themes";
-import { EditDocumentIcon, EyeIcon, ShareIcon, CopyIcon, ExternalLinkIcon } from "./icons/index";
+
+import {
+  EditDocumentIcon,
+  EyeIcon,
+  ShareIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+} from "./icons/index";
+
 import { getShareContentFromUrl, generateShareUrl } from "@/utils/share-utils";
 
 export function HtmlPreview() {
@@ -114,6 +129,7 @@ function greet(name) {
   // 从URL参数加载分享内容
   useEffect(() => {
     const sharedContent = getShareContentFromUrl();
+
     if (sharedContent) {
       setShowEditor(false);
       setHtml(sharedContent);
@@ -151,6 +167,7 @@ function greet(name) {
   const handleShare = async () => {
     if (!html.trim()) {
       alert("内容不能为空");
+
       return;
     }
 
@@ -323,9 +340,7 @@ function greet(name) {
               className="min-h-[300px] font-mono text-sm"
               placeholder="在此输入HTML代码..."
               value={html}
-              onChange={(e:any) =>
-                setHtml(e.target.value)
-              }
+              onChange={(e: any) => setHtml(e.target.value)}
             />
           </CardBody>
         </Card>

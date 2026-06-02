@@ -1,14 +1,17 @@
-import crypto from "crypto";
 import type { NextRequest } from "next/server";
+
+import crypto from "crypto";
 
 const ADMIN_COOKIE_NAME = "admin_session";
 const ADMIN_TOKEN_PAYLOAD = "admin|v1";
 
 function getAdminPassword(): string {
   const password = process.env.ADMIN_PASSWORD;
+
   if (!password) {
     throw new Error("ADMIN_PASSWORD is not set");
   }
+
   return password;
 }
 
@@ -19,17 +22,22 @@ function createSignature(secret: string, payload: string): string {
 export function createAdminSessionToken(): string {
   const secret = getAdminPassword();
   const signature = createSignature(secret, ADMIN_TOKEN_PAYLOAD);
+
   return `${ADMIN_TOKEN_PAYLOAD}.${signature}`;
 }
 
-export function verifyAdminSessionToken(token: string | undefined | null): boolean {
+export function verifyAdminSessionToken(
+  token: string | undefined | null,
+): boolean {
   if (!token) return false;
 
   const [payload, signature] = token.split(".");
+
   if (!payload || !signature) return false;
   if (payload !== ADMIN_TOKEN_PAYLOAD) return false;
 
   let secret: string;
+
   try {
     secret = getAdminPassword();
   } catch {
@@ -44,10 +52,10 @@ export function verifyAdminSessionToken(token: string | undefined | null): boole
 
 export function isAdminRequest(request: NextRequest): boolean {
   const token = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
+
   return verifyAdminSessionToken(token);
 }
 
 export function getAdminCookieName(): string {
   return ADMIN_COOKIE_NAME;
 }
-

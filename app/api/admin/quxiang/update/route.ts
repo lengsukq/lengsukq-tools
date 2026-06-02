@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isUnauthorizedRequest } from "../_shared/auth";
+import { badRequest, unauthorizedResponse } from "../_shared/responses";
+import { isValidYearMonth } from "../_shared/validators";
+
 import { ensureTables, sql } from "@/lib/db";
-import { isAdminRequest } from "@/lib/admin-auth";
 
 type UpdateBody = {
   id: number;
@@ -13,15 +16,16 @@ type UpdateBody = {
 };
 
 export async function POST(request: NextRequest) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isUnauthorizedRequest(request)) {
+    return unauthorizedResponse();
   }
 
   await ensureTables();
 
   const body = (await request.json().catch(() => null)) as UpdateBody | null;
+
   if (!body || typeof body.id !== "number") {
-    return NextResponse.json({ error: "id 非法" }, { status: 400 });
+    return badRequest("id 非法");
   }
 
   const code = body.code?.trim();
@@ -29,7 +33,9 @@ export async function POST(request: NextRequest) {
   const yearMonth = body.yearMonth?.trim();
   const isSold = Boolean(body.isSold);
   const soldPriceRaw =
-    typeof body.soldPrice === "number" ? String(body.soldPrice) : body.soldPrice;
+    typeof body.soldPrice === "number"
+      ? String(body.soldPrice)
+      : body.soldPrice;
   const soldPrice =
     soldPriceRaw !== undefined &&
     soldPriceRaw !== null &&
@@ -38,13 +44,13 @@ export async function POST(request: NextRequest) {
       : null;
 
   if (!code) {
-    return NextResponse.json({ error: "领取码不能为空" }, { status: 400 });
+    return badRequest("领取码不能为空");
   }
   if (!phone) {
-    return NextResponse.json({ error: "手机号不能为空" }, { status: 400 });
+    return badRequest("手机号不能为空");
   }
-  if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
-    return NextResponse.json({ error: "日期格式应为 YYYY-MM" }, { status: 400 });
+  if (!yearMonth || !isValidYearMonth(yearMonth)) {
+    return badRequest("日期格式应为 YYYY-MM");
   }
 
   // 领取码全局唯一：若同 code 已存在且 id 不同，拒绝更新
@@ -55,6 +61,7 @@ export async function POST(request: NextRequest) {
   `;
   const existing = (existingResult ?? []) as { id: number }[];
   const conflict = existing.find((row) => row.id !== body.id);
+
   if (conflict) {
     return NextResponse.json(
       { error: "该领取码已存在于其他记录，禁止重复使用" },
@@ -73,6 +80,7 @@ export async function POST(request: NextRequest) {
   );
 
   const row = ((result?.rows ?? result) as any[])?.[0];
+
   if (!row) {
     return NextResponse.json({ error: "记录不存在" }, { status: 404 });
   }
@@ -90,4 +98,3 @@ export async function POST(request: NextRequest) {
     },
   });
 }
-

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isUnauthorizedRequest } from "../_shared/auth";
+import { badRequest, unauthorizedResponse } from "../_shared/responses";
+
 import { sql, ensureTables } from "@/lib/db";
-import { isAdminRequest } from "@/lib/admin-auth";
 
 type PhoneRow = {
   id: number;
@@ -15,8 +17,8 @@ type SaveRequestBody = {
 };
 
 export async function GET(request: NextRequest) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isUnauthorizedRequest(request)) {
+    return unauthorizedResponse();
   }
 
   // 确保表已创建（兼容首次使用或未跑过 ensureTables 的场景）
@@ -42,19 +44,16 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isUnauthorizedRequest(request)) {
+    return unauthorizedResponse();
   }
 
-  const body = (await request.json().catch(() => null)) as
-    | SaveRequestBody
-    | null;
+  const body = (await request
+    .json()
+    .catch(() => null)) as SaveRequestBody | null;
 
   if (!body || !Array.isArray(body.phones)) {
-    return NextResponse.json(
-      { error: "phones 不能为空" },
-      { status: 400 },
-    );
+    return badRequest("phones 不能为空");
   }
 
   const normalized = body.phones
@@ -86,10 +85,8 @@ export async function POST(request: NextRequest) {
     await sql`ROLLBACK`;
     // eslint-disable-next-line no-console
     console.error("保存手机号列表失败:", error);
-    return NextResponse.json(
-      { error: "保存手机号列表失败" },
-      { status: 500 },
-    );
+
+    return NextResponse.json({ error: "保存手机号列表失败" }, { status: 500 });
   }
 
   const result = await (sql as any).query(
@@ -111,4 +108,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ items });
 }
-

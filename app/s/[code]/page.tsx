@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+
 import { getShortLinkUrl } from "@/lib/short-link";
 
 interface Props {

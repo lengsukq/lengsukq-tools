@@ -22,8 +22,10 @@ export const decodeShareContent = (encoded: string): string => {
 export const generateShareUrl = (content: string, baseUrl: string): string => {
   const encodedContent = encodeShareContent(content);
   const url = new URL(baseUrl);
+
   url.searchParams.delete("shared");
   url.searchParams.set("shared", encodedContent);
+
   return url.toString();
 };
 
@@ -42,6 +44,7 @@ export const getShareContentFromUrl = (): string | null => {
     return decodeShareContent(sharedData);
   } catch (error) {
     console.error("加载分享内容失败:", error);
+
     return null;
   }
 };

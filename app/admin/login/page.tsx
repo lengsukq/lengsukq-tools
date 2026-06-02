@@ -26,8 +26,10 @@ export default function AdminLoginPage() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
+
         setError(data.error ?? "登录失败，请重试");
         setLoading(false);
+
         return;
       }
 
@@ -51,15 +53,13 @@ export default function AdminLoginPage() {
         <CardBody>
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
             <Input
+              isRequired
               label="密码"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              isRequired
             />
-            {error ? (
-              <p className="text-small text-danger">{error}</p>
-            ) : null}
+            {error ? <p className="text-small text-danger">{error}</p> : null}
             <Button color="primary" isLoading={loading} type="submit">
               登录
             </Button>
@@ -69,4 +69,3 @@ export default function AdminLoginPage() {
     </div>
   );
 }
-

@@ -9,6 +9,7 @@
  */
 export function formatFileSize(bytes: number): string {
   const size = parseInt(String(bytes));
+
   if (size === 0) {
     return "0.00 B";
   } else if (size < 1024) {
@@ -29,6 +30,7 @@ export function formatFileSize(bytes: number): string {
  */
 export function formatDownloadSpeed(bytesPerSecond: number): string {
   const formatted = formatFileSize(bytesPerSecond);
+
   return formatted.replace(/\s([K|M|G|B]*)B{0,1}/, "$1/s");
 }
 
@@ -39,6 +41,7 @@ export function formatDownloadSpeed(bytesPerSecond: number): string {
  */
 export function formatTime(seconds: number): string {
   let t = "";
+
   if (seconds > -1) {
     const hour = Math.floor(seconds / 3600);
     const min = Math.floor((seconds / 60) % 60);
@@ -52,5 +55,6 @@ export function formatTime(seconds: number): string {
     }
     t += (sec < 10 ? "0" : "") + sec + "s";
   }
+
   return t || "0s";
 }

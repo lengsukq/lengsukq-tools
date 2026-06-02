@@ -19,6 +19,7 @@ export function parseQuxiangFromLine(line: string): QuxiangRecordInput[] {
   // eslint-disable-next-line no-cond-assign
   while ((match = regex.exec(line)) !== null) {
     const code = match[1];
+
     results.push({
       rawText: line,
       code,
@@ -34,6 +35,7 @@ function dedupeQuxiangRecordsByCode(
 ): QuxiangRecordInput[] {
   const seen = new Set<string>();
   const out: QuxiangRecordInput[] = [];
+
   for (const record of records) {
     if (seen.has(record.code)) {
       continue;
@@ -41,12 +43,14 @@ function dedupeQuxiangRecordsByCode(
     seen.add(record.code);
     out.push(record);
   }
+
   return out;
 }
 
-export function parseQuxiangFromText(
-  text: string,
-): { parsed: QuxiangRecordInput[]; unparsedLines: string[] } {
+export function parseQuxiangFromText(text: string): {
+  parsed: QuxiangRecordInput[];
+  unparsedLines: string[];
+} {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -57,6 +61,7 @@ export function parseQuxiangFromText(
 
   for (const line of lines) {
     const records = parseQuxiangFromLine(line);
+
     if (records.length > 0) {
       parsed.push(...records);
     } else {
@@ -69,4 +74,3 @@ export function parseQuxiangFromText(
     unparsedLines,
   };
 }
-

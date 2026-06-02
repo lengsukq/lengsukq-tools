@@ -20,6 +20,7 @@ export const queryWhois = async (domain: string): Promise<WhoisResponse> => {
 
   if (!response.ok) {
     const data = await response.json();
+
     throw new Error(data.message || "查询失败");
   }
 
@@ -37,6 +38,7 @@ export const batchQueryWhois = async (
   for (const domain of domains) {
     try {
       const data = await queryWhois(domain);
+
       results.push(data);
       await new Promise((resolve) => setTimeout(resolve, QUERY_DELAY_MS));
     } catch (err) {

@@ -63,7 +63,9 @@ export function trafficConsumerReducer(
 
     case "UPDATE_TASK_SPEED": {
       const newTasks = [...state.tasks];
+
       newTasks[action.payload.index] = action.payload.speed;
+
       return { ...state, tasks: newTasks };
     }
 

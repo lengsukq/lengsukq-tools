@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardBody, CardHeader, Button, Input, Select, SelectItem } from "@heroui/react";
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  Button,
+  Input,
+  Select,
+  SelectItem,
+} from "@heroui/react";
 
 type RandomType =
   | "integer"

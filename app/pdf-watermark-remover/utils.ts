@@ -1,4 +1,5 @@
 import { PDFDocument, rgb } from "pdf-lib";
+
 import { WATERMARK_CONFIG, WATERMARK_COLOR } from "./constants";
 import { ProcessedFile } from "./types";
 
@@ -50,6 +51,7 @@ export const downloadProcessedFile = (file: ProcessedFile): void => {
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
+
   link.href = url;
   link.download = file.name.replace(".pdf", "_去水印.pdf");
   link.click();

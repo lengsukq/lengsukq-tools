@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { createShortLink } from "@/lib/short-link";
 import {
   DEFAULT_EXPIRY_DAYS,
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "生成短链接失败";
+
     if (
       message.startsWith("该短链") ||
       message.startsWith("短链") ||
@@ -60,6 +62,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
     console.error("生成短链接失败:", error);
+
     return NextResponse.json({ error: "生成短链接失败" }, { status: 500 });
   }
 }

@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useCallback, useEffect, useState, useId } from "react";
-import { Input, Select, SelectItem, Card, CardHeader, CardBody, CardFooter, Switch } from "@heroui/react";
+import {
+  Input,
+  Select,
+  SelectItem,
+  Card,
+  CardHeader,
+  CardBody,
+  CardFooter,
+  Switch,
+} from "@heroui/react";
+
 import { calculateElectricityCost } from "./utils";
 
 export default function ElectricityCalculatorPage() {
@@ -42,6 +52,7 @@ export default function ElectricityCalculatorPage() {
       enableCustomPeriodMultiplier,
       customMultiplier: parseFloat(customMultiplier) || 0,
     });
+
     setResult(result);
   }, [
     powerConsumption,

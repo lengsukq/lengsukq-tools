@@ -9,6 +9,7 @@ export function validateCustomCode(
   code: string,
 ): { valid: true } | { valid: false; error: string } {
   const trimmed = code.trim();
+
   if (trimmed.length < SHORT_CODE_MIN_LENGTH) {
     return {
       valid: false,
@@ -27,6 +28,7 @@ export function validateCustomCode(
       error: "仅支持字母、数字、下划线和连字符",
     };
   }
+
   return { valid: true };
 }
 
@@ -38,22 +40,27 @@ export async function createShortLink(
   await ensureTables();
 
   const expiresAt = new Date();
+
   expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
   if (customCode !== undefined && customCode !== "") {
     const validation = validateCustomCode(customCode);
+
     if (!validation.valid) {
       throw new Error(validation.error);
     }
     const code = customCode.trim();
+
     try {
       await sql`
         INSERT INTO short_links (code, url, expires_at)
         VALUES (${code}, ${url}, ${expiresAt.toISOString()})
       `;
+
       return { code, expiresAt };
     } catch (e) {
       const err = e as { code?: string };
+
       if (err.code === "23505") {
         throw new Error("该短链已被使用，请换一个");
       }
@@ -63,14 +70,17 @@ export async function createShortLink(
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateShortCode(8);
+
     try {
       await sql`
         INSERT INTO short_links (code, url, expires_at)
         VALUES (${code}, ${url}, ${expiresAt.toISOString()})
       `;
+
       return { code, expiresAt };
     } catch (e) {
       const err = e as { code?: string };
+
       if (err.code === "23505") continue;
       throw e;
     }
@@ -78,9 +88,7 @@ export async function createShortLink(
   throw new Error("生成唯一短链失败，请重试");
 }
 
-export async function getShortLinkUrl(
-  code: string,
-): Promise<string | null> {
+export async function getShortLinkUrl(code: string): Promise<string | null> {
   await ensureTables();
 
   const rows = await sql`
@@ -88,5 +96,6 @@ export async function getShortLinkUrl(
     WHERE code = ${code} AND expires_at > NOW()
   `;
   const row = rows[0];
+
   return row ? (row.url as string) : null;
 }

@@ -1,5 +1,14 @@
 "use client";
 
+import type {
+  EditableSavedRecord,
+  ParsedRow,
+  PhoneItem,
+  SavedRecord,
+  SoldFilter,
+  StatsItem,
+} from "./types";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -26,82 +35,16 @@ import {
   Textarea,
 } from "@heroui/react";
 
-import type { QuxiangRecordInput } from "@/lib/quxiang";
-import { parseQuxiangFromText } from "@/lib/quxiang";
 import { YearMonthPicker } from "./components/year-month-picker";
+import { PARSED_TABLE_SELECT_POPOVER_PROPS } from "./constants";
+import { useSelectedPhoneValues } from "./hooks/use-selected-phone-values";
+import {
+  buildQuxiangListQueryParams,
+  buildQuxiangSavedListCopyText,
+  buildQuxiangStatsQueryParams,
+} from "./services";
 
-type ParsedRow = QuxiangRecordInput & {
-  id: number;
-  status?: "pending" | "saved" | "error";
-  errorMessage?: string;
-};
-
-type SavedRecord = {
-  id: number;
-  code: string;
-  phone: string | null;
-  yearMonth: string | null;
-  isSold: boolean;
-  soldPrice: string | null;
-  createdAt: string;
-  rawText: string;
-};
-
-type EditableSavedRecord = {
-  id: number;
-  code: string;
-  phone: string;
-  yearMonth: string;
-  isSold: boolean;
-  soldPrice: string;
-};
-
-type StatsItem = {
-  phone: string;
-  yearMonth: string | null;
-  totalCodes: number;
-  soldCount: number;
-  totalSoldPrice: string | null;
-};
-
-type PhoneItem = {
-  id: number;
-  value: string;
-};
-
-/** 复制用：每行「手机号 月份 码1、码2…」，不同手机号+月份组合换行；顺序与当前列表一致 */
-function buildQuxiangSavedListCopyText(records: SavedRecord[]): string {
-  const GROUP_SEP = "\u0001";
-  const groups = new Map<string, string[]>();
-  const order: string[] = [];
-
-  for (const item of records) {
-    const phone = item.phone ?? "";
-    const yearMonth = item.yearMonth ?? "";
-    const key = `${phone}${GROUP_SEP}${yearMonth}`;
-    if (!groups.has(key)) {
-      groups.set(key, []);
-      order.push(key);
-    }
-    groups.get(key)!.push(item.code);
-  }
-
-  return order
-    .map((key) => {
-      const [phone, yearMonth] = key.split(GROUP_SEP);
-      const codes = groups.get(key)!.join("、");
-      const prefix = [phone, yearMonth].filter((s) => s.length > 0).join(" ");
-      return prefix.length > 0 ? `${prefix} ${codes}` : codes;
-    })
-    .join("\n");
-}
-
-// 可滚动表格内：Popover 默认 shouldCloseOnScroll 会在滚动时关闭下拉，需关闭；v2 文档见 https://v2.heroui.com/docs/components/select
-const PARSED_TABLE_SELECT_POPOVER_PROPS = {
-  placement: "bottom-start" as const,
-  shouldCloseOnScroll: false,
-  shouldBlockScroll: false,
-};
+import { parseQuxiangFromText } from "@/lib/quxiang";
 
 export default function QuxiangStatsPage() {
   const [authorized, setAuthorized] = useState<"unknown" | "yes" | "no">(
@@ -120,9 +63,7 @@ export default function QuxiangStatsPage() {
     () => new Set(),
   );
   const [filterYearMonth, setFilterYearMonth] = useState("");
-  const [soldFilter, setSoldFilter] = useState<"all" | "sold" | "unsold">(
-    "all",
-  );
+  const [soldFilter, setSoldFilter] = useState<SoldFilter>("all");
   const [minSoldPrice, setMinSoldPrice] = useState("");
   const [maxSoldPrice, setMaxSoldPrice] = useState("");
   const [querying, setQuerying] = useState(false);
@@ -143,11 +84,13 @@ export default function QuxiangStatsPage() {
   const [editingPhones, setEditingPhones] = useState<PhoneItem[]>([]);
   const [bulkIsSold, setBulkIsSold] = useState(false);
   const [bulkPrice, setBulkPrice] = useState("");
+  const selectedPhoneValues = useSelectedPhoneValues(selectedPhoneIds, phones);
 
   useEffect(() => {
     async function checkAuth() {
       try {
         const response = await fetch("/api/admin/me");
+
         if (!response.ok) {
           setAuthorized("no");
         } else {
@@ -167,6 +110,7 @@ export default function QuxiangStatsPage() {
     async function fetchPhones() {
       try {
         const response = await fetch("/api/admin/quxiang/phones");
+
         if (!response.ok) {
           return;
         }
@@ -179,6 +123,7 @@ export default function QuxiangStatsPage() {
           id: item.id,
           value: item.phone,
         }));
+
         setPhones(nextPhones);
         setSelectedPhoneIds(
           new Set(nextPhones.map((phone) => String(phone.id))),
@@ -198,13 +143,19 @@ export default function QuxiangStatsPage() {
       return false;
     }
     const hasUnsaved = parsedRows.some((row) => row.status !== "saved");
+
     if (!hasUnsaved) {
       return false;
     }
     // 所有行都必须有手机号和日期（YYYY-MM）
     const allHasPhoneAndMonth = parsedRows.every(
-      (row) => row.phone && row.phone.trim() !== "" && row.yearMonth && row.yearMonth.trim() !== "",
+      (row) =>
+        row.phone &&
+        row.phone.trim() !== "" &&
+        row.yearMonth &&
+        row.yearMonth.trim() !== "",
     );
+
     return allHasPhoneAndMonth;
   }, [parsedRows]);
 
@@ -212,9 +163,8 @@ export default function QuxiangStatsPage() {
     const { parsed, unparsedLines: unparsed } = parseQuxiangFromText(inputText);
     let nextId = 1;
     // 解析时，尽量使用当前选择/配置的手机号作为默认值
-    const phonesForQuery = getSelectedPhonesForQuery();
     const defaultPhone =
-      phonesForQuery.length === 1 ? phonesForQuery[0] : undefined;
+      selectedPhoneValues.length === 1 ? selectedPhoneValues[0] : undefined;
 
     const rows: ParsedRow[] = parsed.map((item) => ({
       ...item,
@@ -222,21 +172,22 @@ export default function QuxiangStatsPage() {
       status: "pending",
       phone: item.phone ?? defaultPhone,
     }));
+
     setParsedRows(rows);
     setUnparsedLines(unparsed);
   }
 
-  function updateRow(
-    id: number,
-    updater: (row: ParsedRow) => ParsedRow,
-  ) {
-    setParsedRows((rows) => rows.map((row) => (row.id === id ? updater(row) : row)));
+  function updateRow(id: number, updater: (row: ParsedRow) => ParsedRow) {
+    setParsedRows((rows) =>
+      rows.map((row) => (row.id === id ? updater(row) : row)),
+    );
   }
 
   function addManualRow() {
     setParsedRows((rows) => {
       const nextId =
         rows.length > 0 ? Math.max(...rows.map((row) => row.id)) + 1 : 1;
+
       return [
         ...rows,
         {
@@ -295,6 +246,7 @@ export default function QuxiangStatsPage() {
             errorMessage: "保存失败",
           })),
         );
+
         return;
       }
 
@@ -307,6 +259,7 @@ export default function QuxiangStatsPage() {
       setParsedRows((rows) =>
         rows.map((row, index) => {
           const status = resultStatuses.find((r) => r.index === index);
+
           if (!status) {
             return {
               ...row,
@@ -321,6 +274,7 @@ export default function QuxiangStatsPage() {
               errorMessage: status.error ?? "保存失败",
             };
           }
+
           return {
             ...row,
             status: "saved",
@@ -333,50 +287,30 @@ export default function QuxiangStatsPage() {
     }
   }
 
-  function getSelectedPhonesForQuery(): string[] {
-    if (selectedPhoneIds.size > 0) {
-      return phones
-        .filter((p) => selectedPhoneIds.has(String(p.id)))
-        .map((p) => p.value);
-    }
-    return phones.map((p) => p.value);
-  }
-
   async function handleQuery() {
     setQuerying(true);
     try {
-      const params = new URLSearchParams();
-      const phonesForQuery = getSelectedPhonesForQuery();
-      if (phonesForQuery.length > 0) {
-        params.set("phones", phonesForQuery.join(","));
-      }
-      if (filterYearMonth.trim()) {
-        params.set("yearMonth", filterYearMonth.trim());
-      }
-
-      if (soldFilter === "sold") {
-        params.set("isSold", "true");
-      } else if (soldFilter === "unsold") {
-        params.set("isSold", "false");
-      }
-
-      if (minSoldPrice.trim()) {
-        params.set("minSoldPrice", minSoldPrice.trim());
-      }
-      if (maxSoldPrice.trim()) {
-        params.set("maxSoldPrice", maxSoldPrice.trim());
-      }
+      const params = buildQuxiangListQueryParams({
+        phones: selectedPhoneValues,
+        yearMonth: filterYearMonth,
+        soldFilter,
+        minSoldPrice,
+        maxSoldPrice,
+      });
 
       const response = await fetch(
         `/api/admin/quxiang/list?${params.toString()}`,
       );
+
       if (!response.ok) {
         setSavedList([]);
+
         return;
       }
       const data = (await response.json()) as {
         items: SavedRecord[];
       };
+
       setSavedList(data.items ?? []);
     } finally {
       setQuerying(false);
@@ -386,23 +320,22 @@ export default function QuxiangStatsPage() {
   async function handleLoadStats() {
     setLoadingStats(true);
     try {
-      const params = new URLSearchParams();
-      const phonesForQuery = getSelectedPhonesForQuery();
-      if (phonesForQuery.length > 0) {
-        params.set("phones", phonesForQuery.join(","));
-      }
-      if (filterYearMonth.trim()) {
-        params.set("yearMonth", filterYearMonth.trim());
-      }
+      const params = buildQuxiangStatsQueryParams({
+        phones: selectedPhoneValues,
+        yearMonth: filterYearMonth,
+      });
 
       const response = await fetch(
         `/api/admin/quxiang/stats?${params.toString()}`,
       );
+
       if (!response.ok) {
         setStats([]);
+
         return;
       }
       const data = (await response.json()) as { items: StatsItem[] };
+
       setStats(data.items ?? []);
     } finally {
       setLoadingStats(false);
@@ -440,9 +373,10 @@ export default function QuxiangStatsPage() {
       body: JSON.stringify(payload),
     });
 
-    const data = (await response.json().catch(() => null)) as
-      | { item: SavedRecord; error?: string }
-      | null;
+    const data = (await response.json().catch(() => null)) as {
+      item: SavedRecord;
+      error?: string;
+    } | null;
 
     if (!response.ok || !data?.item) {
       // 简单失败处理：保持弹窗打开，用户可继续修改；必要时可加 toast
@@ -463,6 +397,7 @@ export default function QuxiangStatsPage() {
       const ids = Array.from(selectedSavedIds)
         .map((id) => Number(id))
         .filter((id) => Number.isFinite(id));
+
       if (ids.length === 0) return;
 
       const nextIsSold = bulkSavedIsSold;
@@ -521,7 +456,9 @@ export default function QuxiangStatsPage() {
   if (authorized !== "yes") {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-2">
-        <p className="text-default-500 text-sm">未授权访问，请先登录管理员账号。</p>
+        <p className="text-default-500 text-sm">
+          未授权访问，请先登录管理员账号。
+        </p>
       </div>
     );
   }
@@ -535,7 +472,8 @@ export default function QuxiangStatsPage() {
             粘贴短信内容（可一次多条），系统会自动识别“领取码为XXX”中的领取码，并支持按手机号和日期（YYYY-MM）进行归档管理。
           </p>
           <p className="text-xs text-default-400">
-            示例： 【西安象非象】您已成功订购权益会员，领取码为5epRc9，领取方式...
+            示例：
+            【西安象非象】您已成功订购权益会员，领取码为5epRc9，领取方式...
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -611,6 +549,7 @@ export default function QuxiangStatsPage() {
               <div className="flex flex-col gap-1">
                 <Select
                   className="w-64 max-w-full"
+                  isDisabled={phones.length === 0}
                   label="统一手机号（可选）"
                   placeholder={
                     phones.length === 0
@@ -625,14 +564,13 @@ export default function QuxiangStatsPage() {
                   onSelectionChange={(keys) => {
                     if (keys === "all") return;
                     const nextId =
-                      keys instanceof Set
-                        ? Array.from(keys)[0]
-                        : undefined;
+                      keys instanceof Set ? Array.from(keys)[0] : undefined;
                     const phoneValue =
                       nextId === undefined
                         ? undefined
                         : phones.find((p) => String(p.id) === String(nextId))
                             ?.value;
+
                     if (nextId !== undefined && !phoneValue) return;
                     setUnifiedPhoneId(
                       nextId === undefined ? null : String(nextId),
@@ -644,7 +582,6 @@ export default function QuxiangStatsPage() {
                       })),
                     );
                   }}
-                  isDisabled={phones.length === 0}
                 >
                   {phones.map((phone) => (
                     <SelectItem key={String(phone.id)}>
@@ -655,9 +592,9 @@ export default function QuxiangStatsPage() {
               </div>
               <div className="flex flex-col gap-1">
                 <YearMonthPicker
+                  ariaLabel="统一日期"
                   className="max-w-xs"
                   label="统一日期（可选，按月，YYYY-MM）"
-                  ariaLabel="统一日期"
                   size="sm"
                   onChange={(ym) => {
                     if (!ym) return;
@@ -690,8 +627,8 @@ export default function QuxiangStatsPage() {
                     设为已售出
                   </Switch>
                   <Input
-                    className="w-32"
                     aria-label="统一售出价格"
+                    className="w-32"
                     placeholder="价格"
                     size="sm"
                     type="number"
@@ -725,7 +662,9 @@ export default function QuxiangStatsPage() {
             <div className="flex items-center justify-between text-xs text-default-500">
               <span>
                 解析成功 {parsedRows.length} 条
-                {unparsedLines.length > 0 ? `，未识别 ${unparsedLines.length} 行` : ""}
+                {unparsedLines.length > 0
+                  ? `，未识别 ${unparsedLines.length} 行`
+                  : ""}
               </span>
               <Button size="sm" variant="flat" onPress={addManualRow}>
                 手动新增一条记录
@@ -734,8 +673,8 @@ export default function QuxiangStatsPage() {
 
             <div className="max-h-64 overflow-auto rounded-medium border border-default-200">
               <Table
-                aria-label="解析结果"
                 removeWrapper
+                aria-label="解析结果"
                 classNames={{
                   table: "min-w-full",
                 }}
@@ -770,24 +709,27 @@ export default function QuxiangStatsPage() {
                         <Select
                           aria-label="手机号"
                           className="max-w-[12rem] min-w-[8rem]"
+                          classNames={{
+                            popoverContent: "z-[10050]",
+                          }}
+                          isDisabled={phones.length === 0}
                           placeholder={
                             phones.length === 0
                               ? "请先在顶部配置手机号"
                               : "选择手机号"
                           }
                           popoverProps={PARSED_TABLE_SELECT_POPOVER_PROPS}
-                          classNames={{
-                            popoverContent: "z-[10050]",
-                          }}
-                          selectionMode="single"
                           selectedKeys={(() => {
                             const match = phones.find(
                               (p) => p.value === row.phone,
                             );
+
                             return match
                               ? new Set([String(match.id)])
                               : new Set<string>();
                           })()}
+                          selectionMode="single"
+                          size="sm"
                           onSelectionChange={(keys) => {
                             if (keys === "all") return;
                             const nextId =
@@ -800,13 +742,12 @@ export default function QuxiangStatsPage() {
                                 : phones.find(
                                     (p) => String(p.id) === String(nextId),
                                   )?.value;
+
                             updateRow(row.id, (prev) => ({
                               ...prev,
                               phone: phoneValue,
                             }));
                           }}
-                          isDisabled={phones.length === 0}
-                          size="sm"
                         >
                           {phones.map((phone) => (
                             <SelectItem
@@ -820,8 +761,8 @@ export default function QuxiangStatsPage() {
                       </TableCell>
                       <TableCell>
                         <YearMonthPicker
-                          className="max-w-[10rem]"
                           ariaLabel="解析结果日期"
+                          className="max-w-[10rem]"
                           size="sm"
                           value={row.yearMonth ?? null}
                           onChange={(ym) => {
@@ -866,14 +807,14 @@ export default function QuxiangStatsPage() {
                         {row.status === "saved"
                           ? "已保存"
                           : row.status === "error"
-                            ? row.errorMessage ?? "保存失败"
+                            ? (row.errorMessage ?? "保存失败")
                             : "待保存"}
                       </TableCell>
                       <TableCell>
                         <Button
+                          color="danger"
                           size="sm"
                           variant="light"
-                          color="danger"
                           onPress={() => {
                             setParsedRows((rows) =>
                               rows.filter((item) => item.id !== row.id),
@@ -904,22 +845,23 @@ export default function QuxiangStatsPage() {
             <div className="flex flex-col gap-1">
               <Select
                 className="w-72 max-w-full"
+                isDisabled={phones.length === 0}
                 label="手机号（可多选）"
                 placeholder={
                   phones.length === 0
                     ? "请先在顶部配置手机号"
                     : "不选则默认全部"
                 }
-                selectionMode="multiple"
                 selectedKeys={selectedPhoneIds}
+                selectionMode="multiple"
                 onSelectionChange={(keys) => {
                   const next =
                     keys instanceof Set
                       ? (keys as Set<string>)
                       : new Set<string>();
+
                   setSelectedPhoneIds(next);
                 }}
-                isDisabled={phones.length === 0}
               >
                 {phones.map((phone) => (
                   <SelectItem key={String(phone.id)}>{phone.value}</SelectItem>
@@ -929,6 +871,7 @@ export default function QuxiangStatsPage() {
                 <div className="flex flex-wrap gap-1">
                   {phones.map((phone) => {
                     const key = String(phone.id);
+
                     return (
                       <Chip
                         key={key}
@@ -944,9 +887,9 @@ export default function QuxiangStatsPage() {
             </div>
             <div className="flex flex-col gap-1">
               <YearMonthPicker
+                ariaLabel="归档筛选日期"
                 className="max-w-xs"
                 label="日期（可选，按月筛选，YYYY-MM）"
-                ariaLabel="归档筛选日期"
                 value={filterYearMonth || null}
                 onChange={(ym) => setFilterYearMonth(ym ?? "")}
               />
@@ -960,6 +903,7 @@ export default function QuxiangStatsPage() {
                   if (keys === "all") return;
                   const nextKey =
                     keys instanceof Set ? Array.from(keys)[0] : undefined;
+
                   if (
                     nextKey === "all" ||
                     nextKey === "sold" ||
@@ -976,22 +920,22 @@ export default function QuxiangStatsPage() {
             </div>
             <div className="flex flex-col gap-1">
               <Input
+                className="w-32"
                 label="最低价格"
                 placeholder="0"
                 size="sm"
                 type="number"
-                className="w-32"
                 value={minSoldPrice}
                 onChange={(e) => setMinSoldPrice(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-1">
               <Input
+                className="w-32"
                 label="最高价格"
                 placeholder="0"
                 size="sm"
                 type="number"
-                className="w-32"
                 value={maxSoldPrice}
                 onChange={(e) => setMaxSoldPrice(e.target.value)}
               />
@@ -1005,11 +949,12 @@ export default function QuxiangStatsPage() {
               查询
             </Button>
             <Button
-              variant="flat"
               size="sm"
+              variant="flat"
               onPress={async () => {
                 if (savedList.length === 0) return;
                 const text = buildQuxiangSavedListCopyText(savedList);
+
                 try {
                   await navigator.clipboard.writeText(text);
                 } catch {
@@ -1021,27 +966,27 @@ export default function QuxiangStatsPage() {
             </Button>
             <div className="flex flex-wrap items-center gap-2">
               <Switch
-                size="sm"
                 isSelected={bulkSavedIsSold}
+                size="sm"
                 onChange={(e) => setBulkSavedIsSold(e.target.checked)}
               >
                 批量设为已售出
               </Switch>
               <Input
                 aria-label="批量售出价格"
+                className="w-28"
+                isDisabled={!bulkSavedIsSold}
                 placeholder="价格"
                 size="sm"
                 type="number"
-                className="w-28"
                 value={bulkSavedPrice}
                 onChange={(e) => setBulkSavedPrice(e.target.value)}
-                isDisabled={!bulkSavedIsSold}
               />
               <Button
+                isDisabled={selectedSavedIds.size === 0}
+                isLoading={bulkUpdatingSaved}
                 size="sm"
                 variant="flat"
-                isLoading={bulkUpdatingSaved}
-                isDisabled={selectedSavedIds.size === 0}
                 onPress={handleBulkUpdateSaved}
               >
                 应用到已选
@@ -1051,19 +996,20 @@ export default function QuxiangStatsPage() {
 
           <div className="max-h-64 overflow-auto rounded-medium border border-default-200">
             <Table
-              aria-label="已保存记录"
               removeWrapper
+              aria-label="已保存记录"
               classNames={{
                 table: "min-w-full",
               }}
-              shadow="none"
-              selectionMode="multiple"
               selectedKeys={selectedSavedIds}
+              selectionMode="multiple"
+              shadow="none"
               onSelectionChange={(keys) => {
                 if (keys === "all") {
                   setSelectedSavedIds(
                     new Set(savedList.map((item) => String(item.id))),
                   );
+
                   return;
                 }
                 const next = new Set(
@@ -1071,6 +1017,7 @@ export default function QuxiangStatsPage() {
                     String(k),
                   ),
                 );
+
                 setSelectedSavedIds(next);
               }}
             >
@@ -1137,6 +1084,7 @@ export default function QuxiangStatsPage() {
                   }
                 />
                 <Select
+                  isDisabled={phones.length === 0}
                   label="手机号"
                   placeholder="选择手机号"
                   selectedKeys={
@@ -1148,27 +1096,27 @@ export default function QuxiangStatsPage() {
                     if (keys === "all") return;
                     const next =
                       keys instanceof Set ? Array.from(keys)[0] : undefined;
-                    const phoneValue =
-                      next === undefined ? "" : String(next);
+                    const phoneValue = next === undefined ? "" : String(next);
+
                     setEditingSaved((prev) =>
                       prev ? { ...prev, phone: phoneValue } : prev,
                     );
                   }}
-                  isDisabled={phones.length === 0}
                 >
                   {phones.map((p) => (
                     <SelectItem key={p.value}>{p.value}</SelectItem>
                   ))}
                 </Select>
                 <YearMonthPicker
-                  label="日期（按月，YYYY-MM）"
                   ariaLabel="编辑归档日期"
+                  label="日期（按月，YYYY-MM）"
                   value={editingSaved?.yearMonth ?? null}
                   onChange={(ym) => {
                     if (!ym) {
                       setEditingSaved((prev) =>
                         prev ? { ...prev, yearMonth: "" } : prev,
                       );
+
                       return;
                     }
                     setEditingSaved((prev) =>
@@ -1225,6 +1173,7 @@ export default function QuxiangStatsPage() {
 
       <Modal
         isOpen={configModalOpen}
+        placement="center"
         onOpenChange={(open) => {
           setConfigModalOpen(open);
           // 受控打开时若仅用 setState(true)，部分环境下不会触发此处；故按钮里已同步 init。
@@ -1232,7 +1181,6 @@ export default function QuxiangStatsPage() {
             initEditingPhonesFromStore();
           }
         }}
-        placement="center"
       >
         <ModalContent>
           {(onClose) => (
@@ -1242,15 +1190,18 @@ export default function QuxiangStatsPage() {
               </ModalHeader>
               <ModalBody className="space-y-3">
                 {editingPhones.map((phone, index) => (
-                  <div key={String(phone.id ?? index)} className="flex items-end gap-2">
+                  <div
+                    key={String(phone.id ?? index)}
+                    className="flex items-end gap-2"
+                  >
                     <Input
-                      autoFocus={index === 0}
                       className="flex-1"
                       label={`手机号 ${index + 1}`}
                       placeholder="如 13800000001"
                       value={phone.value}
                       onChange={(e) => {
                         const value = e.target.value;
+
                         setEditingPhones((current) =>
                           current.map((item) =>
                             item.id === phone.id ? { ...item, value } : item,
@@ -1259,10 +1210,10 @@ export default function QuxiangStatsPage() {
                       }}
                     />
                     <Button
-                      size="sm"
-                      variant="light"
                       color="danger"
                       isDisabled={editingPhones.length === 1}
+                      size="sm"
+                      variant="light"
                       onPress={() => {
                         setEditingPhones((current) =>
                           current.filter((item) => item.id !== phone.id),
@@ -1306,6 +1257,7 @@ export default function QuxiangStatsPage() {
 
                     if (normalized.length === 1) {
                       const phoneValue = normalized[0].value;
+
                       setParsedRows((rows) =>
                         rows.map((row) => ({
                           ...row,
@@ -1334,9 +1286,11 @@ export default function QuxiangStatsPage() {
                             }),
                           },
                         );
+
                         if (!response.ok) {
                           // eslint-disable-next-line no-console
                           console.error("保存手机号列表失败");
+
                           return;
                         }
                         const data = await response.json();
@@ -1348,6 +1302,7 @@ export default function QuxiangStatsPage() {
                           id: item.id,
                           value: item.phone,
                         }));
+
                         setPhones(nextPhones);
                         setSelectedPhoneIds(
                           new Set(nextPhones.map((p) => String(p.id))),
@@ -1368,7 +1323,9 @@ export default function QuxiangStatsPage() {
 
       <Card>
         <CardHeader className="flex flex-col items-start gap-1">
-          <h2 className="text-sm font-semibold">按手机号与日期（YYYY-MM）统计</h2>
+          <h2 className="text-sm font-semibold">
+            按手机号与日期（YYYY-MM）统计
+          </h2>
           <p className="text-xs text-default-500">
             统计每个手机号在每个月的领取码总数、售出数量以及售出总金额。
           </p>
@@ -1387,8 +1344,8 @@ export default function QuxiangStatsPage() {
 
           <div className="max-h-64 overflow-auto rounded-medium border border-default-200">
             <Table
-              aria-label="统计结果"
               removeWrapper
+              aria-label="统计结果"
               classNames={{
                 table: "min-w-full",
               }}
@@ -1408,12 +1365,8 @@ export default function QuxiangStatsPage() {
                     <TableCell className="text-xs">
                       {item.yearMonth ?? "-"}
                     </TableCell>
-                    <TableCell className="text-xs">
-                      {item.totalCodes}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {item.soldCount}
-                    </TableCell>
+                    <TableCell className="text-xs">{item.totalCodes}</TableCell>
+                    <TableCell className="text-xs">{item.soldCount}</TableCell>
                     <TableCell className="text-xs">
                       {item.totalSoldPrice ?? "-"}
                     </TableCell>
@@ -1427,4 +1380,3 @@ export default function QuxiangStatsPage() {
     </section>
   );
 }
-

@@ -1,13 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Card,
-  CardBody,
-  CardHeader,
-  Chip,
-  Button,
-} from "@heroui/react";
+import { Card, CardBody, CardHeader, Chip, Button } from "@heroui/react";
+
 import { CopyIcon, TrashIcon, HistoryIcon } from "@/components/icons/index";
 import {
   getShareHistory,
@@ -57,6 +52,7 @@ export function ShareHistory({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
+
     return date.toLocaleString("zh-CN", {
       month: "2-digit",
       day: "2-digit",
@@ -67,6 +63,7 @@ export function ShareHistory({
 
   const isExpired = (expiresAt?: string) => {
     if (!expiresAt) return false;
+
     return new Date(expiresAt) < new Date();
   };
 
@@ -80,7 +77,7 @@ export function ShareHistory({
         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
           历史记录
         </h3>
-        <Chip size="sm" variant="flat" startContent={<HistoryIcon size={16} />}>
+        <Chip size="sm" startContent={<HistoryIcon size={16} />} variant="flat">
           {history.length} 条
         </Chip>
       </CardHeader>
@@ -102,7 +99,7 @@ export function ShareHistory({
                       {item.shortUrl}
                     </code>
                     {isExpired(item.expiresAt) && (
-                      <Chip size="sm" color="warning" variant="flat">
+                      <Chip color="warning" size="sm" variant="flat">
                         已过期
                       </Chip>
                     )}
@@ -120,9 +117,9 @@ export function ShareHistory({
                 </div>
                 <div className="flex gap-1">
                   <Button
+                    isIconOnly
                     size="sm"
                     variant="light"
-                    isIconOnly
                     onPress={() => copyToClipboard(item)}
                   >
                     {copiedId === item.id ? (
@@ -132,10 +129,10 @@ export function ShareHistory({
                     )}
                   </Button>
                   <Button
+                    isIconOnly
+                    color="danger"
                     size="sm"
                     variant="light"
-                    color="danger"
-                    isIconOnly
                     onPress={() => deleteItem(item.id)}
                   >
                     <TrashIcon size={18} />

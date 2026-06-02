@@ -15,21 +15,18 @@ import {
 
 import { PRESET_DOWNLOADS } from "./constants";
 import { useTrafficConsumer } from "./hooks/use-traffic-consumer";
-import { formatFileSize, formatDownloadSpeed, formatTime } from "./utils/formatters";
+import {
+  formatFileSize,
+  formatDownloadSpeed,
+  formatTime,
+} from "./utils/formatters";
 
 export default function TrafficConsumerPage() {
   const [selectedDownload, setSelectedDownload] = useState("default");
   const [customUrl, setCustomUrl] = useState("");
 
-  const {
-    state,
-    start,
-    stop,
-    reset,
-    setUrl,
-    setThreadCount,
-    setIsInfinite,
-  } = useTrafficConsumer();
+  const { state, start, stop, reset, setUrl, setThreadCount, setIsInfinite } =
+    useTrafficConsumer();
 
   const {
     url,
@@ -46,6 +43,7 @@ export default function TrafficConsumerPage() {
   const handleDownloadChange = useCallback(
     (keys: any) => {
       const selectedKey = Array.from(keys)[0] as string;
+
       setSelectedDownload(selectedKey);
 
       if (selectedKey === "custom") {
@@ -53,7 +51,10 @@ export default function TrafficConsumerPage() {
           setUrl(customUrl);
         }
       } else {
-        const resource = PRESET_DOWNLOADS.find((item) => item.key === selectedKey);
+        const resource = PRESET_DOWNLOADS.find(
+          (item) => item.key === selectedKey,
+        );
+
         if (resource) {
           setUrl(resource.url);
         }
@@ -110,10 +111,10 @@ export default function TrafficConsumerPage() {
             <h2 className="text-xl font-semibold">下载配置</h2>
 
             <Select
+              isDisabled={isRunning}
               label="选择下载资源"
               selectedKeys={[selectedDownload]}
               onSelectionChange={handleDownloadChange}
-              isDisabled={isRunning}
             >
               {PRESET_DOWNLOADS.map((item) => (
                 <SelectItem key={item.key}>{item.label}</SelectItem>
@@ -122,11 +123,11 @@ export default function TrafficConsumerPage() {
 
             {selectedDownload === "custom" && (
               <Input
+                isDisabled={isRunning}
                 label="下载链接"
                 placeholder="https://example.com/file.zip"
                 value={customUrl}
                 onValueChange={handleCustomUrlChange}
-                isDisabled={isRunning}
               />
             )}
 
@@ -136,13 +137,13 @@ export default function TrafficConsumerPage() {
               </label>
               <Slider
                 className="max-w-md"
+                isDisabled={isRunning}
                 label="线程数"
                 maxValue={32}
                 minValue={1}
                 step={1}
                 value={threadCount}
                 onChange={(value) => setThreadCount(value as number)}
-                isDisabled={isRunning}
               />
               <p className="text-xs text-gray-500 mt-1">
                 提示：线程数越多，下载速度越快（建议 3-10 个）
@@ -154,9 +155,9 @@ export default function TrafficConsumerPage() {
                 无限循环
               </label>
               <Switch
+                isDisabled={isRunning}
                 isSelected={isInfinite}
                 onValueChange={setIsInfinite}
-                isDisabled={isRunning}
               />
             </div>
           </div>
@@ -173,7 +174,9 @@ export default function TrafficConsumerPage() {
 
               <div className="text-center p-4 bg-default-100 rounded-lg">
                 <p className="text-sm text-gray-600 mb-1">每秒实时流量</p>
-                <p className="text-2xl font-bold text-primary">{speedDisplay}</p>
+                <p className="text-2xl font-bold text-primary">
+                  {speedDisplay}
+                </p>
               </div>
 
               <div className="text-center p-4 bg-default-100 rounded-lg">
@@ -198,9 +201,9 @@ export default function TrafficConsumerPage() {
               </Button>
               <Button
                 color="secondary"
+                isDisabled={isRunning}
                 size="lg"
                 onPress={reset}
-                isDisabled={isRunning}
               >
                 重置
               </Button>
@@ -227,10 +230,10 @@ export default function TrafficConsumerPage() {
             <p>
               源码参考：{" "}
               <a
-                href="https://github.com/uu6/llxhq"
-                target="_blank"
-                rel="noopener noreferrer"
                 className="text-primary hover:underline"
+                href="https://github.com/uu6/llxhq"
+                rel="noopener noreferrer"
+                target="_blank"
               >
                 https://github.com/uu6/llxhq
               </a>

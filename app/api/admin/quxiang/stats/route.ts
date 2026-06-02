@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isUnauthorizedRequest } from "../_shared/auth";
+import { buildQuxiangListWhereClause } from "../_shared/filters";
+import { unauthorizedResponse } from "../_shared/responses";
+
 import { sql } from "@/lib/db";
-import { isAdminRequest } from "@/lib/admin-auth";
 
 type StatsRow = {
   phone: string;
@@ -12,8 +15,8 @@ type StatsRow = {
 };
 
 export async function GET(request: NextRequest) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isUnauthorizedRequest(request)) {
+    return unauthorizedResponse();
   }
 
   const { searchParams } = new URL(request.url);
@@ -21,33 +24,11 @@ export async function GET(request: NextRequest) {
   const phonesParam = searchParams.get("phones");
   const yearMonth = searchParams.get("yearMonth");
 
-  const whereParts: string[] = [];
-  const values: unknown[] = [];
-
-  if (phonesParam) {
-    const phones = phonesParam
-      .split(",")
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-    if (phones.length > 0) {
-      const placeholders = phones
-        .map((_, index) => `$${values.length + index + 1}`)
-        .join(", ");
-      whereParts.push(`phone IN (${placeholders})`);
-      values.push(...phones);
-    }
-  } else if (phone) {
-    whereParts.push(`phone = $${values.length + 1}`);
-    values.push(phone);
-  }
-
-  if (yearMonth) {
-    whereParts.push(`year_month = $${values.length + 1}`);
-    values.push(yearMonth);
-  }
-
-  const whereClause =
-    whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
+  const { whereClause, values } = buildQuxiangListWhereClause({
+    phone,
+    phonesParam,
+    yearMonth,
+  });
 
   const sqlText = `
     SELECT
@@ -75,4 +56,3 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ items });
 }
-

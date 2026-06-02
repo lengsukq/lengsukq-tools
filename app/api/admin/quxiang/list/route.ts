@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isUnauthorizedRequest } from "../_shared/auth";
+import { buildQuxiangListWhereClause } from "../_shared/filters";
+import { badRequest, unauthorizedResponse } from "../_shared/responses";
+
 import { ensureTables, sql } from "@/lib/db";
-import { isAdminRequest } from "@/lib/admin-auth";
 
 type Row = {
   id: number;
@@ -15,8 +18,8 @@ type Row = {
 };
 
 export async function GET(request: NextRequest) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isUnauthorizedRequest(request)) {
+    return unauthorizedResponse();
   }
 
   await ensureTables();
@@ -29,56 +32,18 @@ export async function GET(request: NextRequest) {
   const minSoldPriceParam = searchParams.get("minSoldPrice");
   const maxSoldPriceParam = searchParams.get("maxSoldPrice");
 
-  const conditions: string[] = [];
-  const values: unknown[] = [];
+  const { whereClause, values, error } = buildQuxiangListWhereClause({
+    phone,
+    phonesParam,
+    yearMonth,
+    isSoldParam,
+    minSoldPriceParam,
+    maxSoldPriceParam,
+  });
 
-  if (phonesParam) {
-    const phones = phonesParam
-      .split(",")
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-    if (phones.length > 0) {
-      const placeholders = phones
-        .map((_, index) => `$${values.length + index + 1}`)
-        .join(", ");
-      conditions.push(`phone IN (${placeholders})`);
-      values.push(...phones);
-    }
-  } else if (phone) {
-    conditions.push(`phone = $${values.length + 1}`);
-    values.push(phone);
+  if (error) {
+    return badRequest(error);
   }
-
-  if (yearMonth) {
-    conditions.push(`year_month = $${values.length + 1}`);
-    values.push(yearMonth);
-  }
-
-  if (isSoldParam === "true" || isSoldParam === "false") {
-    conditions.push(`is_sold = $${values.length + 1}`);
-    values.push(isSoldParam === "true");
-  }
-
-  if (minSoldPriceParam && minSoldPriceParam.trim().length > 0) {
-    const min = Number(minSoldPriceParam);
-    if (!Number.isFinite(min)) {
-      return NextResponse.json({ error: "minSoldPrice 非法" }, { status: 400 });
-    }
-    conditions.push(`sold_price >= $${values.length + 1}`);
-    values.push(min);
-  }
-
-  if (maxSoldPriceParam && maxSoldPriceParam.trim().length > 0) {
-    const max = Number(maxSoldPriceParam);
-    if (!Number.isFinite(max)) {
-      return NextResponse.json({ error: "maxSoldPrice 非法" }, { status: 400 });
-    }
-    conditions.push(`sold_price <= $${values.length + 1}`);
-    values.push(max);
-  }
-
-  const whereClause =
-    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const sqlText = `
     SELECT id, code, phone, year_month, is_sold, sold_price, created_at, raw_text
@@ -104,4 +69,3 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ items });
 }
-

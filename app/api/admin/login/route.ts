@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
   const password = body?.password;
 
   const adminPassword = process.env.ADMIN_PASSWORD;
+
   if (!adminPassword) {
     return NextResponse.json(
       {
@@ -18,17 +19,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (!password || typeof password !== "string") {
-    return NextResponse.json(
-      { error: "密码不能为空" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "密码不能为空" }, { status: 400 });
   }
 
   if (password !== adminPassword) {
-    return NextResponse.json(
-      { error: "密码错误" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "密码错误" }, { status: 401 });
   }
 
   const token = createAdminSessionToken();
@@ -44,4 +39,3 @@ export async function POST(request: NextRequest) {
 
   return response;
 }
-
