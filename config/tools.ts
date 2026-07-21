@@ -66,6 +66,11 @@ export const TOOLS: Tool[] = [
     href: "/pdf-watermark-remover",
   },
   {
+    title: "PDF密码解锁",
+    description: "移除PDF文件的打开密码保护，支持批量解锁，所有操作在本地完成",
+    href: "/pdf-unlocker",
+  },
+  {
     title: "短链接",
     description: "将长链接缩短，支持自定义短链，默认 30 天有效",
     href: "/short-link",

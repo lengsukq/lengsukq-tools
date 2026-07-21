@@ -19,6 +19,7 @@ export function Header() {
     { label: "首页", href: "/" },
     { label: "域名查询", href: "/domain-checker" },
     { label: "PDF去水印", href: "/pdf-watermark-remover" },
+    { label: "PDF解锁", href: "/pdf-unlocker" },
     { label: "图片压缩", href: "/image-compressor" },
     { label: "JSON格式化", href: "/json-formatter" },
   ];
