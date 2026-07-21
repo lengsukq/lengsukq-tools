@@ -23,10 +23,13 @@ export default function PdfUnlocker() {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const pdfFiles = acceptedFiles.filter(
-      (file) => file.type === "application/pdf",
+      (file) =>
+        file.type === "application/pdf" || /\.pdf$/i.test(file.name),
     );
 
     setFiles((prev) => [...prev, ...pdfFiles]);
+    setPassword("");
+    setPasswordError("");
     setProcessedFiles([]);
     setErrorFiles([]);
   }, []);
@@ -54,13 +57,15 @@ export default function PdfUnlocker() {
     setProgress({ current: 0, total: 0 });
   }, []);
 
+  const needsPassword = errorFiles.some((item) => item.requiresPassword);
+
   const handleUnlock = async () => {
     if (files.length === 0) {
       return;
     }
 
-    if (!password.trim()) {
-      setPasswordError("请输入PDF密码");
+    if (needsPassword && password.length === 0) {
+      setPasswordError("请输入 PDF 打开密码");
       return;
     }
 
@@ -70,12 +75,22 @@ export default function PdfUnlocker() {
     setProcessedFiles([]);
     setErrorFiles([]);
 
-    const result = await unlockMultiplePdfs(files, password.trim());
+    const result = await unlockMultiplePdfs(files, password, setProgress);
+    const stillNeedsPassword = result.errors.some(
+      (item) => item.requiresPassword,
+    );
 
     setProcessedFiles(result.success);
     setErrorFiles(result.errors);
-    setProgress({ current: result.success.length, total: files.length });
+    setProgress({ current: files.length, total: files.length });
     setProcessing(false);
+
+    if (stillNeedsPassword && password.length > 0) {
+      setPasswordError("打开密码不正确，请检查后重试");
+    } else if (!stillNeedsPassword) {
+      setPassword("");
+      setShowPassword(false);
+    }
   };
 
   const handleDownload = (file: ProcessedFile) => {
@@ -93,9 +108,9 @@ export default function PdfUnlocker() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">PDF 密码解锁工具</h1>
+        <h1 className="text-2xl font-bold mb-2">PDF 解锁工具</h1>
         <p className="text-default-600">
-          移除 PDF 文件的打开密码保护，解锁后可以自由阅读、编辑和打印。所有操作在本地完成，保护隐私安全
+          无需提前输入密码，直接移除 PDF 的复制、打印和编辑限制。全部处理都在浏览器本地完成，文件不会上传到服务器
         </p>
       </div>
 
@@ -109,11 +124,10 @@ export default function PdfUnlocker() {
               </span>
               <div className="text-sm text-default-700 dark:text-default-300">
                 <p className="mb-1">
-                  • 本工具仅用于解锁您拥有合法权限的PDF文件，请勿用于非法用途
+                  • 本工具仅用于处理您拥有合法权限的 PDF 文件，请勿用于非法用途
                 </p>
                 <p>
-                  •
-                  需要知道正确的PDF打开密码才能解锁，您需要先知道密码才能去除密码保护
+                  • 能正常打开但限制复制、打印或编辑的 PDF，无需密码即可解锁；若文件打开时就要求密码，仍需输入原密码
                 </p>
               </div>
             </div>
@@ -124,94 +138,94 @@ export default function PdfUnlocker() {
               功能特点：
             </h3>
             <ul className="space-y-1 text-sm text-default-600 dark:text-default-400">
-              <li>✓ 移除 PDF 打开密码保护</li>
+              <li>✓ 无需输入密码即可移除常见 PDF 权限限制</li>
+              <li>✓ 支持 AES-256、AES-128、RC4 等常见加密格式</li>
               <li>✓ 支持批量解锁多个 PDF 文件</li>
-              <li>✓ 解锁后保留所有原始内容和排版</li>
-              <li>✓ 不登录、无广告，完全免费</li>
-              <li>✓ 所有操作都在本地浏览器中完成，文件不会上传到服务器</li>
-              <li>
-                ✓
-                支持解锁后查看文件大小变化，直观了解解锁效果
-              </li>
+              <li>✓ 解锁后保留原始内容和排版</li>
+              <li>✓ QPDF WebAssembly 在浏览器 Web Worker 中运行</li>
+              <li>✓ 文件和密码不会上传到服务器</li>
             </ul>
           </div>
 
           <div className="bg-default-100 dark:bg-default-50 p-3 rounded-lg text-xs text-default-500 dark:text-default-400">
             <p>
               <strong>适用场景：</strong>
-              忘记密码的PDF文档、需要批量处理加密的PDF文件、去除了权限限制后方便打印和编辑
+              PDF 可以正常打开，但无法复制文字、打印、编辑或提取页面；也支持在已知打开密码时移除密码保护
             </p>
           </div>
         </CardBody>
       </Card>
 
-      {/* 密码输入 */}
-      <Card className="mb-6">
-        <CardBody>
-          <h2 className="text-lg font-semibold mb-4">输入 PDF 密码</h2>
-          <Input
-            className="max-w-md"
-            placeholder="请输入 PDF 文件的打开密码"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            isInvalid={!!passwordError}
-            errorMessage={passwordError}
-            onValueChange={(value) => {
-              setPassword(value);
-              if (passwordError) {
-                setPasswordError("");
+      {/* 只有真正需要打开密码时才显示密码输入 */}
+      {needsPassword && (
+        <Card className="mb-6 border border-warning-300">
+          <CardBody>
+            <h2 className="text-lg font-semibold mb-2">此文件需要打开密码</h2>
+            <p className="text-sm text-default-500 mb-4">
+              该 PDF 不是普通权限限制，而是内容已加密。请输入原始打开密码后重试；密码不会离开当前浏览器
+            </p>
+            <Input
+              autoComplete="off"
+              className="max-w-md"
+              placeholder="请输入 PDF 文件的打开密码"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              isInvalid={!!passwordError}
+              errorMessage={passwordError}
+              onValueChange={(value) => {
+                setPassword(value);
+                if (passwordError) {
+                  setPasswordError("");
+                }
+              }}
+              endContent={
+                <button
+                  aria-label="切换密码显示"
+                  className="focus:outline-none"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <svg
+                      className="h-5 w-5 text-default-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="h-5 w-5 text-default-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                      />
+                      <path
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                      />
+                    </svg>
+                  )}
+                </button>
               }
-            }}
-            endContent={
-              <button
-                aria-label="切换密码显示"
-                className="focus:outline-none"
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? (
-                  <svg
-                    className="h-5 w-5 text-default-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="h-5 w-5 text-default-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                    />
-                    <path
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                    />
-                  </svg>
-                )}
-              </button>
-            }
-          />
-          <p className="text-xs text-default-400 mt-2">
-            请输入 PDF 文件设置的打开密码
-          </p>
-        </CardBody>
-      </Card>
+            />
+          </CardBody>
+        </Card>
+      )}
 
       {/* 上传区域 */}
       <Card className="mb-6">
@@ -246,7 +260,7 @@ export default function PdfUnlocker() {
                 </div>
                 <p>点击或拖放 PDF 文件到这里上传</p>
                 <p className="text-sm text-default-500 mt-1">
-                  支持批量上传多个加密 PDF 文件
+                  可直接处理权限受限 PDF；检测到打开密码时再提示输入
                 </p>
               </div>
             )}
@@ -316,12 +330,16 @@ export default function PdfUnlocker() {
               <Button
                 className="w-full"
                 color="primary"
-                isDisabled={processing || !password.trim()}
+                isDisabled={
+                  processing || (needsPassword && password.length === 0)
+                }
                 onPress={handleUnlock}
               >
                 {processing
-                  ? `解锁中... ${progress.current}/${progress.total}`
-                  : "开始解锁"}
+                  ? `本地解锁中... ${progress.current}/${progress.total}`
+                  : needsPassword
+                    ? "使用密码重试"
+                    : "直接解锁（无需密码）"}
               </Button>
             </div>
           )}

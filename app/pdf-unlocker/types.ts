@@ -10,7 +10,21 @@ export interface ProcessedFile {
   unlockedSize: number;
 }
 
+export type UnlockErrorCode =
+  | "PASSWORD_REQUIRED"
+  | "INVALID_PASSWORD"
+  | "UNSUPPORTED_BROWSER"
+  | "INVALID_PDF"
+  | "PROCESSING_FAILED";
+
 export interface UnlockError {
   name: string;
   error: string;
+  code: UnlockErrorCode;
+  requiresPassword: boolean;
+}
+
+export interface UnlockProgress {
+  current: number;
+  total: number;
 }
