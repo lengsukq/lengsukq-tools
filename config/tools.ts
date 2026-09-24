@@ -85,4 +85,9 @@ export const TOOLS: Tool[] = [
     description: "类似 Postman 的工具，通过服务器代理绕过 CORS 限制",
     href: "/api-client",
   },
+  {
+    title: "本地视频墙",
+    description: "从本机选择视频或读取文件夹，多窗口同时播放并自定义网格布局",
+    href: "/video-wall",
+  },
 ];

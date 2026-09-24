@@ -23,8 +23,7 @@ export default function PdfUnlocker() {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const pdfFiles = acceptedFiles.filter(
-      (file) =>
-        file.type === "application/pdf" || /\.pdf$/i.test(file.name),
+      (file) => file.type === "application/pdf" || /\.pdf$/i.test(file.name),
     );
 
     setFiles((prev) => [...prev, ...pdfFiles]);
@@ -66,6 +65,7 @@ export default function PdfUnlocker() {
 
     if (needsPassword && password.length === 0) {
       setPasswordError("请输入 PDF 打开密码");
+
       return;
     }
 
@@ -110,7 +110,8 @@ export default function PdfUnlocker() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-2">PDF 解锁工具</h1>
         <p className="text-default-600">
-          无需提前输入密码，直接移除 PDF 的复制、打印和编辑限制。全部处理都在浏览器本地完成，文件不会上传到服务器
+          无需提前输入密码，直接移除 PDF
+          的复制、打印和编辑限制。全部处理都在浏览器本地完成，文件不会上传到服务器
         </p>
       </div>
 
@@ -127,7 +128,8 @@ export default function PdfUnlocker() {
                   • 本工具仅用于处理您拥有合法权限的 PDF 文件，请勿用于非法用途
                 </p>
                 <p>
-                  • 能正常打开但限制复制、打印或编辑的 PDF，无需密码即可解锁；若文件打开时就要求密码，仍需输入原密码
+                  • 能正常打开但限制复制、打印或编辑的
+                  PDF，无需密码即可解锁；若文件打开时就要求密码，仍需输入原密码
                 </p>
               </div>
             </div>
@@ -150,7 +152,8 @@ export default function PdfUnlocker() {
           <div className="bg-default-100 dark:bg-default-50 p-3 rounded-lg text-xs text-default-500 dark:text-default-400">
             <p>
               <strong>适用场景：</strong>
-              PDF 可以正常打开，但无法复制文字、打印、编辑或提取页面；也支持在已知打开密码时移除密码保护
+              PDF
+              可以正常打开，但无法复制文字、打印、编辑或提取页面；也支持在已知打开密码时移除密码保护
             </p>
           </div>
         </CardBody>
@@ -162,22 +165,12 @@ export default function PdfUnlocker() {
           <CardBody>
             <h2 className="text-lg font-semibold mb-2">此文件需要打开密码</h2>
             <p className="text-sm text-default-500 mb-4">
-              该 PDF 不是普通权限限制，而是内容已加密。请输入原始打开密码后重试；密码不会离开当前浏览器
+              该 PDF
+              不是普通权限限制，而是内容已加密。请输入原始打开密码后重试；密码不会离开当前浏览器
             </p>
             <Input
               autoComplete="off"
               className="max-w-md"
-              placeholder="请输入 PDF 文件的打开密码"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              isInvalid={!!passwordError}
-              errorMessage={passwordError}
-              onValueChange={(value) => {
-                setPassword(value);
-                if (passwordError) {
-                  setPasswordError("");
-                }
-              }}
               endContent={
                 <button
                   aria-label="切换密码显示"
@@ -222,6 +215,17 @@ export default function PdfUnlocker() {
                   )}
                 </button>
               }
+              errorMessage={passwordError}
+              isInvalid={!!passwordError}
+              placeholder="请输入 PDF 文件的打开密码"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onValueChange={(value) => {
+                setPassword(value);
+                if (passwordError) {
+                  setPasswordError("");
+                }
+              }}
             />
           </CardBody>
         </Card>
@@ -306,8 +310,8 @@ export default function PdfUnlocker() {
                     </div>
                     <button
                       className="text-default-400 hover:text-danger transition-colors flex-shrink-0 ml-2"
-                      onClick={() => removeFile(index)}
                       type="button"
+                      onClick={() => removeFile(index)}
                     >
                       <svg
                         className="h-4 w-4"

@@ -22,6 +22,7 @@ export function Header() {
     { label: "PDF解锁", href: "/pdf-unlocker" },
     { label: "图片压缩", href: "/image-compressor" },
     { label: "JSON格式化", href: "/json-formatter" },
+    { label: "本地视频墙", href: "/video-wall" },
   ];
 
   const isActive = (href: string) => {
