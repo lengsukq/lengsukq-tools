@@ -31,6 +31,11 @@ export const TOOLS: Tool[] = [
     href: "/random-number-generator",
   },
   {
+    title: "一掷千金",
+    description: "选定幸运箱，逐轮揭晓奖金，接受银行报价或继续冲击百万大奖",
+    href: "/deal-or-no-deal",
+  },
+  {
     title: "图片压缩",
     description: "支持PNG和JPG格式的图片压缩，可自定义压缩质量",
     href: "/image-compressor",
