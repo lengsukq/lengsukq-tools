@@ -674,6 +674,21 @@
       box-shadow: 0 0 10px rgba(0, 255, 170, 0.3) !important;
     }
 
+    #btn-test-vibrate {
+      border-color: rgba(0, 255, 170, 0.5);
+      color: #a5ffe0;
+      font-size: 11px;
+      white-space: nowrap;
+      padding: 7px 9px;
+    }
+
+    #btn-test-vibrate:hover { background: rgba(0, 255, 170, 0.16); }
+
+    @media (max-width: 760px) {
+      .gamepad-pill #gamepad-name { display: none; }
+      #btn-test-vibrate { padding: 5px 7px; font-size: 10px; }
+    }
+
     /* Help Manual Modal Styling */
     .modal-help-card {
       max-width: 840px !important;
@@ -986,8 +1001,10 @@
     </div>
 
     <div class="hud-right">
-      <div id="gamepad-badge" class="stat-pill gamepad-pill" style="display:none;" title="手柄已连接 (点击可测试/切换震动)">🎮 <span id="gamepad-name">手柄已就绪</span></div>
+      <div id="gamepad-badge" class="stat-pill gamepad-pill" style="display:none;" title="手柄连接状态">🎮 <span id="gamepad-name">手柄已就绪</span></div>
+      <button class="hud-btn" id="btn-fullscreen" title="全屏模式 (快捷键: F)">⛶</button>
       <button class="hud-btn" id="btn-vibrate" title="手柄震动：开/关">📳</button>
+      <button class="hud-btn" id="btn-test-vibrate" title="主动测试手柄震动（需要浏览器与手柄支持）" style="display:none;">震动测试</button>
       <button class="hud-btn" id="btn-help" title="游戏说明 / 战术指南">📖</button>
       <button class="hud-btn" id="btn-aim" title="瞄准模式：自动/手动">🎯</button>
       <button class="hud-btn" id="btn-sound" title="音效开关">🔊</button>
@@ -1032,6 +1049,7 @@
         <span><span class="keyboard-hint">🎮 手柄</span> 即插即用 (双摇杆+A/RB折跃)</span>
         <span><span class="keyboard-hint">WASD / 方向键</span> 键盘移动</span>
         <span><span class="keyboard-hint">空格 / 右键</span> 折跃冲刺</span>
+        <span><span class="keyboard-hint">F</span> 一键全屏</span>
       </div>
 
       <div style="font-size: 12px; color: #7383a0; margin-bottom: 20px;">
@@ -1096,7 +1114,7 @@
           <div class="help-card-grid">
             <div class="help-box">
               <div class="help-box-title">🎮 游戏手柄控制 (GAMEPAD)</div>
-              <p>完美支持 Xbox / PlayStation DualSense / Switch Pro / PC 蓝牙手柄：</p>
+              <p>兼容浏览器 Gamepad API 的 Xbox / PlayStation / Switch / PC 手柄；震动能力取决于浏览器、操作系统和连接方式：</p>
               <ul>
                 <li><b>左摇杆 / 十字键</b>：360° 模拟飞行移动与八向平移</li>
                 <li><b>右摇杆</b>：360° 双摇杆独立瞄准射击</li>
@@ -1104,7 +1122,8 @@
                 <li><b>Start / Options 键</b>：暂停游戏 / 呼出菜单</li>
                 <li><b>Select / Y 键</b>：一键切换 🎯 自动/手动瞄准模式</li>
                 <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键确认装配</li>
-                <li><b>震动反馈与独立开关</b>：支持力反馈震动（冲刺短震、受击中震、Boss重震）；可随时轻触顶部 📳 按钮或点击手柄徽章一键开启/关闭震动</li>
+                <li><b>震动反馈与测试</b>：顶部 📳 是开关；点击已连接手柄徽章或「震动测试」按钮可主动检测</li>
+                <li><b>震动无效？</b>：先操作手柄并点击测试。若提示不支持，可换支持震动的浏览器或尝试 USB 连接。浏览器接受震动请求并不代表硬件一定执行</li>
               </ul>
             </div>
 
@@ -1115,6 +1134,7 @@
                 <li><b>空格键</b> 或 <b>鼠标右键</b>：消耗 1 格能量折跃瞬移斩</li>
                 <li><b>鼠标移动</b>：指示武器瞄准发射方位</li>
                 <li><b>鼠标左键</b>：开火射击（自动瞄准模式下战机会智能索敌）</li>
+                <li><b>F 键</b>：一键进入 / 退出全屏模式</li>
                 <li><b>P 键 / ESC 键</b>：快速暂停游戏</li>
               </ul>
             </div>
@@ -1236,6 +1256,7 @@
   </div>
 
   <!-- JAVASCRIPT GAME LOGIC -->
+  <script src="/Game/gamepad_haptics.js"></script>
   <script>
     /* ==========================================================================
        1. SYNTHESIS AUDIO SYSTEM (Web Audio API - Zero External Audio Files)
@@ -2098,6 +2119,7 @@
 
       setupEvents() {
         window.addEventListener('resize', () => this.resize());
+        document.addEventListener('fullscreenchange', () => this.updateFullscreenButton());
 
         // Keyboard
         window.addEventListener('keydown', (e) => {
@@ -2110,6 +2132,11 @@
           if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
             if (this.state === 'playing') this.pauseGame();
             else if (this.state === 'paused') this.resumeGame();
+          }
+          if (!e.repeat && e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey &&
+              !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+            this.toggleFullscreen();
+            e.preventDefault();
           }
         });
 
@@ -2236,14 +2263,18 @@
           updateVibrateBtnStyle();
         }
 
-        // 点击手柄徽章快速切换/测试震动
+        const btnTestVibrate = document.getElementById('btn-test-vibrate');
+        if (btnTestVibrate) btnTestVibrate.onclick = () => this.testGamepadVibration();
+
+        const btnFullscreen = document.getElementById('btn-fullscreen');
+        if (btnFullscreen) btnFullscreen.onclick = () => this.toggleFullscreen();
+        this.updateFullscreenButton();
+
+        // Connected badge is an independent haptics test; the toggle is separate.
         const gamepadBadge = document.getElementById('gamepad-badge');
         if (gamepadBadge) {
           gamepadBadge.style.cursor = 'pointer';
-          gamepadBadge.onclick = () => {
-            this.toggleGamepadVibration();
-            updateVibrateBtnStyle();
-          };
+          gamepadBadge.onclick = () => this.testGamepadVibration();
         }
 
         document.getElementById('btn-start-game').onclick = () => {
@@ -2340,36 +2371,106 @@
         }
       }
 
+      updateFullscreenButton() {
+        const button = document.getElementById('btn-fullscreen');
+        if (!button) return;
+        const active = Boolean(document.fullscreenElement);
+        button.textContent = active ? '⤢' : '⛶';
+        button.title = active ? '退出全屏 (F)' : '进入全屏 (F)';
+        button.setAttribute('aria-label', button.title);
+      }
+
+      async toggleFullscreen() {
+        try {
+          if (document.fullscreenElement) {
+            if (!document.exitFullscreen) throw new Error('unsupported');
+            await document.exitFullscreen();
+          } else {
+            if (!document.documentElement.requestFullscreen) throw new Error('unsupported');
+            await document.documentElement.requestFullscreen();
+          }
+        } catch (err) {
+          this.showGamepadFeedback('浏览器不支持或阻止了全屏模式', '#ffba8a');
+        }
+        this.updateFullscreenButton();
+      }
+
+      showGamepadFeedback(message, color = '#00ffaa') {
+        const status = document.getElementById('gamepad-name');
+        if (status && this.gamepadIndex >= 0) {
+          status.textContent = message;
+          status.title = message;
+        }
+        this.texts.push({
+          x: this.player ? this.player.x : this.width / 2,
+          y: this.player ? this.player.y - 55 : this.height / 2 - 50,
+          text: message,
+          color,
+          size: 15,
+          life: 2.2,
+          maxLife: 2.2
+        });
+      }
+
+      async testGamepadVibration() {
+        if (!this.gamepadVibrationEnabled) {
+          this.showGamepadFeedback('震动已关闭，点击震动开关启用', '#ffba8a');
+          return { status: 'disabled' };
+        }
+        const result = await GamepadHaptics.playConnected(this.gamepadIndex, 350, 0.95, 0.8);
+        const feedback = {
+          accepted: '浏览器已接受震动请求，请检查实际反馈',
+          unsupported: '当前手柄或浏览器不支持震动接口',
+          disconnected: '未检测到已连接的游戏手柄',
+          rejected: '震动请求被浏览器或手柄拒绝'
+        };
+        this.showGamepadFeedback(feedback[result.status], result.status === 'accepted' ? '#00ffaa' : '#ffba8a');
+        return result;
+      }
+
       setupGamepad() {
         this.gamepadIndex = -1;
         this.gamepadPrevButtons = {};
         this.gamepadSelectedUpgradeIdx = 0;
         this.gamepadNavTimer = 0;
 
+        this.syncGamepadBadge = (gp) => {
+          const badge = document.getElementById('gamepad-badge');
+          const testButton = document.getElementById('btn-test-vibrate');
+          if (badge) badge.style.display = gp ? 'inline-flex' : 'none';
+          if (testButton) testButton.style.display = gp ? 'inline-flex' : 'none';
+          if (gp) {
+            const name = document.getElementById('gamepad-name');
+            if (name) name.textContent = GamepadHaptics.supportsRumble(gp)
+              ? '已连接 · 点击测试震动' : '已连接 · 无震动接口';
+          }
+        };
+
         window.addEventListener('gamepadconnected', (e) => {
           this.gamepadIndex = e.gamepad.index;
-          const badge = document.getElementById('gamepad-badge');
-          if (badge) {
-            badge.style.display = 'inline-flex';
-            const nameEl = document.getElementById('gamepad-name');
-            if (nameEl) nameEl.textContent = '手柄已就绪';
-          }
+          const haptics = GamepadHaptics.supportsRumble(e.gamepad);
+          this.syncGamepadBadge(e.gamepad);
           this.texts.push({
             x: this.player ? this.player.x : this.width / 2,
             y: this.player ? this.player.y - 60 : this.height / 2 - 50,
-            text: '🎮 手柄已连接！支持双摇杆与震动！',
+            text: haptics ? '手柄已连接 · 点击测试震动' : '手柄已连接 · 未检测到震动接口',
             color: '#00ffaa',
             size: 18,
             life: 2.5,
             maxLife: 2.5
           });
-          this.vibrateGamepad(150, 0.4, 0.2);
+          // Browsers can deny haptics without a user gesture. Do not claim
+          // vibration on connect; the explicit test button supplies a gesture.
         });
 
         window.addEventListener('gamepaddisconnected', (e) => {
-          this.gamepadIndex = -1;
-          const badge = document.getElementById('gamepad-badge');
-          if (badge) badge.style.display = 'none';
+          const remaining = GamepadHaptics.connectedGamepads().find(gp => gp.index !== e.gamepad.index);
+          this.gamepadIndex = remaining ? remaining.index : -1;
+          this.syncGamepadBadge(remaining);
+          if (!remaining) {
+            this.gamepadMove = { x: 0, y: 0 };
+            this.gamepadPrevButtons = {};
+          }
           this.texts.push({
             x: this.player ? this.player.x : this.width / 2,
             y: this.player ? this.player.y - 60 : this.height / 2 - 50,
@@ -2386,7 +2487,9 @@
         this.gamepadVibrationEnabled = !this.gamepadVibrationEnabled;
         SafeStorage.set('neon_vibration', this.gamepadVibrationEnabled ? 'true' : 'false');
         if (this.gamepadVibrationEnabled) {
-          this.vibrateGamepad(160, 0.65, 0.45);
+          // Called from a direct click: test immediately while user activation
+          // is still available for browsers with haptic gesture restrictions.
+          this.testGamepadVibration();
         }
         this.texts.push({
           x: this.player ? this.player.x : this.width / 2,
@@ -2400,63 +2503,8 @@
       }
 
       vibrateGamepad(duration = 100, strong = 0.5, weak = 0.3) {
-        if (!this.gamepadVibrationEnabled) return;
-        if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
-        let gamepads;
-        try { gamepads = navigator.getGamepads(); } catch (e) { return; }
-        if (!gamepads) return;
-
-        const activeGps = [];
-        if (this.gamepadIndex >= 0 && gamepads[this.gamepadIndex] && gamepads[this.gamepadIndex].connected) {
-          activeGps.push(gamepads[this.gamepadIndex]);
-        }
-        for (let i = 0; i < gamepads.length; i++) {
-          const g = gamepads[i];
-          if (g && g.connected && !activeGps.includes(g)) {
-            activeGps.push(g);
-          }
-        }
-
-        const d = Math.max(40, Math.min(duration, 1500));
-        const s = Math.max(0, Math.min(strong, 1));
-        const w = Math.max(0, Math.min(weak, 1));
-
-        for (const gp of activeGps) {
-          // 方式 A: vibrationActuator (Chrome, Edge, Opera, WebKit标准实现)
-          if (gp.vibrationActuator) {
-            if (typeof gp.vibrationActuator.playEffect === 'function') {
-              try {
-                gp.vibrationActuator.playEffect('dual-rumble', {
-                  startDelay: 0,
-                  duration: d,
-                  weakMagnitude: w,
-                  strongMagnitude: s
-                }).catch(() => {
-                  try {
-                    if (typeof gp.vibrationActuator.pulse === 'function') {
-                      gp.vibrationActuator.pulse(Math.max(s, w), d);
-                    }
-                  } catch (err2) {}
-                });
-              } catch (err) {}
-            } else if (typeof gp.vibrationActuator.pulse === 'function') {
-              try {
-                gp.vibrationActuator.pulse(Math.max(s, w), d);
-              } catch (err) {}
-            }
-          }
-          // 方式 B: hapticActuators (Firefox, VR控制器, 备用接口)
-          if (gp.hapticActuators && gp.hapticActuators.length > 0) {
-            for (let k = 0; k < gp.hapticActuators.length; k++) {
-              const act = gp.hapticActuators[k];
-              if (act && typeof act.pulse === 'function') {
-                try {
-                  act.pulse(Math.max(s, w), d);
-                } catch (err) {}
-              }
-            }
-          }
-        }
+        if (!this.gamepadVibrationEnabled) return Promise.resolve({ status: 'disabled' });
+        return GamepadHaptics.playConnected(this.gamepadIndex, duration, strong, weak);
       }
 
       pollGamepad(dt) {
@@ -2473,12 +2521,18 @@
             break;
           }
         }
-        if (!gp) return;
+        if (!gp) {
+          if (this.gamepadIndex !== -1) {
+            this.gamepadIndex = -1;
+            this.gamepadMove = { x: 0, y: 0 };
+            this.gamepadPrevButtons = {};
+            this.syncGamepadBadge(null);
+          }
+          return;
+        }
 
         const badge = document.getElementById('gamepad-badge');
-        if (badge && badge.style.display === 'none') {
-          badge.style.display = 'inline-flex';
-        }
+        if (badge && badge.style.display === 'none') this.syncGamepadBadge(gp);
 
         const isPressed = (btnIdx) => {
           const btn = gp.buttons[btnIdx];
