@@ -1,5 +1,6 @@
 import { title, subtitle } from "@/components/primitives";
 import { ToolCard } from "@/components/tool-card";
+import { GAMES } from "@/config/games";
 import { TOOLS } from "@/config/tools";
 
 export default function Home() {
@@ -20,6 +21,20 @@ export default function Home() {
         {TOOLS.map((tool) => (
           <ToolCard key={tool.href} {...tool} />
         ))}
+      </div>
+
+      <div className="w-full max-w-7xl">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-2xl" aria-hidden="true">
+            🎮
+          </span>
+          <h2 className="text-2xl font-bold">小游戏专区</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+          {GAMES.map((game) => (
+            <ToolCard {...game} key={game.href} />
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -7,8 +7,9 @@ import { Header } from "./header";
 export function ConditionalHeader() {
   const pathname = usePathname();
   const isHomePage = pathname === "/";
+  const isGamePage = pathname?.startsWith("/games/");
 
-  if (isHomePage) {
+  if (isHomePage || isGamePage) {
     return null;
   }
 
