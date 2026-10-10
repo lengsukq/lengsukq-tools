@@ -32,7 +32,9 @@
     .actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.btn{appearance:none;border:1px solid #ffffff2f;background:#ffffff0f;color:white;border-radius:13px;padding:13px 9px;cursor:pointer;font:inherit;font-size:13px;transition:.2s}.btn:hover{border-color:#bba7ff;background:#ffffff1b}.btn:focus-visible{outline:2px solid #a7ffdd}.btn.primary{background:#ddceff;color:#292142;border-color:transparent;font-weight:700}.btn.primary:hover{background:#f0eaff}
     .hint{border:1px solid #c1adff30;background:#7b67c01c;border-radius:15px;padding:15px;color:#d1c9e5;font-size:12px;line-height:1.85}.hint strong{color:#d8ccff}
     #toast{min-height:40px;color:#b6ffda;font-size:13px;line-height:1.6;transition:opacity .25s}
-    .level-pips{display:flex;gap:9px}.level-pips span{width:30px;height:5px;border-radius:3px;background:#ffffff24}.level-pips span.done{background:#a9ffe1}.level-pips span.current{background:#d3baff;box-shadow:0 0 15px #af91fa}
+    .level-pips{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}.level-pips button{height:29px;border:1px solid #ffffff25;border-radius:8px;color:#a69fbc;background:#ffffff08;font:11px ui-sans-serif,system-ui;cursor:pointer}
+    .level-pips button.done{background:#a9ffe124;color:#caffee;border-color:#9df4d065}.level-pips button.current{background:#bca1f64a;color:#fff;border-color:#bca1f6}
+    .level-pips button:disabled{opacity:.35;cursor:not-allowed}.level-pips button:focus-visible{outline:2px solid #b5ffdf}
     .footer{font-size:11px;letter-spacing:.14em;color:#777493;text-align:center;margin-top:27px}
     @media(max-width:810px){.content{grid-template-columns:1fr}.side{padding:22px}.layout{padding:22px 14px 42px}h1{margin-top:22px}.intro{margin-bottom:20px}}
     @media(max-width:480px){.board-shell{padding:9px}.board-head{padding:8px 7px 11px}.top{padding-bottom:15px}.legend{gap:10px;font-size:11px}}
@@ -52,11 +54,12 @@
       <div class="legend"><span><i class="dot m"></i>点击旋转镜片</span><span><i class="dot f"></i>点亮终点花朵</span><span><i class="dot o"></i>光源出发点</span></div>
     </section>
     <aside class="glass side">
-      <div><span class="eyebrow">CHAPTER <span id="levelIndex">01</span> / 04</span><h2 id="levelName" class="chapter">晨雾初醒</h2><p id="levelText" class="desc">将光束折向月光花，唤醒静止的第一片花瓣。</p></div>
-      <div class="level-pips" id="levelPips" aria-label="关卡进度"></div>
+      <div><span class="eyebrow">CHAPTER <span id="levelIndex">01</span> / 30</span><h2 id="levelName" class="chapter">晨雾初醒</h2><p id="levelText" class="desc">将光束折向月光花，唤醒静止的第一片花瓣。</p></div>
+      <div class="micro">CHOOSE A GARDEN / 已解锁关卡</div>
+      <div class="level-pips" id="levelPips" aria-label="关卡选择"></div>
       <div class="divider"></div>
       <div class="statline"><span>镜片转动</span><strong id="moves">00</strong></div>
-      <div class="statline"><span>已点亮的花园</span><strong id="solved">0 / 4</strong></div>
+      <div class="statline"><span>已点亮的花园</span><strong id="solved">0 / 30</strong></div>
       <div class="progress"><span id="progressBar"></span></div>
       <div class="actions"><button class="btn" id="reset">↺ 重置本关</button><button class="btn" id="hint">✧ 轻声提示</button></div>
       <button class="btn primary" id="next" hidden>步入下一座花园 →</button>
@@ -69,19 +72,69 @@
 <script>
 (() => {
   'use strict';
-  const levels = [
+  const starterLevels = [
     {name:'晨雾初醒',intro:'一束晨光穿过温室，花朵在左侧静静等待。',source:[0,5,0],flower:[1,4],mirrors:[[3,5,0],[3,2,1],[1,2,0]],rocks:[[6,4],[6,2]]},
     {name:'月光回廊',intro:'让光沿着长廊折返，再穿过最远处的露台。',source:[0,6,0],flower:[7,4],mirrors:[[5,6,0],[5,1,1],[2,1,0],[2,4,1]],rocks:[[3,3],[7,2],[0,2]]},
     {name:'夜莺的信',intro:'曲折回旋的旅程，也是夜莺带来的一封情书。',source:[0,3,0],flower:[0,1],mirrors:[[2,3,1],[2,5,1],[6,5,0],[6,1,1]],rocks:[[4,2],[7,3],[4,4]]},
     {name:'永恒春分',intro:'最后一束光，从西边出发，照亮整座沉睡的庭园。',source:[7,6,2],flower:[0,4],mirrors:[[4,6,1],[4,2,0],[6,2,1],[6,4,0]],rocks:[[2,2],[1,5],[7,0]]}
   ];
+  const normals=[[1,0],[0,1],[-1,0],[0,-1]];
+  const reflect=(d,type)=>type===0?[3,2,1,0][d]:[1,0,3,2][d];
+  const key=(x,y)=>x+','+y;
+  const titles=['星屑的种子','青绿日记','松影隧道','薄暮画室','雾的圆舞','绯红晨露',
+    '琥珀花房','第七座花架','银翼折枝','珊瑚月夜','静谧诗行','倾斜的夏天',
+    '晶体迁徙','夜雨留声','玻璃森林','蓝色候鸟','遥远回廊','时间倒映',
+    '月背信笺','绵延的虹','凛冬序曲','万象玻璃','回光之书','漂浮几何',
+    '光锥舞会','晨星回旋','无声星群','孤岛折返','宇宙温室','万物复苏'];
+  function randomizer(seed){let n=seed>>>0;return()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296}}
+  // Build a verified, self-avoiding ray with a new succession of turns for every chapter.
+  function generateLevel(number){
+    const random=randomizer(number*97823+67);
+    const wanted=Math.min(7,2+Math.floor(number/5));
+    for(let attempt=0;attempt<260;attempt++){
+      const source=[0,1+Math.floor(random()*5),0],path=[[source[0],source[1]]],visited=new Set([key(...source)]),mirrors=[];
+      let x=source[0],y=source[1],d=source[2],failed=false;
+      for(let turn=0;turn<wanted;turn++){
+        const choices=[];
+        for(let distance=1;distance<=5;distance++){
+          const nx=x+normals[d][0]*distance,ny=y+normals[d][1]*distance;
+          if(nx<0||nx>7||ny<0||ny>6)break;
+          if(visited.has(key(nx,ny)))break;
+          for(const nd of [(d+1)%4,(d+3)%4]){
+            const tx=nx+normals[nd][0],ty=ny+normals[nd][1];
+            if(tx>=0&&tx<=7&&ty>=0&&ty<=6&&!visited.has(key(tx,ty)))choices.push({distance,nd,nx,ny});
+          }
+        }
+        if(!choices.length){failed=true;break}
+        const choice=choices[Math.floor(random()*choices.length)];
+        for(let j=0;j<choice.distance;j++){x+=normals[d][0];y+=normals[d][1];visited.add(key(x,y));path.push([x,y])}
+        mirrors.push([x,y,reflect(d,0)===choice.nd?0:1]);d=choice.nd;
+      }
+      if(failed)continue;
+      const finish=[];
+      for(let step=1;step<=3;step++){
+        const nx=x+normals[d][0]*step,ny=y+normals[d][1]*step;
+        if(nx<0||nx>7||ny<0||ny>6||visited.has(key(nx,ny)))break;
+        finish.push([nx,ny]);
+      }
+      if(!finish.length)continue;
+      const flower=finish[Math.floor(random()*finish.length)];
+      for(let k=0;k<=Math.abs(flower[0]-x)+Math.abs(flower[1]-y);k++){const px=x+normals[d][0]*k,py=y+normals[d][1]*k;visited.add(key(px,py))}
+      const rocks=[];const rockCount=Math.min(13,2+Math.floor(number/3));
+      for(let i=0;i<rockCount*5&&rocks.length<rockCount;i++){
+        const rx=Math.floor(random()*8),ry=Math.floor(random()*7);
+        if(!visited.has(key(rx,ry))&&!rocks.some(([a,b])=>a===rx&&b===ry)){rocks.push([rx,ry]);visited.add(key(rx,ry))}
+      }
+      return{name:titles[number-1],intro:'第 '+String(number).padStart(2,'0')+' 座花园 · '+wanted+' 次折光，'+rocks.length+' 块静石。光在拐弯处藏着答案。',
+        source,flower,mirrors,rocks};
+    }
+    throw new Error('Unable to create solvable prism garden chapter '+number);
+  }
+  const levels=[...starterLevels,...Array.from({length:26},(_,i)=>generateLevel(i+5))];
   const canvas = document.querySelector('#board'),ctx=canvas.getContext('2d'),W=800,H=700,S=100;
   const $=id=>document.getElementById(id);
   const startBest=(()=>{try{return Math.max(0,Math.min(levels.length,Number(localStorage.getItem('prism_garden_solved'))||0))}catch{return 0}})();
   let unlocked=startBest,index=Math.min(startBest,levels.length-1),mirrors=[],moves=0,lit=false,beam=[],hover=-1,selected=[0,0],time=0;
-  const normals=[[1,0],[0,1],[-1,0],[0,-1]];
-  const reflect=(d,type)=>type===0?[3,2,1,0][d]:[1,0,3,2][d];
-  const key=(x,y)=>x+','+y;
   function save(){try{localStorage.setItem('prism_garden_solved',String(unlocked))}catch{}}
   function load(n){
     index=n;const lv=levels[index];mirrors=lv.mirrors.map(([x,y,type],i)=>({x,y,target:type,type:(type+(i%2===0?1:0))%2}));
@@ -92,7 +145,12 @@
   function update(){
     $('moves').textContent=String(moves).padStart(2,'0');$('solved').textContent=unlocked+' / '+levels.length;
     $('progressBar').style.width=(unlocked/levels.length*100)+'%';
-    $('levelPips').replaceChildren(...levels.map((_,i)=>{const el=document.createElement('span');el.className=i<unlocked?'done':i===index?'current':'';return el}));
+    $('levelPips').replaceChildren(...levels.map((_,i)=>{
+      const el=document.createElement('button');el.type='button';el.textContent=String(i+1).padStart(2,'0');
+      el.title='第 '+(i+1)+' 关 · '+levels[i].name;
+      el.className=i===index?'current':i<unlocked?'done':'';el.disabled=i>unlocked;
+      el.addEventListener('click',()=>load(i));return el;
+    }));
     $('boardStatus').textContent=lit?'✦ 花朵已苏醒':'✧ 寻找光的方向';
   }
   function trace(){

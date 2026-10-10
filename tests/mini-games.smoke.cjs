@@ -84,14 +84,14 @@ function harness(file) {
 const prism=harness('prism_garden.html');
 prism.frames(5);
 assert.match(prism.$('levelName').textContent,/晨雾/);
-for(let level=0;level<4;level++){
+for(let level=0;level<30;level++){
   // Hint is a deterministic way to solve each verified layout.
-  for(let turn=0;turn<7&&prism.$('next').hidden;turn++)prism.$('hint').click();
+  for(let turn=0;turn<12&&prism.$('next').hidden;turn++)prism.$('hint').click();
   assert.equal(prism.$('next').hidden,false,'Prism level '+(level+1)+' must be solvable');
   assert.match(prism.$('boardStatus').textContent,/苏醒/);
-  if(level<3)prism.$('next').click();
+  if(level<29)prism.$('next').click();
 }
-assert.equal(prism.storage.get('prism_garden_solved'),'4','All gardens must persist completion');
+assert.equal(prism.storage.get('prism_garden_solved'),'30','All gardens must persist completion');
 prism.$('next').click();
 assert.match(prism.$('levelName').textContent,/晨雾/);
 
@@ -136,4 +136,4 @@ assert.equal(post.$('modal').hidden,false,'All 18 letters trigger win overlay');
 assert.match(post.$('modalTitle').textContent,/抵达/);
 assert.ok(post.storage.has('cloud_postoffice_best'),'Score is persisted');
 
-console.log('Mini-games smoke tests passed: 4 prism puzzles, submarine controls/oxygen/pause, postal routing/health/victory.');
+console.log('Mini-games smoke tests passed: 30 prism puzzles, submarine controls/oxygen/pause, postal routing/health/victory.');
