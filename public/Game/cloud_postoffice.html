@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#1f294b">
+  <title>云端邮局 · Cloud Post Office</title>
+  <style>
+    :root{color-scheme:light;--ink:#233358;--paper:#f9f3e7;--gold:#d8ae6f;--blue:#94c8cf;--red:#e6a19d;--green:#93bca9}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+    body{color:var(--ink);background:radial-gradient(ellipse at 85% 10%,#485b81 0,transparent 44%),radial-gradient(ellipse at 0 90%,#536484 0,transparent 38%),#202a48;overflow-x:hidden}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;background-image:radial-gradient(#ffffff65 1px,transparent 1px);background-size:67px 77px}
+    .cloud{position:fixed;z-index:-1;filter:blur(1px);opacity:.13;background:#d5e9ef;border-radius:100px;width:260px;height:60px;animation:drift 35s linear infinite}
+    .cloud:before,.cloud:after{content:"";position:absolute;background:inherit;border-radius:50%}.cloud:before{height:115px;width:115px;left:30px;top:-55px}.cloud:after{height:100px;width:130px;left:115px;top:-40px}
+    .cloud.a{top:18%;left:-10%}.cloud.b{top:78%;left:75%;animation-duration:45s;animation-direction:reverse}@keyframes drift{50%{transform:translateX(100px)}}
+    .shell{position:relative;max-width:1220px;margin:auto;padding:clamp(18px,3vw,38px) 18px 46px}
+    .top{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#d7e0ef;font-size:11px;letter-spacing:.2em;padding:5px 4px 23px}.top a{color:#e3e6ef;text-decoration:none;letter-spacing:0;font-size:13px}
+    .window{border:7px solid #f5efe4;background:var(--paper);border-radius:26px;overflow:hidden;box-shadow:0 34px 110px #080f29a6,0 0 0 1px #c9bfa9}
+    .windowHeader{padding:27px 35px 24px;display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:2px dashed #cfc3b5;background:linear-gradient(115deg,#fdfaf3,#eaf1eb)}
+    .seal{display:inline-flex;gap:10px;align-items:center;font-size:11px;letter-spacing:.25em;color:#758399}.seal:before{content:"✦";font-size:27px;color:#b98965}
+    h1{font-family:Georgia,"Songti SC",serif;font-weight:550;font-size:clamp(39px,5vw,62px);line-height:1.05;margin:13px 0 9px;letter-spacing:.09em}
+    h1 em{font-style:normal;color:#b47c81}.subtitle{font-size:13px;color:#77849a;line-height:1.8;margin:0}
+    .postmark{border:3px double #be9094;border-radius:50%;width:116px;height:116px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#ad7a7c;transform:rotate(12deg);font-family:Georgia,serif;gap:4px;flex-shrink:0}.postmark b{font-size:23px}.postmark small{font-size:10px;letter-spacing:.17em}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #e6ddcc;background:#f8f4eb}
+    .stat{padding:19px 24px;border-right:1px solid #e5dccc;display:flex;justify-content:space-between;align-items:center;gap:7px}.stat:last-child{border:0}.stat small{font-size:10px;letter-spacing:.13em;color:#8992a2}.stat strong{font-size:24px;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+    .board{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,.9fr);min-height:510px}
+    .dispatch{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:28px 28px 40px;background:radial-gradient(ellipse at 50% 20%,#fffef8 0,transparent 70%),#f0ecdf}
+    .dispatch:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 35px,#b9ac9040 36px);opacity:.27;pointer-events:none}
+    .stationTitle{z-index:1;color:#9294a3;font-size:11px;letter-spacing:.23em;margin-bottom:23px;text-align:center}
+    .deck{position:relative;width:min(100%,390px);height:270px;display:flex;align-items:center;justify-content:center}
+    .shadowcard{position:absolute;width:80%;height:210px;border:1px solid #d0bba4;border-radius:9px;background:#f4e6cf;box-shadow:0 10px 22px #7160432b;transform:translate(12px,16px) rotate(5deg)}
+    .shadowcard.second{transform:translate(-12px,8px) rotate(-4deg);background:#e9e7d9}
+    .letter{position:relative;z-index:2;width:90%;max-width:360px;min-height:226px;padding:24px;background:linear-gradient(148deg,#fffdf4,#e9dbc4);border:1px solid #c8b69b;border-radius:11px;box-shadow:0 12px 33px #6e655549,0 1px #fff inset;transition:transform .2s;cursor:grab;user-select:none}
+    .letter:hover{transform:translateY(-5px) rotate(-1deg)}.letter:active{cursor:grabbing}
+    .letter:before{content:"";position:absolute;inset:9px;border:1px dashed #cdbda4;pointer-events:none}
+    .letterTop{display:flex;align-items:start;justify-content:space-between;gap:12px}.sender{font-size:10px;color:#96939a;letter-spacing:.15em;line-height:1.6}
+    .stamp{width:67px;height:76px;border:5px dotted #fbf5e5;box-shadow:0 0 0 1px #c4aa8b;display:grid;place-items:center;color:white;font-size:31px;transform:rotate(5deg)}
+    .destination{margin-top:15px;font-family:Georgia,"Songti SC",serif;font-size:28px;letter-spacing:.04em;font-weight:600}.route{font-size:11px;color:#8b8b97;letter-spacing:.14em;margin-top:7px}
+    .letterBottom{margin-top:25px;display:flex;justify-content:space-between;align-items:center}.letterBottom span{font-size:11px;letter-spacing:.11em;color:#a18c82}.letterBottom strong{font-family:Georgia,serif;font-size:24px;color:#c4a5a4;letter-spacing:-.13em}
+    .guide{position:relative;text-align:center;margin:23px 0 0;font-size:12px;color:#818699;line-height:1.8}.guide b{color:#3e5977}
+    .desk{padding:29px;display:flex;flex-direction:column;gap:18px;background:linear-gradient(125deg,#fffef9,#fbf7ef)}
+    .sectionHead{display:flex;align-items:center;justify-content:space-between;gap:7px}.sectionHead h2{font-family:Georgia,"Songti SC",serif;font-size:25px;font-weight:500;margin:0}.sectionHead span{color:#a1a0a9;font-size:10px;letter-spacing:.18em}
+    .mailboxes{display:grid;gap:12px}
+    .mailbox{display:grid;grid-template-columns:55px 1fr auto;gap:13px;text-align:left;align-items:center;padding:16px 16px;border-radius:13px;border:1px solid #e5dace;background:#faf6ec;color:var(--ink);cursor:pointer;font:inherit;transition:transform .16s,background .16s,border .16s}
+    .mailbox:hover,.mailbox.dragover{transform:translateX(-4px);background:#fff;border-color:#aebbc4;box-shadow:0 8px 25px #9296a21a}.mailbox:focus-visible{outline:3px solid #647fa3;outline-offset:2px}
+    .mailbox .symbol{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:25px;box-shadow:inset 0 -7px #00000010}
+    .mailbox strong{display:block;font-size:16px;letter-spacing:.05em}.mailbox small{display:block;font-size:11px;color:#9096a2;margin-top:5px}.key{border:1px solid #dcd4c7;border-radius:5px;padding:5px 9px;font-size:11px;color:#8a8890;background:#fff}
+    .feedback{border-top:1px dashed #dad0c1;padding-top:16px;color:#78849a;font-size:12px;line-height:1.7;min-height:50px}.feedback.good{color:#56907b}.feedback.bad{color:#c47770}
+    .bottom{border-top:1px solid #e9dfd0;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:17px 31px;background:#f6f1e8;color:#7e8493;font-size:12px}.bottom .ctrl{display:flex;gap:9px}
+    .btn{background:var(--ink);border:1px solid var(--ink);border-radius:9px;color:#f8f2e9;font:inherit;font-size:12px;padding:11px 18px;cursor:pointer}.btn:hover{background:#485577}.btn.ghost{background:transparent;color:#3a4b69}.btn.ghost:hover{background:#e9e3da}
+    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:#0d1c39b7;z-index:20;backdrop-filter:blur(6px)}.modal[hidden]{display:none}
+    .modalCard{max-width:455px;width:100%;padding:40px;text-align:center;border:7px solid #fff7ea;outline:1px solid #aa9e90;background:radial-gradient(ellipse at top,#fffdf5,#ebe6dc);box-shadow:0 25px 90px #0713268b;border-radius:20px}
+    .modalMark{font-family:Georgia,serif;font-size:52px;color:#b47e7e}.modalCard small{display:block;margin-top:9px;letter-spacing:.22em;color:#88919c;font-size:10px}.modalCard h2{font-family:Georgia,"Songti SC",serif;font-size:35px;font-weight:500;letter-spacing:.06em;margin:15px 0}.modalCard p{font-size:13px;line-height:1.9;color:#7c8796;margin:0 0 26px}.modalCard .btn{padding:14px 28px;font-size:14px}
+    .confetti{position:absolute;pointer-events:none;width:8px;height:13px;animation:floatout .68s ease-out forwards}@keyframes floatout{from{opacity:1;transform:translate(0,0) rotate(0deg)}to{opacity:0;transform:translate(var(--tx),var(--ty)) rotate(370deg)}}
+    @media(max-width:850px){.board{grid-template-columns:1fr}.dispatch{min-height:410px}.desk{padding:24px}.mailboxes{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.mailbox{display:flex;flex-direction:column;text-align:center;gap:8px}.mailbox .symbol{width:45px;height:45px}.mailbox small{display:none}}
+    @media(max-width:560px){.window{border-width:4px;border-radius:18px}.windowHeader{padding:22px 18px}.postmark{display:none}.stats{grid-template-columns:repeat(2,1fr)}.stat{padding:12px 15px;border-bottom:1px solid #e5dccc}.stat strong{font-size:19px}.board{min-height:0}.dispatch{padding:22px 12px;min-height:360px}.deck{height:239px}.letter{padding:18px;min-height:202px}.destination{font-size:24px}.desk{padding:19px 13px}.mailbox{padding:10px 5px}.mailbox strong{font-size:12px}.key{padding:4px 7px}.sectionHead h2{font-size:21px}.bottom{padding:14px}.modalCard{padding:26px}.modalCard h2{font-size:28px}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  </style>
+</head>
+<body>
+<div class="cloud a" aria-hidden="true"></div><div class="cloud b" aria-hidden="true"></div>
+<main class="shell">
+  <header class="top"><span>EST. 1927 ✧ ABOVE THE CLOUDS</span><a href="/">← 返回游戏大厅</a></header>
+  <section class="window">
+    <div class="windowHeader"><div><span class="seal">A LITTLE LETTER FOR YOU</span><h1>云端<em>邮局</em></h1><p class="subtitle">每一封信都该抵达。根据邮票图案，将信件送往正确的天空。</p></div><div class="postmark" aria-hidden="true"><small>EXPRESS</small><b>☁</b><small>CLOUD · 07</small></div></div>
+    <div class="stats">
+      <div class="stat"><small>已投递<br>DELIVERED</small><strong id="done">00 / 18</strong></div>
+      <div class="stat"><small>剩余时间<br>TIME LEFT</small><strong id="time">75s</strong></div>
+      <div class="stat"><small>投递分数<br>POSTAL POINTS</small><strong id="score">0000</strong></div>
+      <div class="stat"><small>允许失误<br>CHANCES</small><strong id="life">♥ ♥ ♥</strong></div>
+    </div>
+    <div class="board">
+      <section class="dispatch" aria-label="等待分拣的信件">
+        <div class="stationTitle">INCOMING MAIL · 请查收下一封来信</div>
+        <div class="deck" id="deck">
+          <div class="shadowcard"></div><div class="shadowcard second"></div>
+          <div class="letter" id="letter" draggable="true" tabindex="0" aria-label="当前信件，可拖动至对应邮筒">
+            <div class="letterTop"><span class="sender">FROM<br>THE STARRY SKY</span><div class="stamp" id="stamp">☾</div></div>
+            <div class="destination" id="address">月亮湾</div><div class="route" id="route">DESTINATION / LUNAR BAY</div>
+            <div class="letterBottom"><span>PLEASE DELIVER WITH LOVE</span><strong>〰〰〰</strong></div>
+          </div>
+        </div>
+        <div class="guide">选择右侧对应的邮筒，或用 <b>1 / 2 / 3</b> 快速投递。<br>电脑也可直接拖拽信件到邮筒。</div>
+      </section>
+      <section class="desk">
+        <div class="sectionHead"><h2>今日投递路线</h2><span>THREE DESTINATIONS</span></div>
+        <div class="mailboxes" id="mailboxes"></div>
+        <div class="feedback" id="feedback" role="status" aria-live="polite">邮局还未营业，先喝一口热茶吧。</div>
+      </section>
+    </div>
+    <div class="bottom"><span>✉ 邮票图案与颜色一致才能送达 · 连续正确投递可以获得加分</span><div class="ctrl"><button class="btn ghost" id="pause" type="button">Ⅱ 暂停</button><button class="btn" id="restart" type="button">↻ 重新营业</button></div></div>
+  </section>
+</main>
+<div class="modal" id="modal">
+  <div class="modalCard">
+    <div class="modalMark" id="modalIcon">✉</div><small id="modalMark">WELCOME TO THE CLOUD POST</small>
+    <h2 id="modalTitle">今日邮局营业中</h2>
+    <p id="modalBody">75 秒，18 封信，3 条目的地。仔细辨认信上的邮票，用鼠标、触摸或数字键将它们送回正确的地方。</p>
+    <button class="btn" id="start" type="button">推开邮局的门 →</button>
+  </div>
+</div>
+<script>
+(()=>{
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const places=[
+    {name:'月亮湾',sub:'LUNAR BAY',icon:'☾',color:'#879ac8',desc:'去往月光下的港湾'},
+    {name:'太阳坡',sub:'SUNNY HILL',icon:'☼',color:'#dcb276',desc:'去往金色日出的山坡'},
+    {name:'星星岛',sub:'STARRY ISLE',icon:'✦',color:'#83ad9e',desc:'去往闪闪发光的小岛'}
+  ];
+  const TARGET=18,DURATION=75;
+  let state='ready',done=0,score=0,hearts=3,streak=0,remaining=DURATION,queue=[],current=null,last=0,toastTimer=0;
+  let ctxAudio=null;
+  function chime(success){
+    try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;ctxAudio=ctxAudio||new C();if(ctxAudio.state==='suspended')ctxAudio.resume();
+      const o=ctxAudio.createOscillator(),g=ctxAudio.createGain(),now=ctxAudio.currentTime;o.type='sine';o.frequency.setValueAtTime(success?590:240,now);
+      o.frequency.exponentialRampToValueAtTime(success?830:165,now+.17);g.gain.setValueAtTime(.045,now);g.gain.exponentialRampToValueAtTime(.001,now+.18);o.connect(g);g.connect(ctxAudio.destination);o.start(now);o.stop(now+.18)
+    }catch{}
+  }
+  function shuffleDeck(){
+    const deck=[];while(deck.length<TARGET+5){for(let i=0;i<3;i++)deck.push(i)}
+    for(let i=deck.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[deck[i],deck[j]]=[deck[j],deck[i]]}
+    return deck;
+  }
+  function redraw(){
+    $('done').textContent=String(done).padStart(2,'0')+' / '+TARGET;
+    $('time').textContent=Math.ceil(Math.max(0,remaining))+'s';
+    $('time').style.color=remaining<=15?'#c76e71':'';
+    $('score').textContent=String(score).padStart(4,'0');$('life').textContent='♥ '.repeat(hearts).trim()||'—';
+    if(current===null)return;
+    const place=places[current];$('address').textContent=place.name;$('route').textContent='DESTINATION / '+place.sub;
+    $('stamp').textContent=place.icon;$('stamp').style.background=place.color;
+    $('letter').setAttribute('aria-label','当前信件：'+place.name+'，邮票图案 '+place.icon);
+  }
+  function message(text,kind=''){
+    const el=$('feedback');el.className='feedback '+kind;el.textContent=text;
+  }
+  function showModal(icon,mark,title,body,button){
+    $('modalIcon').textContent=icon;$('modalMark').textContent=mark;$('modalTitle').textContent=title;$('modalBody').textContent=body;
+    $('start').textContent=button;$('modal').hidden=false;
+  }
+  function start(){
+    done=0;score=0;hearts=3;streak=0;remaining=DURATION;queue=shuffleDeck();current=queue.shift();state='playing';
+    $('modal').hidden=true;$('pause').textContent='Ⅱ 暂停';message('邮局开门啦！看清邮票，再选择正确的投递路线。');redraw();last=performance.now();
+  }
+  function end(won){
+    if(state!=='playing')return;state=won?'won':'over';
+    let best=score;
+    try{best=Math.max(score,Number(localStorage.getItem('cloud_postoffice_best'))||0);localStorage.setItem('cloud_postoffice_best',String(best))}catch{}
+    showModal(won?'✦':'☁',won?'ALL LETTERS DELIVERED':'THE POST OFFICE IS CLOSING',
+      won?'所有来信，都已抵达':'今天的云朵下班了',
+      '成功投递 '+done+' 封信，获得 '+score+' 分。历史最高分 '+best+'。'+(won?' 感谢你守护了这些小小心意。':' 明天的天空还有更多期待。'),
+      '再开一家小邮局 →');
+  }
+  function burst(x,y,color){
+    const parent=document.querySelector('.dispatch');const p=parent.getBoundingClientRect();
+    for(let i=0;i<9;i++){const b=document.createElement('span');b.className='confetti';b.style.background=color;
+      b.style.left=(x-p.left)+'px';b.style.top=(y-p.top)+'px';b.style.setProperty('--tx',(Math.random()*190-95)+'px');b.style.setProperty('--ty',(-40-Math.random()*100)+'px');
+      parent.appendChild(b);setTimeout(()=>b.remove(),750)}
+  }
+  function deliver(index){
+    if(state!=='playing'||current===null)return;
+    if(index===current){
+      done++;streak++;score+=100+Math.min(8,streak-1)*25;chime(true);
+      const box=$('letter').getBoundingClientRect();burst(box.left+box.width/2,box.top+box.height/2,places[current].color);
+      if(done>=TARGET){score+=Math.ceil(remaining)*10;redraw();end(true);return}
+      current=queue.shift();message('✓ 投递成功！'+(streak>1?' 已连续正确 '+streak+' 封，连击加分。':' 下一封信已经送达分拣台。'),'good');
+    }else{
+      hearts--;streak=0;chime(false);
+      message('× 地址不对喔！这封信应送往「'+places[current].name+'」。剩余 '+hearts+' 次机会。','bad');
+      $('letter').animate([{transform:'translateX(-8px)'},{transform:'translateX(8px)'},{transform:'translateX(0)'}],{duration:250});
+      if(hearts<=0){redraw();end(false);return}
+    }
+    redraw();
+  }
+  $('mailboxes').replaceChildren(...places.map((place,index)=>{
+    const btn=document.createElement('button');btn.className='mailbox';btn.type='button';btn.dataset.index=index;
+    const badge=document.createElement('span');badge.className='symbol';badge.style.background=place.color;badge.textContent=place.icon;
+    const words=document.createElement('span'),strong=document.createElement('strong'),small=document.createElement('small');
+    strong.textContent=place.name;small.textContent=place.desc;words.append(strong,small);
+    const key=document.createElement('span');key.className='key';key.textContent=index+1;btn.append(badge,words,key);
+    btn.addEventListener('click',()=>deliver(index));
+    btn.addEventListener('dragover',e=>{if(state==='playing'){e.preventDefault();btn.classList.add('dragover')}});
+    btn.addEventListener('dragleave',()=>btn.classList.remove('dragover'));
+    btn.addEventListener('drop',e=>{e.preventDefault();btn.classList.remove('dragover');deliver(index)});
+    return btn;
+  }));
+  $('letter').addEventListener('dragstart',e=>{if(state!=='playing'){e.preventDefault();return}e.dataTransfer.setData('text/plain','letter');e.dataTransfer.effectAllowed='move'});
+  $('start').addEventListener('click',()=>state==='paused'?pause():start());
+  $('restart').addEventListener('click',()=>start());
+  function pause(){
+    if(state==='playing'){state='paused';$('pause').textContent='▶ 继续营业';showModal('☕','A LITTLE TEA BREAK','茶歇时间','天空暂时静止，来喝一口热茶再继续送信吧。','继续投递 →')}
+    else if(state==='paused'){state='playing';$('modal').hidden=true;$('pause').textContent='Ⅱ 暂停';last=performance.now()}
+  }
+  $('pause').addEventListener('click',pause);
+  window.addEventListener('keydown',e=>{
+    if(state==='playing'&&['Digit1','Digit2','Digit3','Numpad1','Numpad2','Numpad3'].includes(e.code)){deliver(Number(e.code.slice(-1))-1);e.preventDefault()}
+    if(e.code==='KeyP'&&!e.repeat)pause();
+    if(e.code==='Enter'&&state==='ready')start();
+  });
+  window.addEventListener('blur',()=>{if(state==='playing')pause()});
+  function frame(now){
+    const dt=Math.min(.2,Math.max(0,(now-last)/1000));last=now;
+    if(state==='playing'){remaining=Math.max(0,remaining-dt);$('time').textContent=Math.ceil(remaining)+'s';$('time').style.color=remaining<15?'#c76e71':'';if(remaining<=0)end(false)}
+    requestAnimationFrame(frame);
+  }
+  current=0;redraw();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
