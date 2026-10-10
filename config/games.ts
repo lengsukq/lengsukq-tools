@@ -40,4 +40,16 @@ export const GAMES: Game[] = [
       "温暖复古的邮票分拣小游戏，75 秒投递 18 封来信，支持点击、拖放和数字键操作，连续投递可得额外分数",
     href: "/Game/cloud_postoffice.html",
   },
+  {
+    title: "时差剧场：演给昨天的自己",
+    description:
+      "30 幕时间协作谜题：把自己走过的路线封存成过去的演员，让不同时空的自己同时站上机关，打开未来之门",
+    href: "/Game/echo_theatre.html",
+  },
+  {
+    title: "回声温室：把声音种成花",
+    description:
+      "30 首奇妙的植物和弦：调整三个声波灯笼的七档相位，让干涉图样吻合花冠音型，唤醒声波植物",
+    href: "/Game/echo_greenhouse.html",
+  },
 ];

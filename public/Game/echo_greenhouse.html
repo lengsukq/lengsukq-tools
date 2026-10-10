@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#193c3b"><title>回声温室 · 把声音种成花</title>
+  <style>
+    :root{color-scheme:dark;--mint:#b9f5d5;--paper:#f9e9cb;--soft:#b8ccba;--p:#ebb5d2;--a:#8ce3db;--b:#f3cd88}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+    body{color:#f8f4dc;background:radial-gradient(ellipse at 60% -20%,#396d64,transparent 60%),radial-gradient(ellipse at 0 110%,#284e57,transparent 45%),#102a30}
+    .field{position:fixed;inset:0;pointer-events:none;background-image:radial-gradient(#d5e5b637 1px,transparent 1px);background-size:78px 89px;opacity:.6}
+    .layout{max-width:1320px;margin:0 auto;padding:clamp(18px,4vw,47px) clamp(13px,3vw,35px) 60px;position:relative}
+    .top{display:flex;justify-content:space-between;gap:12px;font-size:11px;letter-spacing:.25em;color:#b3dbc6}.top a{font-size:13px;color:#d3f3df;text-decoration:none;letter-spacing:0}
+    h1{font:400 clamp(44px,6.5vw,82px)/1.12 Georgia,"Songti SC",serif;letter-spacing:.08em;margin:25px 0 9px}h1 span{color:#f2d89e;text-shadow:0 0 32px #ffd98b38}
+    .subtitle{color:#b6cfbf;font-size:14px;line-height:1.9;margin:0 0 29px;max-width:780px}
+    .cols{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,.76fr);align-items:start;gap:23px}
+    .glass{border-radius:23px;border:1px solid #baf2d339;background:linear-gradient(160deg,#ffffff0c,#0c2c31bd);box-shadow:0 23px 85px #081d24af,inset 0 1px #ffffff1a}
+    .gallery{padding:16px}.arch{height:54px;text-align:center;display:flex;align-items:center;justify-content:center;border:1px solid #9bd4b463;background:linear-gradient(90deg,#3f6257,#597861,#395b57);border-radius:60% 60% 7px 7px;font:12px Georgia,serif;letter-spacing:.23em;color:#ffecc6}
+    .stage{border-radius:0 0 14px 14px;position:relative;overflow:hidden;border:1px solid #9fc9b24f;border-top:0;background:#153537}
+    canvas{display:block;width:100%;height:auto;aspect-ratio:9/5}
+    .readout{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:15px 8px 1px;color:#bfd9c3;font-size:12px}.readout strong{color:#d5ffd6}
+    .lanterns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:15px}
+    .lantern{padding:15px;border:1px solid #f6d7c83e;border-radius:14px;background:#ffffff0a}
+    .lantern.inactive{opacity:.36}.lantern .name{font-size:11px;letter-spacing:.1em;color:#d8e4d1}.lantern .orb{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;box-shadow:0 0 15px currentColor}
+    .lantern .phase{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:13px 0 10px}.lantern .phase strong{font:400 37px Georgia,serif;color:#f9e8c8}.lantern .phase button{flex:0 0 36px;height:39px;border:1px solid #d8ead651;border-radius:9px;background:#ffffff14;color:#fff;font-size:20px;cursor:pointer}
+    .lantern .phase button:disabled{opacity:.32;cursor:not-allowed}.lantern .phase button:hover:not(:disabled){background:#ffffff30}.lantern small{color:#a2c7bb;font-size:10px;line-height:1.5}
+    .side{padding:25px;display:flex;flex-direction:column;gap:20px}.eyebrow{font-size:11px;color:#c7e6c3;letter-spacing:.2em}
+    .side h2{font:400 29px Georgia,"Songti SC",serif;margin:8px 0}.side p{margin:0;font-size:13px;color:#b1cdc0;line-height:1.85}
+    .statrow{display:flex;justify-content:space-between;gap:12px;color:#b5caba;font-size:12px}.statrow strong{color:#ffebce;font-size:16px}
+    .bar{height:7px;background:#ffffff14;border-radius:10px;overflow:hidden}.bar span{display:block;width:0;height:100%;border-radius:10px;background:linear-gradient(90deg,#85caca,#eacb96);transition:width .3s}
+    .divider{height:1px;background:#f5e4c823}.btns{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .btn{font:inherit;font-size:12px;padding:12px 9px;border-radius:11px;cursor:pointer;background:#ffffff0b;border:1px solid #d5f1d14c;color:#e9fbdf}
+    .btn:hover{background:#ffffff22}.btn:focus-visible,.lantern button:focus-visible,.levels button:focus-visible{outline:2px solid #f8dda6;outline-offset:2px}
+    .btn.main{background:#e7d6a5;color:#2c4b44;border-color:transparent;font-weight:800}.btn.main:hover{background:#fff1c4}.btn[hidden]{display:none}
+    .hint{font-size:12px;color:#b8d5c7;line-height:1.9;background:#ffffff07;border:1px solid #afd9ae32;border-radius:13px;padding:12px}
+    .status{font-size:12px;color:#bdfbe0;line-height:1.7;min-height:39px}
+    .levels{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px}.levels button{aspect-ratio:1;min-width:0;background:#ffffff0d;border:1px solid #d1f2d42d;color:#a4bcb0;border-radius:7px;cursor:pointer;font-size:10px;padding:0}
+    .levels button.current{color:#f3ebbf;background:#e6d59b45;border-color:#f1e0ad}.levels button.done{color:#d9ffe5;border-color:#a9f7c59a;background:#7dcd9f25}
+    .levels button:disabled{opacity:.32;cursor:not-allowed}.foot{text-align:center;font-size:11px;letter-spacing:.18em;color:#8daa9a;margin-top:25px}
+    @media(max-width:890px){.cols{grid-template-columns:1fr}.gallery{padding:10px}.side{padding:20px}}
+    @media(max-width:540px){.layout{padding:17px 10px 35px}.gallery{padding:6px}.lanterns{gap:6px}.lantern{padding:9px}.lantern .phase strong{font-size:26px}.lantern .phase button{flex-basis:24px;width:24px;height:33px;font-size:15px}.lantern small{font-size:9px}.arch{height:37px;font-size:10px}.levels{gap:4px}.readout{font-size:11px}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<div class="field" aria-hidden="true"></div>
+<main class="layout">
+  <header class="top"><span>THE CONSERVATORY OF IMPOSSIBLE BOTANY</span><a href="/">← 返回游戏大厅</a></header>
+  <h1>回声<span>温室</span></h1>
+  <p class="subtitle">这里的植物不喝水，它们听声音长大。旋转三只声波灯笼的相位，让不同频率在花朵间交汇，编写只属于这座温室的和弦。</p>
+  <div class="cols">
+    <section class="glass gallery" aria-label="声波干涉游戏">
+      <div class="arch">✦ &nbsp; A SYMPHONY FOR FLOWERS &nbsp; ✦</div>
+      <div class="stage"><canvas id="garden" width="900" height="500" aria-label="回声温室，三个声波发射器在植物间产生干涉"></canvas></div>
+      <div class="readout"><span>波形会随相位变化 · 花冠显示当前 / 目标音型</span><strong id="bloom">0 / 2 花苏醒</strong></div>
+      <div class="lanterns" id="lanterns" aria-label="三个音波灯笼控制面板"></div>
+    </section>
+    <aside class="glass side">
+      <div><span class="eyebrow">HERBARIUM <span id="chapter">01</span> / 30 · <span id="act">春声</span></span><h2 id="name">温室的第一支歌</h2><p id="story">两只灯笼的相位，能否唤醒最初的花？</p></div>
+      <div class="statrow"><span>已苏醒花朵</span><strong id="flowers">0 / 2</strong></div>
+      <div class="bar"><span id="bloomBar"></span></div>
+      <div class="statrow"><span>调音次数</span><strong id="moves">00</strong></div>
+      <div class="statrow"><span>已完成章节</span><strong id="completed">0 / 30</strong></div>
+      <div class="divider"></div>
+      <div class="btns"><button class="btn" type="button" id="reset">↺ 重置音序</button><button class="btn" type="button" id="hint">✧ 倾听提示</button><button class="btn" type="button" id="listen">♫ 听一听和弦</button><button class="btn main" id="next" type="button" hidden>下一首乐章 →</button></div>
+      <div class="hint"><strong>温室笔记</strong>　点击灯笼两侧的 − / + 转动声波相位（共七档）。每株花接收三种声音的不同组合，中央花冠显示「当前音型」，旁边金色符号是「目标音型」。全部一致时就会盛放。</div>
+      <div id="status" class="status" role="status" aria-live="polite">调节灯笼，让第一朵花听见自己的名字。</div>
+      <div class="divider"></div>
+      <span class="eyebrow">BOTANICAL ARCHIVE · 30 SOUND GARDENS</span>
+      <div class="levels" id="levels" aria-label="30首乐章选关"></div>
+    </aside>
+  </div>
+  <div class="foot">ECHO GREENHOUSE · GROW WHAT YOU CAN HEAR · NO TWO SONGS SOUND THE SAME</div>
+</main>
+<script>
+(()=>{
+  'use strict';
+  const $=id=>document.getElementById(id),canvas=$('garden'),ctx=canvas.getContext('2d'),W=900,H=500;
+  const GLYPHS=['◌','☾','◐','◇','✧','✦','✺'],LABELS=['微风','半月','微光','琉璃','新星','闪烁','盛放'];
+  const colors=['#efb4d5','#8de5da','#f5cc8f'];
+  const titles=['第一颗声之种','雨点落在玻璃上','遥远的鸟鸣','温室的轻声问候','薄荷色晨曲',
+    '昼与夜的中间','梦的第三拍','叶尖的回旋','琥珀风铃','第一段花语',
+    '雾中的三重奏','极光唱片','苔藓的秘密','折叠的晴天','海螺来信',
+    '水晶里的人鱼','摇曳枝影','星光与留声机','第十九颗流星','反向的小夜曲',
+    '月背植物园','把流星叠起来','不属于地球的雨','鲸落小调','时差里的花朵',
+    '没有声音的合唱','恒星庭院','时间唱出的歌','所有花一起醒来','献给宇宙的花束'];
+  function randomizer(seed){let x=seed>>>0;return()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296}}
+  const mod=x=>((x%7)+7)%7;
+  function createLevel(n){
+    const act=n<=10?1:n<=20?2:3,random=randomizer(n*57233+431),active=act===1?2:3;
+    const answer=Array.from({length:3},(_,i)=>i<active?Math.floor(random()*7):0);
+    if(answer.slice(0,active).every(v=>v===0))answer[0]=3;
+    const baseRows=act===1?[[1,1,0],[2,3,0]]:[[1,1,1],[1,2,4],[2,5,1]];
+    if(act===3)baseRows.push([3,1,6],[5,2,4]);
+    const seeds=baseRows.map((coeff,i)=>{
+      const offset=Math.floor(random()*7);
+      const target=mod(coeff.reduce((sum,w,j)=>sum+w*answer[j],offset));
+      return{coeff,offset,target,x:150+i*(610/(baseRows.length-1)),y:326+(i%2===0?-16:25)};
+    });
+    return{number:n,act,active,seeds,answer,name:titles[n-1],story:act===1
+      ?'先听两盏声波灯笼，学会让两段旋律在花蕊里相遇。'
+      :act===2?'第三种声音加入了温室。它会改变每一朵花听见的乐章。'
+        :'现在五株植物都在倾听，只有完整的三重和弦能让它们齐放。'};
+  }
+  const levels=Array.from({length:30},(_,i)=>createLevel(i+1));
+  function saved(){try{return Math.max(0,Math.min(30,Number(localStorage.getItem('echo_greenhouse_unlocked'))||0))}catch{return 0}}
+  let unlocked=saved(),index=Math.min(unlocked,29),level,phases=[0,0,0],moves=0,won=false,clock=0,audio=null;
+  function persist(){try{localStorage.setItem('echo_greenhouse_unlocked',String(unlocked))}catch{}}
+  function result(seed){return mod(seed.offset+seed.coeff.reduce((sum,c,i)=>sum+c*phases[i],0))}
+  function litCount(){return level.seeds.filter(s=>result(s)===s.target).length}
+  function status(text){$('status').textContent=text}
+  function load(n){
+    index=n;level=levels[index];phases=[0,0,0];moves=0;won=false;
+    $('chapter').textContent=String(n+1).padStart(2,'0');$('act').textContent=['春声','浮光','万物合唱'][level.act-1];
+    $('name').textContent=level.name;$('story').textContent=level.story;$('next').hidden=true;
+    status('调整不同颜色的灯笼，让每一株花的音型与金色目标一致。');
+    update();
+  }
+  function update(){
+    const count=litCount();$('flowers').textContent=count+' / '+level.seeds.length;
+    $('bloom').textContent=count+' / '+level.seeds.length+' 花苏醒';
+    $('bloomBar').style.width=count/level.seeds.length*100+'%';
+    $('moves').textContent=String(moves).padStart(2,'0');$('completed').textContent=unlocked+' / 30';
+    $('lanterns').replaceChildren(...colors.map((color,i)=>{
+      const card=document.createElement('section');card.className='lantern'+(i>=level.active?' inactive':'');
+      const title=document.createElement('span');title.className='name';title.textContent=['玫瑰 · 低声部','潮汐 · 中声部','太阳 · 高声部'][i];
+      const row=document.createElement('div');row.className='phase';
+      const down=document.createElement('button');down.type='button';down.textContent='−';down.setAttribute('aria-label','降低'+title.textContent+'相位');
+      const current=document.createElement('strong');current.textContent=GLYPHS[phases[i]];current.style.color=color;
+      const up=document.createElement('button');up.type='button';up.textContent='+';up.setAttribute('aria-label','提高'+title.textContent+'相位');
+      down.disabled=up.disabled=i>=level.active;
+      down.addEventListener('click',()=>rotate(i,-1));up.addEventListener('click',()=>rotate(i,1));row.append(down,current,up);
+      const foot=document.createElement('small');foot.textContent=i>=level.active?'此章尚未出现':'音阶 '+(phases[i]+1)+' / 7 · '+LABELS[phases[i]];
+      card.append(title,row,foot);return card;
+    }));
+    $('levels').replaceChildren(...levels.map((lv,i)=>{
+      const b=document.createElement('button');b.type='button';b.textContent=String(i+1).padStart(2,'0');
+      b.title=lv.name;b.disabled=i>unlocked;b.className=i===index?'current':i<unlocked?'done':'';
+      b.addEventListener('click',()=>load(i));return b;
+    }));
+    if(count===level.seeds.length&&!won){
+      won=true;if(index>=unlocked){unlocked=index+1;persist()}
+      $('next').hidden=false;$('next').textContent=index===29?'重新聆听第一曲 ↺':'聆听下一首乐章 →';
+      status(index===29?'三十座温室的花全都唱了起来，宇宙正悄悄聆听。':'成功！声波彼此拥抱，所有花朵都绽放了。');
+      // Update finished/available chapter buttons after saving.
+      $('completed').textContent=unlocked+' / 30';
+      const buttons=$('levels').children;
+      for(let i=0;i<buttons.length;i++){buttons[i].disabled=i>unlocked;if(i<unlocked&&i!==index)buttons[i].className='done'}
+    }
+  }
+  function rotate(i,change){if(won||i>=level.active)return;phases[i]=mod(phases[i]+change);moves++;update()}
+  function listen(){
+    try{
+      const C=window.AudioContext||window.webkitAudioContext;if(!C)return;audio=audio||new C();if(audio.state==='suspended')audio.resume();
+      for(let i=0;i<level.active;i++){
+        const oscillator=audio.createOscillator(),gain=audio.createGain(),start=audio.currentTime+.075*i;
+        oscillator.type='sine';oscillator.frequency.setValueAtTime(196*Math.pow(2,(phases[i]+i*3)/12),start);
+        gain.gain.setValueAtTime(.0001,start);gain.gain.linearRampToValueAtTime(.065,start+.05);
+        gain.gain.exponentialRampToValueAtTime(.001,start+.65);
+        oscillator.connect(gain);gain.connect(audio.destination);oscillator.start(start);oscillator.stop(start+.66);
+      }
+      status('你听见了当前灯笼的和弦。改变任意声部的相位，整座温室都会听见新的旋律。');
+    }catch{status('当前浏览器无法播放声音；视觉波形仍然正常工作。')}
+  }
+  function hint(){
+    if(won){status('这首乐章已经盛放。去听听下一首吧。');return}
+    const i=phases.findIndex((v,j)=>j<level.active&&v!==level.answer[j]);
+    if(i<0)return;
+    const delta=mod(level.answer[i]-phases[i]),change=delta<=3?1:-1;
+    rotate(i,change);
+    if(!won)status('提示：我帮你轻轻转动了「'+['玫瑰','潮汐','太阳'][i]+'」灯笼一格。继续听它与其他声音的关系。');
+  }
+  function blossom(x,y,r,flowerColor,lit,t){
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.sin(t*1.5+x)*.03);
+    ctx.shadowBlur=lit?25:6;ctx.shadowColor=flowerColor;
+    for(let p=0;p<7;p++){ctx.save();ctx.rotate(p*Math.PI*2/7);ctx.beginPath();ctx.ellipse(0,-r*.7,r*.31,r*.58,0,0,Math.PI*2);ctx.fillStyle=lit?flowerColor:'#526f69';ctx.fill();ctx.restore()}
+    ctx.shadowBlur=0;ctx.beginPath();ctx.arc(0,0,r*.26,0,Math.PI*2);ctx.fillStyle=lit?'#fff7c9':'#6f9d87';ctx.fill();ctx.restore();
+  }
+  function draw(t){
+    const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1c5557');bg.addColorStop(.65,'#205251');bg.addColorStop(1,'#142c31');
+    ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+    // Hand-drawn greenhouse framing.
+    for(let i=0;i<=7;i++){
+      const x=i*(W/7);ctx.strokeStyle='#e2cda435';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+    }
+    for(let y=0;y<=H;y+=105){ctx.strokeStyle='#e2cda420';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    ctx.beginPath();ctx.ellipse(W/2,8,470,180,0,Math.PI,0);ctx.strokeStyle='#e4cd9a66';ctx.lineWidth=13;ctx.stroke();
+    for(let p=0;p<70;p++){
+      const x=(p*163.38)%W,y=(p*97.29)%H,alpha=.1+.1*Math.sin(t*.7+p);
+      ctx.fillStyle='rgba(212,254,209,'+alpha+')';ctx.beginPath();ctx.arc(x,y,1+(p%3)*.4,0,7);ctx.fill();
+    }
+    ctx.fillStyle='#102e30';ctx.fillRect(0,412,W,90);ctx.fillStyle='#7da58d60';ctx.fillRect(0,410,W,4);
+    const lamps=[{x:95,y:106},{x:450,y:75},{x:805,y:106}];
+    for(let i=0;i<level.active;i++){
+      const lamp=lamps[i];
+      for(let ring=0;ring<6;ring++){
+        const radius=((t*42+(ring*53)+phases[i]*18)%380)+15;
+        ctx.strokeStyle=colors[i];ctx.globalAlpha=Math.max(0,.13*(1-radius/470));
+        ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(lamp.x,lamp.y,radius,0,Math.PI*2);ctx.stroke();
+      }
+      ctx.globalAlpha=1;ctx.fillStyle=colors[i];ctx.shadowColor=colors[i];ctx.shadowBlur=30;
+      ctx.beginPath();ctx.arc(lamp.x,lamp.y,18,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+      ctx.fillStyle='#183c3b';ctx.font='bold 20px Georgia';ctx.textAlign='center';ctx.fillText(GLYPHS[phases[i]],lamp.x,lamp.y+7);
+      ctx.strokeStyle='#e5efd27a';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(lamp.x,0);ctx.lineTo(lamp.x,lamp.y-19);ctx.stroke();
+    }
+    // Composite interference waves, each plant receiving a different mixture.
+    for(let i=0;i<level.seeds.length;i++){
+      const seed=level.seeds[i],x=seed.x,y=seed.y,now=result(seed),lit=now===seed.target;
+      ctx.strokeStyle=lit?'#b5f7c4':'#749e7b';ctx.lineWidth=8;
+      ctx.beginPath();ctx.moveTo(x,414);ctx.bezierCurveTo(x-25,378,x+14,357,x,y+26);ctx.stroke();
+      for(let leaf=0;leaf<3;leaf++){
+        const sy=383-leaf*18;
+        ctx.save();ctx.translate(x+(leaf%2?-10:10),sy);ctx.rotate(leaf%2?-Math.PI/4:Math.PI/4);
+        ctx.fillStyle=lit?'#99e4a9':'#648f7e';ctx.beginPath();ctx.ellipse(0,0,18,8,0,0,Math.PI*2);ctx.fill();ctx.restore();
+      }
+      const r=lit?27+Math.sin(t*2+i)*2:19;
+      blossom(x,y,r,['#efd19c','#e0aec9','#a9dfd6','#edbfa1','#c4d5e8'][i],lit,t);
+      ctx.font='bold 20px Georgia';ctx.textAlign='center';ctx.fillStyle=lit?'#fff8dc':'#d9e1bb';
+      ctx.fillText(GLYPHS[now],x,y-46);
+      ctx.font='14px Georgia';ctx.fillStyle='#ffdf9b';ctx.fillText('目标 '+GLYPHS[seed.target],x,y+71);
+      if(lit){ctx.strokeStyle='#a8ffd475';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,40+Math.sin(t*2+i)*3,0,Math.PI*2);ctx.stroke()}
+    }
+  }
+  function frame(ms){
+    clock=ms*.001;ctx.clearRect(0,0,W,H);draw(clock);requestAnimationFrame(frame);
+  }
+  $('reset').addEventListener('click',()=>load(index));$('hint').addEventListener('click',hint);
+  $('listen').addEventListener('click',listen);
+  $('next').addEventListener('click',()=>load(index===29?0:index+1));
+  load(index);requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

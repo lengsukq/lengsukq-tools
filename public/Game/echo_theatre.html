@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#151126"><title>时差剧场 · 演给昨天的自己</title>
+  <style>
+    :root{color-scheme:dark;--paper:#faf0dc;--a:#e9b8d1;--gold:#e8c58a;--teal:#9fe8d5}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+    body{background:radial-gradient(ellipse at 50% -10%,#524263,#181329 56%,#100f1d);color:var(--paper)}
+    .dust{position:fixed;inset:0;pointer-events:none;opacity:.42;background-image:radial-gradient(#ffecac81 1px,transparent 1px);background-size:57px 79px}
+    .wrap{position:relative;max-width:1320px;margin:0 auto;padding:clamp(15px,3.5vw,48px) clamp(12px,3vw,34px) 48px}
+    .top{display:flex;justify-content:space-between;align-items:center;color:#e1c9c4;font-size:11px;letter-spacing:.25em;gap:12px}
+    .top a{color:#eddee2;text-decoration:none;font-size:13px;letter-spacing:0}
+    h1{font-family:Georgia,"Songti SC",serif;font-weight:400;font-size:clamp(44px,7vw,89px);letter-spacing:.13em;margin:25px 0 7px}
+    h1 span{color:var(--gold);text-shadow:0 0 38px #e8c58a44}
+    .intro{font-size:14px;line-height:1.9;color:#c6b5c5;max-width:700px;margin:0 0 28px}
+    .grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.8fr);align-items:start;gap:25px}
+    .stageCard{border:1px solid #eccaa454;border-radius:22px;padding:15px;background:linear-gradient(145deg,#4a34404d,#180f24b0);box-shadow:0 28px 75px #05030c96,inset 0 1px #ffe2a32a}
+    .marquee{border:1px solid #8e677a;border-bottom:0;border-radius:14px 14px 0 0;height:44px;background:repeating-linear-gradient(90deg,#5f3d52,#5f3d52 19px,#4a314b 19px,#4a314b 38px);display:flex;align-items:center;justify-content:center;letter-spacing:.25em;font-size:11px;color:#fff1cb}
+    .theatre{padding:18px;background:radial-gradient(ellipse at 50% 0%,#79506066,transparent 76%),linear-gradient(150deg,#23192f,#17172a);border:1px solid #6e4e66;border-radius:0 0 14px 14px;position:relative;overflow:hidden}
+    .theatre:before,.theatre:after{content:"";position:absolute;top:0;bottom:0;width:18px;z-index:1;background:linear-gradient(90deg,#6b2e4d,#aa5973,#59253c);pointer-events:none;box-shadow:0 0 30px #2b142b}
+    .theatre:before{left:0}.theatre:after{right:0}
+    .board{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));aspect-ratio:10/7;gap:4px;position:relative}
+    .tile{border:1px solid #efe5bb10;position:relative;min-width:0;aspect-ratio:1;border-radius:7px;background:#ead4ae0c;display:grid;place-items:center;overflow:hidden}
+    .tile:nth-child(even){background:#ead4ae14}
+    .tile.wall{background:linear-gradient(135deg,#4f3b57,#382c46);border:1px solid #92718d33}
+    .tile.wall:after{content:"";position:absolute;inset:8px;border:1px dashed #ab87a534;border-radius:4px}
+    .tile.gate{background:#e7a56b22;border:1px solid #e4b66f88;box-shadow:inset 0 0 25px #ce9b5f29}
+    .tile.gate.open{background:#a4f2d723;border-color:#9ff4d2}
+    .tile.pad{background:#9eeacb18;border:1px solid #85e2d080}
+    .tile.pad.occupied{background:#c3ffea3f;border-color:#b7ffed;box-shadow:0 0 28px #b0ffd554,inset 0 0 14px #bcffe733}
+    .tile.goal{background:#eed28d19;border-color:#ddc08d7c}
+    .tile .glyph{font-size:clamp(11px,2.1vw,27px);line-height:1;color:#b7a1b9}
+    .tile.goal .glyph{color:#f4cc86;text-shadow:0 0 14px #e9a85d}
+    .actor,.ghost{position:absolute;width:68%;height:68%;border-radius:50%;z-index:3;display:grid;place-items:center;font-size:clamp(9px,1.65vw,20px);box-shadow:0 0 22px #f6c3b67f;background:radial-gradient(circle at 32% 25%,#fff1d7,#db9ba3 60%,#9a647e);color:#4c2c48;transition:transform .15s}
+    .ghost{z-index:2;opacity:.75;transform:scale(.76);box-shadow:0 0 20px #9beee0aa;background:radial-gradient(circle at 32% 25%,#eefff6,#86d9d1 65%,#3b809a)}
+    .actor.withGhost{transform:translate(10%,-8%) scale(.8)}
+    .stageFooter{display:flex;justify-content:space-between;gap:8px;align-items:center;color:#dfbbc8;font-size:11px;letter-spacing:.11em;margin-top:13px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:17px}
+    button{font:inherit;cursor:pointer}button:focus-visible{outline:2px solid #baffdf;outline-offset:3px}
+    .btn{background:#ffffff0c;color:#f8e6e2;border:1px solid #e4bfa244;border-radius:10px;padding:12px 15px;font-size:12px;transition:.18s}
+    .btn:hover:not(:disabled){background:#ffffff20;border-color:#f5d49d}.btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn.main{background:linear-gradient(125deg,#eccb93,#deb1a9);color:#402b3b;font-weight:750;border:0}.btn.main:hover{filter:brightness(1.1)}
+    .padControl{margin-top:18px;display:flex;align-items:center;gap:10px;color:#bdadc2;font-size:11px}
+    .dpad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,45px);gap:6px}
+    .dpad button{color:#f2dfc9;border:1px solid #aa84987a;border-radius:10px;background:#ffffff10;font-size:20px;touch-action:manipulation}
+    .dpad button:active{background:#d9b3a744}.dpad .up{grid-column:2}.dpad .left{grid-column:1;grid-row:2}.dpad .down{grid-column:2;grid-row:2}.dpad .right{grid-column:3;grid-row:2}
+    .side{border:1px solid #b9a7bc42;border-radius:22px;background:linear-gradient(160deg,#372b44dd,#1f1c30ed);box-shadow:0 20px 70px #06030f6a;padding:26px;display:flex;flex-direction:column;gap:18px}
+    .eyebrow{font-size:11px;letter-spacing:.24em;color:#d5aece}.side h2{font:400 30px Georgia,"Songti SC",serif;margin:8px 0}
+    .side p{line-height:1.85;color:#cbbccb;font-size:13px;margin:0}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .stat{padding:13px;border:1px solid #c9abc238;border-radius:12px;background:#ffffff08}
+    .stat small{display:block;color:#b6a2b6;font-size:10px;letter-spacing:.14em}.stat strong{display:block;font-size:22px;margin-top:6px;color:#f0d4a9}
+    .rule{border-top:1px solid #edcaa32e;padding-top:16px;color:#c9b9ca;font-size:12px;line-height:1.9}
+    #message{min-height:50px;color:#aaf5d9;font-size:12px;line-height:1.7}
+    .selectHeader{display:flex;justify-content:space-between;align-items:center;color:#e9d5cb;font-size:12px}.selectHeader span{color:#bca1b0;font-size:10px}
+    .levels{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+    .levels button{min-width:0;aspect-ratio:1;border:1px solid #aa8eac34;color:#aaa0b7;background:#ffffff09;border-radius:7px;font-size:10px;padding:0}
+    .levels button.done{border-color:#a8e9d57c;color:#caffeb;background:#7cceb22d}
+    .levels button.current{border-color:#ffdaa0;color:#fff2d6;background:#cba66f55}
+    .levels button:disabled{opacity:.37;cursor:not-allowed}
+    .footer{text-align:center;color:#907b95;font-size:11px;letter-spacing:.17em;margin-top:22px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}.side{padding:20px}.stageCard{padding:10px}.theatre{padding:12px}.padControl{justify-content:center}.board{gap:3px}}
+    @media(max-width:520px){.wrap{padding:14px 9px 30px}.theatre{padding:8px}.tile{border-radius:4px}.board{gap:2px}.stageFooter{font-size:9px}.actions{gap:7px}.btn{padding:11px 9px}.top{font-size:9px}.levels{gap:4px}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<div class="dust" aria-hidden="true"></div>
+<main class="wrap">
+  <header class="top"><span>THE DEPARTMENT OF LOST TIME · EST. ∞</span><a href="/">← 返回游戏大厅</a></header>
+  <h1>时差<span>剧场</span></h1>
+  <p class="intro">一座只演昨天的剧场。你走过的路，可以变成另一个自己。将过往留在舞台上，让不同时间的你一起打开未来。</p>
+  <div class="grid">
+    <section class="stageCard" aria-label="时差剧场解谜舞台">
+      <div class="marquee">✦ &nbsp; TONIGHT: A PLAY WITH YOUR PAST SELF &nbsp; ✦</div>
+      <div class="theatre"><div id="board" class="board" role="img" aria-label="十列七行时间协作迷宫"></div>
+        <div class="stageFooter"><span>☾ 主角 · 活在此刻</span><span>◌ 残影 · 活在过去</span><span>✦ 星门 · 通往明天</span></div>
+      </div>
+      <div class="actions">
+        <button class="btn main" type="button" id="seal">◌ 留下回声 (R)</button>
+        <button class="btn" type="button" id="wait">⌛ 等一拍 (空格)</button>
+        <button class="btn" type="button" id="reset">↺ 重演本幕</button>
+        <button class="btn" type="button" id="next" hidden>下一幕 →</button>
+      </div>
+      <div class="padControl"><div class="dpad" aria-label="移动方向">
+        <button class="up" data-dir="up" aria-label="向上">↑</button>
+        <button class="left" data-dir="left" aria-label="向左">←</button>
+        <button class="down" data-dir="down" aria-label="向下">↓</button>
+        <button class="right" data-dir="right" aria-label="向右">→</button>
+      </div><span>键盘 WASD / 方向键移动<br>手机使用方向按钮；站在发光圆盘上按 R 封存过去的路线</span></div>
+    </section>
+    <aside class="side">
+      <div><span class="eyebrow">ACT <span id="act">I</span> · SCENE <span id="scene">01</span> / 30</span><h2 id="title">第一次返场</h2><p id="story">踩上记忆圆盘，把你的路线留给下一次表演。</p></div>
+      <div class="stats"><div class="stat"><small>ECHOES / 回声演员</small><strong id="echoCount">0 / 1</strong></div><div class="stat"><small>STEPS / 此幕步数</small><strong id="steps">00</strong></div></div>
+      <div class="rule"><strong>规则</strong>　走到绿色记忆圆盘，按「留下回声」。你的行走路线将化成一位过去的演员，然后你会回到起点。每走一步，过去的你也会按原路线前进一步；全部圆盘被残影点亮时，中央星门才会打开。</div>
+      <div id="message" role="status" aria-live="polite">幕布已经升起。去踩上第一块记忆圆盘。</div>
+      <button type="button" class="btn" id="hint">✧ 场记提示：寻找最短路线</button>
+      <div class="selectHeader"><strong>剧目目录 · 30 幕</strong><span>已通关可重演</span></div>
+      <div class="levels" id="levels" aria-label="三十幕关卡选择"></div>
+    </aside>
+  </div>
+  <div class="footer">ECHO THEATRE · SOME DOORS ONLY OPEN WHEN YESTERDAY AND TODAY AGREE</div>
+</main>
+<script>
+(()=>{
+  'use strict';
+  const $=id=>document.getElementById(id),WIDTH=10,HEIGHT=7,START=[1,3],DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+  const titles=['第一次返场','时间里的光斑','旧时针','窗外的雨','被遗忘的台词','午夜走廊','回头的瞬间','银色后台','借来的影子','迟到的月亮',
+    '两个昨天','并肩独白','未寄出的信','重叠的脚步','无人的掌声','在钟声之前','没有主角的戏','秘密夹层','倒流的河','我与我之间',
+    '第三把椅子','三重奏','黎明之前的排练','穿越幕布','最后的空座','第三次落日','循环的纸飞机','失去方向的钟','星门将启','写给明天的我们'];
+  function rng(seed){let x=seed>>>0;return()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296}}
+  const key=([x,y])=>x+','+y;
+  const same=(a,b)=>a[0]===b[0]&&a[1]===b[1];
+  function neighbors(p){return Object.entries(DIRS).map(([name,d])=>({name,pos:[p[0]+d[0],p[1]+d[1]]}))}
+  function shortest(lv,from,to,allowGate=false){
+    const queue=[{pos:from,moves:[]}],seen=new Set([key(from)]),walls=new Set(lv.walls.map(key));
+    for(let head=0;head<queue.length;head++){
+      const now=queue[head];if(same(now.pos,to))return now.moves;
+      for(const next of neighbors(now.pos)){
+        const [x,y]=next.pos,k=key(next.pos);
+        if(x<1||x>8||y<1||y>5||walls.has(k)||(!allowGate&&x===5)||seen.has(k))continue;
+        seen.add(k);queue.push({pos:next.pos,moves:[...now.moves,next.name]});
+      }
+    }
+    return null;
+  }
+  function createLevel(n){
+    const random=rng(n*81919+173),count=n<=10?1:n<=20?2:3,door=[5,1+Math.floor(random()*5)];
+    for(let attempt=0;attempt<160;attempt++){
+      const pads=[],walls=[];
+      const candidates=[];
+      for(let x=2;x<=4;x++)for(let y=1;y<=5;y++)if(x!==4||y!==door[1])candidates.push([x,y]);
+      for(let i=candidates.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]]}
+      pads.push(...candidates.slice(0,count));
+      const exit=[8,1+Math.floor(random()*5)];
+      const density=2+Math.floor(n/3);
+      for(let j=0;j<density;j++){
+        const x=random()<.68?2+Math.floor(random()*3):6+Math.floor(random()*3);
+        const y=1+Math.floor(random()*5),p=[x,y];
+        if(same(p,exit)||same(p,[4,door[1]])||same(p,[6,door[1]])||pads.some(a=>same(a,p))||walls.some(a=>same(a,p)))continue;
+        walls.push(p);
+      }
+      const lv={number:n,name:titles[n-1],act:count,pads,door,exit,walls,story:count===1
+        ?'将曾经的你留在记忆圆盘上，再让现在的你穿过星门。'
+        :count===2?'两段过去需要同时站在不同位置。你能完成一场双人独白吗？'
+          :'这一次舞台需要三位不同时间的演员，一起为你点亮最后的门。'};
+      if(pads.every(p=>shortest(lv,START,p))&&shortest(lv,START,[4,door[1]])&&shortest(lv,[6,door[1]],exit))return lv;
+    }
+    throw new Error('No playable theatre scene '+n);
+  }
+  const scenes=Array.from({length:30},(_,i)=>createLevel(i+1));
+  function saved(){try{return Math.max(0,Math.min(30,Number(localStorage.getItem('echo_theatre_unlocked'))||0))}catch{return 0}}
+  let unlocked=saved(),sceneIndex=Math.min(unlocked,29),level,hero=[...START],track=[],echoes=[],ticks=0,steps=0,won=false;
+  function store(){try{localStorage.setItem('echo_theatre_unlocked',String(unlocked))}catch{}}
+  const msg=(text)=>{$('message').textContent=text};
+  function resetScene(n=sceneIndex){
+    sceneIndex=n;level=scenes[n];hero=[...START];track=[];echoes=[];ticks=0;steps=0;won=false;
+    $('act').textContent=['I','II','III'][level.act-1];$('scene').textContent=String(n+1).padStart(2,'0');
+    $('title').textContent=level.name;$('story').textContent=level.story;$('next').hidden=true;
+    msg('先沿着迷宫走到发光的记忆圆盘，再封存一位过去的自己。');
+    draw();
+  }
+  function isOccupied(p){return echoes.some(e=>same(e.pos,p))}
+  function gateOpen(){return level.pads.every(p=>isOccupied(p))}
+  function draw(){
+    const occupied=gateOpen(),wallSet=new Set(level.walls.map(key));
+    const children=[];
+    for(let y=0;y<HEIGHT;y++)for(let x=0;x<WIDTH;x++){
+      const p=[x,y],k=key(p),isGate=same(level.door,p),isPad=level.pads.some(v=>same(v,p)),isExit=same(level.exit,p);
+      const isWall=y===0||y===6||x===0||x===9||x===5&&!isGate||wallSet.has(k);
+      const tile=document.createElement('div');tile.className='tile'+(isWall?' wall':'')+(isGate?' gate'+(occupied?' open':''):'')+(isPad?' pad'+(isOccupied(p)?' occupied':''):'')+(isExit?' goal':'');
+      tile.dataset.x=x;tile.dataset.y=y;
+      const glyph=document.createElement('span');glyph.className='glyph';glyph.textContent=isGate?(occupied?'✧':'⌗'):isPad?'◈':isExit?'✦':'';
+      tile.appendChild(glyph);
+      echoes.forEach(e=>{if(same(e.pos,p)){const g=document.createElement('span');g.className='ghost';g.textContent='◌';tile.appendChild(g)}});
+      if(same(hero,p)){const h=document.createElement('span');h.className='actor'+(isOccupied(p)?' withGhost':'');h.textContent='♟';tile.appendChild(h)}
+      children.push(tile);
+    }
+    $('board').replaceChildren(...children);
+    $('steps').textContent=String(steps).padStart(2,'0');
+    $('echoCount').textContent=echoes.length+' / '+level.pads.length;
+    $('seal').disabled=won||echoes.length>=level.pads.length;
+    $('levels').replaceChildren(...scenes.map((s,i)=>{
+      const b=document.createElement('button');b.textContent=String(i+1).padStart(2,'0');
+      b.title=s.name;b.disabled=i>unlocked;b.className=i===sceneIndex?'current':i<unlocked?'done':'';
+      b.addEventListener('click',()=>resetScene(i));return b;
+    }));
+  }
+  function advanceEchoes(){
+    ticks++;
+    for(const echo of echoes){
+      if(echo.cursor<echo.track.length){
+        const d=DIRS[echo.track[echo.cursor++]];echo.pos=[echo.pos[0]+d[0],echo.pos[1]+d[1]];
+      }
+    }
+  }
+  function move(direction){
+    if(won)return;
+    const delta=DIRS[direction];if(!delta)return;
+    const target=[hero[0]+delta[0],hero[1]+delta[1]];
+    if(target[0]<1||target[0]>8||target[1]<1||target[1]>5||level.walls.some(p=>same(p,target))||
+      target[0]===5&&(!same(target,level.door)||!gateOpen())){
+      msg('道具挡住了去路。若想通过星门，需要让过去的演员同时站上所有记忆圆盘。');return;
+    }
+    advanceEchoes();hero=target;track.push(direction);steps++;
+    if(same(hero,level.exit)&&gateOpen()){win();return}
+    draw();
+  }
+  function wait(){
+    if(won)return;advanceEchoes();steps++;msg(gateOpen()?'三道灯光合在一起，星门打开了。':'时间轻轻走过一拍，过去的演员继续前进。');draw();
+  }
+  function seal(){
+    if(won)return;
+    const pad=level.pads.find(p=>same(hero,p));
+    if(!pad){msg('请先走到一块发光的绿色记忆圆盘上，再留下过去的自己。');return}
+    if(echoes.some(e=>same(e.target,pad))){msg('这个圆盘已有残影演员。去另一块尚未占用的记忆圆盘吧。');return}
+    echoes.push({target:[...pad],track:[...track],pos:[...START],cursor:0});
+    for(const echo of echoes){echo.pos=[...START];echo.cursor=0}
+    hero=[...START];track=[];ticks=0;steps++;
+    msg('第 '+echoes.length+' 位回声演员已封存！你的每一步，过去的你也会重演一步。');
+    draw();
+  }
+  function win(){
+    won=true;
+    if(sceneIndex>=unlocked){unlocked=sceneIndex+1;store()}
+    $('next').hidden=false;$('next').textContent=sceneIndex===29?'从头再演一次 ↺':'下一幕：'+scenes[sceneIndex+1].name+' →';
+    msg(sceneIndex===29?'三十幕落下，时间终于与你握手。剧场永远为你开着。':'幕布落下。过去与现在的你，一起推开了明天。');
+    draw();
+  }
+  $('seal').addEventListener('click',seal);$('wait').addEventListener('click',wait);
+  $('reset').addEventListener('click',()=>resetScene());$('next').addEventListener('click',()=>resetScene(sceneIndex===29?0:sceneIndex+1));
+  $('hint').addEventListener('click',()=>{
+    const nextPad=level.pads.find(p=>!echoes.some(e=>same(e.target,p)));
+    if(nextPad){const path=shortest(level,hero,nextPad);msg(path?'场记提示：去第 '+(nextPad[0]+1)+' 列、第 '+(nextPad[1]+1)+' 行的绿色圆盘。建议走 '+(path.length?path.map(s=>({up:'↑',down:'↓',left:'←',right:'→'})[s]).join(' '):'原地')+'，然后按 R。':'这条路已被挡住。可以重演本幕，换一种走法。')}
+    else msg('回声已经封存完毕。移动或等待，让旧时的步伐走到终点，再穿过中央星门。');
+  });
+  document.querySelectorAll('[data-dir]').forEach(b=>b.addEventListener('click',()=>move(b.dataset.dir)));
+  window.addEventListener('keydown',e=>{
+    const mapping={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',KeyW:'up',KeyS:'down',KeyA:'left',KeyD:'right'};
+    if(mapping[e.code]){e.preventDefault();if(!e.repeat)move(mapping[e.code])}
+    if(e.code==='KeyR'&&!e.repeat){e.preventDefault();seal()}
+    if(e.code==='Space'&&!e.repeat){e.preventDefault();wait()}
+  });
+  resetScene();
+})();
+</script>
+</body>
+</html>
