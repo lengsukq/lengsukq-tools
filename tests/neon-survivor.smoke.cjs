@@ -11,7 +11,7 @@ assert.match(html, /src="\/Game\/gamepad_haptics\.js"/);
 const nodes = new Map();
 function node(id) {
   if (!nodes.has(id)) nodes.set(id, {
-    id, style: {}, textContent: '', title: '', classList: {add() {}, remove() {}},
+    id, style: {}, textContent: '', title: '', classList: {add() {}, remove() {}, contains() { return false; }},
     setAttribute(k,v) { this[k] = v; }, addEventListener() {}
   });
   return nodes.get(id);
@@ -73,5 +73,35 @@ Object.assign(game, {
   assert.equal(node('btn-test-vibrate').style.display, 'none');
   connected.length = 0;
   assert.equal((await game.testGamepadVibration()).status, 'disconnected');
-  console.log('Neon Survivor smoke test passed: gamepad connect, rumble test, fullscreen and disconnect.');
+
+  // Regression: A confirms an upgrade, not a simultaneous gameplay dash.
+  connected.push(gp);
+  game.gamepadIndex = 0;
+  game.player.autoAim = true;
+  game.sound = { playLaser() {} };
+  game.state = 'levelup';
+  game.gamepadPrevButtons = {};
+  game.gamepadCombatInputLocked = false;
+  game.gamepadSelectedUpgradeIdx = 0;
+  game.gamepadNavTimer = 0;
+  let upgradeCount = 0;
+  let dashCount = 0;
+  const upgradeCard = { style: {}, click() { upgradeCount++; game.state = 'playing'; } };
+  document.querySelectorAll = selector => selector === '#upgrade-options .upgrade-card' ? [upgradeCard] : [];
+  game.triggerDash = () => { dashCount++; };
+  gp.buttons = Array.from({length: 17}, () => ({pressed: false}));
+  gp.buttons[0].pressed = true;
+  game.pollGamepad(0.016);
+  assert.equal(upgradeCount, 1, 'A must confirm exactly one upgrade');
+  assert.equal(dashCount, 0, 'Confirming the upgrade must not trigger a dash');
+  game.pollGamepad(0.016);
+  assert.equal(dashCount, 0, 'Holding A after confirmation must not trigger a dash');
+  gp.buttons[0].pressed = false;
+  game.pollGamepad(0.016);
+  assert.equal(dashCount, 0, 'Releasing confirmation must not trigger a dash');
+  gp.buttons[0].pressed = true;
+  game.pollGamepad(0.016);
+  assert.equal(dashCount, 1, 'A should work for gameplay after a fresh press');
+
+  console.log('Neon Survivor smoke test passed: rumble, fullscreen, disconnect and upgrade A input isolation.');
 })().catch(e => {console.error(e); process.exitCode = 1;});

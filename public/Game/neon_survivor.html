@@ -2433,6 +2433,7 @@
         this.gamepadPrevButtons = {};
         this.gamepadSelectedUpgradeIdx = 0;
         this.gamepadNavTimer = 0;
+        this.gamepadCombatInputLocked = false;
 
         this.syncGamepadBadge = (gp) => {
           const badge = document.getElementById('gamepad-badge');
@@ -2505,6 +2506,20 @@
       vibrateGamepad(duration = 100, strong = 0.5, weak = 0.3) {
         if (!this.gamepadVibrationEnabled) return Promise.resolve({ status: 'disabled' });
         return GamepadHaptics.playConnected(this.gamepadIndex, duration, strong, weak);
+      }
+
+      rememberGamepadButtons(gp) {
+        for (let i = 0; i < gp.buttons.length; i++) {
+          const button = gp.buttons[i];
+          this.gamepadPrevButtons[i] = Boolean(typeof button === 'object' ? button?.pressed : button > 0.5);
+        }
+      }
+
+      finishGamepadMenuFrame(gp, lockCombat = false) {
+        // A button used for menu confirmation must never also start a dash.
+        this.rememberGamepadButtons(gp);
+        this.gamepadMove = { x: 0, y: 0 };
+        if (lockCombat) this.gamepadCombatInputLocked = true;
       }
 
       pollGamepad(dt) {
@@ -2595,6 +2610,8 @@
             this.state = 'playing';
             this.lastTime = performance.now();
           }
+          this.finishGamepadMenuFrame(gp, this.state === 'playing');
+          return;
         }
 
         // 2. Modals (Start / Help / Pause / GameOver / Victory)
@@ -2602,11 +2619,15 @@
           if (justPressed(1) || justPressed(9) || justPressed(0)) {
             this.closeHelpModal();
           }
+          this.finishGamepadMenuFrame(gp, this.state === 'playing');
+          return;
         } else if (this.state === 'paused') {
           if (justPressed(9) || justPressed(1) || justPressed(0)) {
             this.resumeGame();
             this.vibrateGamepad(80, 0.3, 0.2);
           }
+          this.finishGamepadMenuFrame(gp, this.state === 'playing');
+          return;
         }
 
         // Start screen confirmation
@@ -2620,6 +2641,8 @@
           if (justPressed(3) || justPressed(2)) {
             this.openHelpModal();
           }
+          this.finishGamepadMenuFrame(gp, this.state === 'playing');
+          return;
         }
 
         // Game Over screen
@@ -2629,6 +2652,8 @@
             this.startNewGame();
             this.vibrateGamepad(150, 0.5, 0.3);
           }
+          this.finishGamepadMenuFrame(gp, this.state === 'playing');
+          return;
         }
 
         // Victory screen
@@ -2638,6 +2663,23 @@
             const btnEndless = document.getElementById('btn-endless');
             if (btnEndless) btnEndless.click();
           }
+          this.finishGamepadMenuFrame(gp, this.state === 'playing');
+          return;
+        }
+
+        if (this.state !== 'playing') {
+          this.finishGamepadMenuFrame(gp);
+          return;
+        }
+
+        // On returning from any menu, require the confirmation button to be
+        // physically released before gameplay actions can be dispatched.
+        if (this.gamepadCombatInputLocked) {
+          const actionButtons = [0, 1, 4, 5, 6, 7, 9];
+          const released = actionButtons.every(index => !isPressed(index));
+          this.finishGamepadMenuFrame(gp);
+          if (released) this.gamepadCombatInputLocked = false;
+          return;
         }
 
         // 3. Gameplay Controls (state === 'playing')
@@ -2645,6 +2687,8 @@
           // Pause: Start button (9)
           if (justPressed(9)) {
             this.pauseGame();
+            this.finishGamepadMenuFrame(gp);
+            return;
           }
 
           // Aim mode toggle: Select button (8) or Y button (3)
@@ -2695,9 +2739,7 @@
         }
 
         // Record buttons for edge detection
-        for (let i = 0; i < gp.buttons.length; i++) {
-          this.gamepadPrevButtons[i] = isPressed(i);
-        }
+        this.rememberGamepadButtons(gp);
       }
 
       startNewGame() {
