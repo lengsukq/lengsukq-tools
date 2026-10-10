@@ -60,6 +60,8 @@ sandbox.GamepadHaptics = window.GamepadHaptics;
 vm.runInContext(fs.readFileSync('public/Game/thunder_visuals.js', 'utf8'), sandbox);
 sandbox.ThunderVisuals = window.ThunderVisuals;
 const html = fs.readFileSync('public/Game/thunder_assault.html', 'utf8');
+assert.doesNotMatch(html.split('</style>')[0], /moveToward\(/,
+  'Gameplay methods must never be embedded in the stylesheet');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 for (const match of scripts) if (match[1].trim()) vm.runInContext(match[1], sandbox);
 const game = window.game;
@@ -83,6 +85,18 @@ const previousX = game.player.x;
 game.update(0.016);
 assert.ok(game.player.x > previousX, 'Keyboard movement should beat an idle mouse cursor');
 game.keys.d = false;
+game.mouse.active = false;
+game.touch = {active: true, x: game.player.x - 130, y: game.player.y};
+const touchStart = game.player.x;
+game.update(0.016);
+assert.ok(game.player.x < touchStart, 'Touch steering must not throw and must move the fighter');
+game.touch.active = false;
+game.mouse.active = true;
+game.mouse.x = game.player.x + 120;
+game.mouse.y = game.player.y;
+const mouseStart = game.player.x;
+game.update(0.016);
+assert.ok(game.player.x > mouseStart, 'Mouse steering must not throw and must move the fighter');
 game.mouse.active = false;
 
 game.kills = 8;
@@ -129,4 +143,49 @@ game.startNewGame();
 assert.equal(game.state, 'playing', 'Victory should allow a fresh run');
 assert.equal(game.boss, null, 'Restart should reset flagship state');
 
-console.log('Thunder Assault smoke test passed: visual rendering, controls, waves, both bosses and victory.');
+// Confirming the upgrade with A/RT must not immediately fire the weapon.
+game.triggerUpgradeChoice();
+const upgradeCards = document.getElementById('upgrade-options-container').children;
+assert.ok(upgradeCards.length > 0);
+document.querySelectorAll = selector => selector === '#upgrade-options-container .upgrade-card'
+  ? upgradeCards : [];
+const gp = {index: 0, connected: true, axes: [0,0,0,0],
+  buttons: Array.from({length: 17}, () => ({pressed:false}))};
+sandbox.navigator.getGamepads = () => [gp];
+let manualFireCount = 0;
+const previousFire = game.firePlayerWeapon;
+game.firePlayerWeapon = () => { manualFireCount++; };
+gp.buttons[0].pressed = true;
+game.pollGamepad(0.016);
+assert.equal(game.state, 'playing', 'A should confirm the highlighted upgrade');
+assert.equal(manualFireCount, 0, 'A confirmation must not also fire');
+game.pollGamepad(0.016);
+assert.equal(manualFireCount, 0, 'Holding A after upgrade must not fire');
+gp.buttons[0].pressed = false;
+game.pollGamepad(0.016);
+assert.equal(manualFireCount, 0, 'Release frame should not fire');
+gp.buttons[0].pressed = true;
+game.pollGamepad(0.016);
+assert.equal(manualFireCount, 1, 'Fresh A press may fire after menu release');
+game.firePlayerWeapon = previousFire;
+
+// A failed animation frame must not kill the animation loop forever.
+let nextFrameCount = 0;
+sandbox.requestAnimationFrame = () => { nextFrameCount++; };
+const previousUpdate = game.update;
+const previousConsole = sandbox.console;
+let reported = 0;
+sandbox.console = {error() { reported++; }};
+game.update = () => { throw new Error('temporary rendering fault'); };
+assert.doesNotThrow(() => game.loop(100));
+assert.equal(nextFrameCount, 1, 'Animation should schedule a follow-up frame on failure');
+assert.equal(reported, 1, 'Failure must be logged');
+game.update = previousUpdate;
+sandbox.console = previousConsole;
+
+// Sound initialization should not reference game collision state.
+sandbox.window.AudioContext = class {constructor() {this.state = 'running';}};
+game.audio.init();
+assert.ok(game.audio.ctx, 'Audio should initialize without game state exceptions');
+
+console.log('Thunder Assault smoke test passed: pointer/touch, audio, frame recovery, upgrade A, bosses and victory.');

@@ -349,16 +349,6 @@
       .ship-select-grid {
         grid-template-columns: 1fr;
       }
-
-      moveToward(x, y, maxDistance) {
-        const dx = x - this.player.x;
-        const dy = y - this.player.y;
-        const length = Math.hypot(dx, dy);
-        if (length < 0.01) return;
-        const step = Math.min(maxDistance, length);
-        this.player.x += dx / length * step;
-        this.player.y += dy / length * step;
-      }
     }
     .ship-card {
       background: rgba(15, 23, 42, 0.7);
@@ -1012,12 +1002,6 @@
             }
           }
 
-          // Hull-to-hull collisions must also be dangerous, not only bullets.
-          if (this.player.invincibleTimer <= 0 &&
-              Math.hypot(this.player.x - e.x, this.player.y - e.y) < this.player.hitRadius + e.radius + 3) {
-            e.hp -= 160;
-            this.onPlayerHit(24);
-          }
           if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().catch(() => {});
           }
@@ -1317,6 +1301,17 @@
         requestAnimationFrame((t) => this.loop(t));
       }
 
+      // Pointer steering is frame-rate independent and capped by flight speed.
+      moveToward(x, y, maxDistance) {
+        const dx = x - this.player.x;
+        const dy = y - this.player.y;
+        const distance = Math.hypot(dx, dy);
+        if (!Number.isFinite(distance) || distance < 0.01) return;
+        const step = Math.min(Math.max(0, maxDistance), distance);
+        this.player.x += dx / distance * step;
+        this.player.y += dy / distance * step;
+      }
+
       initStars() {
         this.stars = [];
         for (let i = 0; i < 120; i++) {
@@ -1467,6 +1462,8 @@
         this.gamepadIndex = -1;
         this.gamepadPrevButtons = {};
         this.gpMenu = { shipIdx: 0, upgradeIdx: 0, navTimer: 0, tabIdx: 0 };
+        this.gpMenuInputLocked = false;
+        this.gpWasInMenu = false;
         this.lastGpBomb = false;
         this.lastGpHyper = false;
         window.addEventListener('gamepadconnected', (e) => {
@@ -1662,6 +1659,19 @@
         return pressed && !was;
       }
 
+      gpRememberButtons(gp) {
+        for (let i = 0; i < gp.buttons.length; i++) {
+          this.gamepadPrevButtons[i] = this.gpIsPressed(gp, i);
+        }
+      }
+
+      gpConsumeMenuInput(gp) {
+        this.gpRememberButtons(gp);
+        this.gamepadMoving = false;
+        this.lastGpBomb = this.gpIsPressed(gp, 1) || this.gpIsPressed(gp, 6);
+        this.lastGpHyper = this.gpIsPressed(gp, 2) || this.gpIsPressed(gp, 4);
+      }
+
       // Highlight one element among a list for gamepad menu navigation
       gpHighlight(list, idx) {
         list.forEach((el, i) => {
@@ -1759,7 +1769,7 @@
           } else if (this.gpJustPressed(gp, 2)) {
             document.getElementById('btn-pause-restart').click();
           }
-          return false;
+          return true;
         }
 
         // --- Result screen: A/Start retries ---
@@ -1784,12 +1794,31 @@
         if (badge && badge.style.display === 'none') badge.style.display = 'inline-flex';
 
         // Menus first (they consume the frame when open)
-        if (this.pollGamepadMenus(gp, dt)) return;
+        if (this.pollGamepadMenus(gp, dt)) {
+          this.gpConsumeMenuInput(gp);
+          this.gpWasInMenu = true;
+          if (this.state === 'playing') this.gpMenuInputLocked = true;
+          return;
+        }
         if (this.state !== 'playing') return;
+
+        // Pointer and controller can both confirm an upgrade; either way,
+        // the held confirmation button must be released before combat input.
+        if (this.gpWasInMenu) {
+          this.gpWasInMenu = false;
+          this.gpMenuInputLocked = true;
+        }
+        if (this.gpMenuInputLocked) {
+          const released = [0, 1, 2, 4, 5, 6, 7, 9].every(i => !this.gpIsPressed(gp, i));
+          this.gpConsumeMenuInput(gp);
+          if (released) this.gpMenuInputLocked = false;
+          return;
+        }
 
         // --- Combat: pause on Start (9) ---
         if (this.gpJustPressed(gp, 9)) {
           this.togglePause();
+          this.gpConsumeMenuInput(gp);
           return;
         }
         // consume manual-open buttons edge state (X opens manual via keyboard only; keep for future)
@@ -2354,6 +2383,13 @@
           if (e.hitFlash > 0) e.hitFlash -= dt;
           e.x += e.vx * dt;
           e.y += e.vy * dt;
+
+          // Body collision is gameplay logic, not sound initialization.
+          if (this.player.invincibleTimer <= 0 &&
+              Math.hypot(this.player.x - e.x, this.player.y - e.y) < this.player.hitRadius + e.radius + 3) {
+            e.hp -= 160;
+            this.onPlayerHit(24);
+          }
 
           // Wall bounce
           if (e.x < e.radius || e.x > this.width - e.radius) {
@@ -2934,20 +2970,24 @@
       }
 
       loop(timestamp) {
-        const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
-        this.lastTime = timestamp;
-        if (this.state === 'playing') this.visualTime = (this.visualTime || 0) + dt;
-
-        // Gamepad must be polled every frame (menus work outside 'playing')
         try {
-          this.pollGamepad(dt);
-        } catch (err) {
-          /* gamepad polling must never break the main loop */
-        }
-        this.update(dt);
-        this.render();
+          const dt = Math.max(0, Math.min((timestamp - this.lastTime) / 1000, 0.05));
+          this.lastTime = timestamp;
+          if (this.state === 'playing') this.visualTime = (this.visualTime || 0) + dt;
 
-        requestAnimationFrame((t) => this.loop(t));
+          try { this.pollGamepad(dt); }
+          catch (err) { console.error('[ThunderAssault] gamepad error:', err); }
+
+          this.update(dt);
+          this.render();
+          this.loopErrorReported = false;
+        } catch (err) {
+          if (!this.loopErrorReported) console.error('[ThunderAssault] frame failed:', err);
+          this.loopErrorReported = true;
+        } finally {
+          // A single frame error must not permanently stop all input/rendering.
+          requestAnimationFrame((t) => this.loop(t));
+        }
       }
     }
 
