@@ -19,7 +19,7 @@ export const GAMES: Game[] = [
   {
     title: "雷霆战机：银河突围",
     description:
-      "经典热血街机弹幕空战！三型王牌战机、擦弹超载暴击、Roguelite随机科技与多阶段史诗巨舰Boss，支持键鼠/触屏/手柄震动与自研合成音效",
+      "深空战机弹幕挑战：三款全新绘制的战机、分层旗舰 Boss、预警弹幕与弱点机制；擦弹超载、战术芯片构筑，支持键鼠、触屏和手柄",
     href: "/Game/thunder_assault.html",
   },
 ];

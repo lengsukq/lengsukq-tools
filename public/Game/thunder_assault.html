@@ -349,6 +349,16 @@
       .ship-select-grid {
         grid-template-columns: 1fr;
       }
+
+      moveToward(x, y, maxDistance) {
+        const dx = x - this.player.x;
+        const dy = y - this.player.y;
+        const length = Math.hypot(dx, dy);
+        if (length < 0.01) return;
+        const step = Math.min(maxDistance, length);
+        this.player.x += dx / length * step;
+        this.player.y += dy / length * step;
+      }
     }
     .ship-card {
       background: rgba(15, 23, 42, 0.7);
@@ -634,6 +644,7 @@
       color: #94a3b8;
     }
   </style>
+  <link rel="stylesheet" href="/Game/thunder_theme.css">
 </head>
 <body>
 
@@ -645,27 +656,28 @@
     <!-- Top In-Game HUD -->
     <div id="hud">
       <div class="hud-group">
-        <a href="/" class="hud-btn" id="btn-home" title="返回在线工具主页">🏠 返回主页</a>
-        <div class="stat-badge" title="当前关卡波次">🌊 <span id="hud-wave">WAVE 1</span></div>
-        <div class="stat-badge" title="消灭敌舰数">💀 <span id="hud-kills">0</span></div>
+        <a href="/" class="hud-btn" id="btn-home" title="返回在线工具主页">← 返回</a>
+        <div class="stat-badge" title="当前关卡波次">STAGE <span id="hud-wave">WAVE 1</span></div>
+        <div class="stat-badge" title="消灭敌舰数">KILLS <span id="hud-kills">0</span></div>
       </div>
 
       <div class="hud-group">
         <div class="stat-badge" style="border-color: rgba(250, 204, 21, 0.3);" title="当前战斗积分">
-          🏆 <span id="hud-score" style="color: #facc15;">0</span>
+          SCORE <span id="hud-score" style="color: #f8d7a1;">0</span>
         </div>
         <div class="stat-badge" id="hud-combo-badge" style="border-color: rgba(236, 72, 153, 0.3);" title="当前擦弹连击倍率">
-          ⚡ <span id="hud-combo" style="color: #f472b6;">1.0x</span>
+          CHAIN <span id="hud-combo" style="color: #cba8ee;">1.0x</span>
         </div>
       </div>
 
       <div class="hud-group">
         <div class="stat-badge" id="gamepad-badge" style="display:none; border-color: rgba(16, 185, 129, 0.45);" title="手柄已连接">🎮 <span id="gamepad-name">手柄已就绪</span></div>
-        <button class="hud-btn" id="btn-sound" title="音效开关">🔊 音效</button>
-        <button class="hud-btn" id="btn-manual" title="操作战术手册">📖 手册</button>
-        <button class="hud-btn" id="btn-pause" title="暂停游戏">⏸️ 暂停</button>
+        <button class="hud-btn" id="btn-sound" title="音效开关">音效</button>
+        <button class="hud-btn" id="btn-manual" title="操作战术手册">手册</button>
+        <button class="hud-btn" id="btn-pause" title="暂停游戏">暂停</button>
       </div>
     </div>
+    <div id="combat-notice" role="status" aria-live="polite"></div>
 
     <!-- Boss Health Bar -->
     <div id="boss-hud">
@@ -713,14 +725,15 @@
   <!-- START / HANGAR MODAL -->
   <div class="modal-overlay active" id="modal-start">
     <div class="modal-box">
-      <div class="modal-title">雷霆战机：银河突围</div>
+      <div class="hangar-eyebrow">MISSION 01 / GALACTIC DEFENSE FORCE</div>
+      <div class="modal-title">雷霆战机 <span style="color:#83dce7">/</span> 银河突围</div>
       <div class="modal-subtitle">THUNDER STRIKE : GALAXY ASSAULT</div>
 
-      <p style="font-size: 14px; color: #cbd5e1; text-align: center; line-height: 1.6;">
-        突入深空异星舰队包围圈！擦弹规避漫天弹幕积累超能过载，收集战术芯片进化战机，击溃史诗级星际母舰！
+      <p class="hangar-intro">
+        深空防线已经失守。选择你的机体，穿越敌舰编队，在交错弹幕中寻找安全航线，击穿两支旗舰的核心反应炉。
       </p>
 
-      <div style="font-size: 13px; font-weight: 700; color: #38bdf8; margin-top: 4px;">🚀 选择你的出击座驾：</div>
+      <div class="hangar-divider"><span>01 / 选择出击机体</span><span>3 架战机 · 独立装甲 / 武器配置</span></div>
       <div class="ship-select-grid">
         <!-- Ship 1 -->
         <div class="ship-card selected" data-ship="0">
@@ -749,15 +762,16 @@
         <div class="key-item"><span class="kbd-tag">W/A/S/D / 鼠标</span><span>全向精准飞行 / 跟随</span></div>
         <div class="key-item"><span class="kbd-tag">空格 / J / 左键</span><span>持续开火 (支持自动)</span></div>
         <div class="key-item"><span class="kbd-tag">K / E / 右键</span><span>释放全屏核爆 (BOMB)</span></div>
+        <div class="key-item"><span class="kbd-tag">Q / 手柄 X</span><span>满能量后手动启动超载</span></div>
         <div class="key-item"><span class="kbd-tag">Shift</span><span>低速微操对齐 (显示核心判定点)</span></div>
         <div class="key-item"><span class="kbd-tag">触屏滑动</span><span>手指拖拽 (智能上方偏移防遮挡)</span></div>
         <div class="key-item"><span class="kbd-tag">手柄即插即用</span><span>摇杆移动 + A键射击 + B键核爆</span></div>
       </div>
 
       <div class="btn-row">
-        <button class="btn-action" id="btn-start-game">🚀 全速出击 (LAUNCH MISSION)</button>
-        <button class="btn-secondary" id="btn-open-manual">📖 战术手册</button>
-        <a href="/" class="btn-secondary">🏠 返回导航大厅</a>
+        <button class="btn-action" id="btn-start-game">开始作战 / LAUNCH MISSION →</button>
+        <button class="btn-secondary" id="btn-open-manual">战术手册</button>
+        <a href="/" class="btn-secondary">返回大厅</a>
       </div>
     </div>
   </div>
@@ -842,7 +856,7 @@
               <li><b>左摇杆 / 十字键</b>：360° 模拟飞行移动（带 0.18 死区过滤）</li>
               <li><b>A 键 / RT 键</b>：主炮持续开火（与自动开火叠加）</li>
               <li><b>B 键 / LT 键</b>：释放【全屏核爆 EX Bomb】</li>
-              <li><b>X 键 / LB 键</b>：能量满格时激活【狂暴超载 Hyper】</li>
+              <li><b>X 键 / LB 键</b>：能量满格时手动激活【狂暴超载 Hyper】</li>
               <li><b>Y 键</b>：按住进入低速聚焦微操（显示核心判定点）</li>
               <li><b>Start 键</b>：暂停 / 继续战斗；准备 / 升级 / 结算界面可用 A 键确认</li>
               <li><b>震动反馈</b>：擦弹轻震、受击中震、核爆/Boss 重震</li>
@@ -856,6 +870,7 @@
               <li><b>鼠标移动</b>：战机平滑跟随（默认自动开火）</li>
               <li><b>空格 / J / 鼠标左键</b>：持续开火</li>
               <li><b>K / E / 鼠标右键</b>：释放全屏核爆（BOMB）</li>
+              <li><b>Q</b>：超载能量蓄满时手动启动爆发</li>
               <li><b>Shift</b>：低速聚焦微操（移速 -50%，点亮核心判定点）</li>
               <li><b>P / Esc</b>：暂停游戏</li>
             </ul>
@@ -883,7 +898,7 @@
 
           <div class="help-box">
             <div class="help-box-title">⚡ 狂暴超载 (Hyper Overload)</div>
-            <p>黄色能量槽蓄满 <b>100%</b> 后自动激活：瞬间净化全屏敌弹并转化为得分水晶，随后 <b>8 秒</b>超频狂暴——射速 +60%、伤害 +50%、星空进入曲率拉伸特效。建议留到 Boss 弹幕最密阶段开启。</p>
+            <p>黄色能量槽蓄满 <b>100%</b> 后按 Q / 手柄 X / 触屏超载键手动激活：瞬间净化全屏敌弹并转化为得分水晶，随后 <b>8 秒</b>超频狂暴——射速 +60%、伤害 +50%、星空进入曲率拉伸特效。可留到 Boss 弹幕密集时使用。</p>
           </div>
 
           <div class="help-box">
@@ -893,7 +908,7 @@
 
           <div class="help-box">
             <div class="help-box-title">💣 毁灭核爆 (EX Bomb)</div>
-            <p>开局自带 <b>3 枚</b>核爆：引爆全屏脉冲，歼灭所有敌弹（每发转化为得分）、对全屏敌机造成 <b>400 点</b>真伤。敌机偶有掉落补充，上限 3 枚，Boss 残血斩杀慎用。</p>
+            <p>开局自带 <b>3 枚</b>核爆：引爆全屏脉冲，歼灭所有敌弹（每发转化为得分）、对全屏敌机和 Boss 造成 <b>400 点</b>伤害。敌机偶有掉落补充，上限 3 枚。</p>
           </div>
         </div>
       </div>
@@ -937,12 +952,12 @@
 
           <div class="help-box">
             <div class="help-box-title">🏰 WAVE 5 · 星港防卫要塞·铁幕</div>
-            <p>首位领主：万花筒螺旋弹幕 + 瞄准三连重炮集群，半血后螺旋射线从 3 束增至 4 束。击破奖励 <b>15000 × 连击倍率</b>得分并解锁一次战术芯片三选一。</p>
+            <p>首位领主：轮流使用旋转螺旋弹幕和锁定散射齐射，攻击切换前有预警。核心亮起时命中有额外伤害，装甲关闭时伤害减弱。三阶段逐步加速；击破奖励 <b>15000 × 连击倍率</b>并解锁战术芯片。</p>
           </div>
 
           <div class="help-box">
             <div class="help-box-title">🐋 WAVE 10 · 利维坦·虚空噬星舰</div>
-            <p>终极领主：更快走位 + 更密螺旋 + 高频瞄准重炮。击破即【银河征服者】胜利结算。建议进场前攒满核爆与超载能量，半血斩杀期全开爆发。</p>
+            <p>终极领主：独立的利维坦双翼舰体，更高密度的旋转射线与锁定齐射。预判预警圈，利用核心暴露窗口集中火力；击破即可突围成功。</p>
           </div>
         </div>
       </div>
@@ -953,6 +968,8 @@
     </div>
   </div>
 
+  <script src="/Game/thunder_visuals.js"></script>
+  <script src="/Game/gamepad_haptics.js"></script>
   <script>
     /* =====================================================================
        雷霆战机：银河突围 (Thunder Strike: Galaxy Assault)
@@ -993,6 +1010,13 @@
             if (AudioContext) {
               this.ctx = new AudioContext();
             }
+          }
+
+          // Hull-to-hull collisions must also be dangerous, not only bullets.
+          if (this.player.invincibleTimer <= 0 &&
+              Math.hypot(this.player.x - e.x, this.player.y - e.y) < this.player.hitRadius + e.radius + 3) {
+            e.hp -= 160;
+            this.onPlayerHit(24);
           }
           if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().catch(() => {});
@@ -1216,6 +1240,11 @@
         this.comboTimer = 0;
         this.wave = 1;
         this.waveTimer = 0;
+        this.waveStartKills = 0;
+        this.hyperReadyAnnounced = false;
+        this.hyperReadyAnnounced = false;
+        this.visualTime = 0;
+        this.noticeTimer = 0;
         this.highScore = safeGetHighScore();
 
         // Player Attributes
@@ -1328,12 +1357,14 @@
           this.audio.init();
 
           if (e.key === 'Shift') this.player.focusMode = true;
-          if (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'e') {
+          if (!e.repeat && (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'e')) {
             this.triggerBomb();
           }
-          if (e.key === 'p' || e.key === 'Escape') {
+          if (!e.repeat && e.key.toLowerCase() === 'q') this.activateHyper();
+          if (!e.repeat && (e.key.toLowerCase() === 'p' || e.key === 'Escape')) {
             this.togglePause();
           }
+          if (this.state === 'playing' && [' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) e.preventDefault();
         });
 
         window.addEventListener('keyup', (e) => {
@@ -1359,6 +1390,7 @@
         this.canvas.addEventListener('mouseup', (e) => {
           if (e.button === 0) this.mouse.down = false;
         });
+        this.canvas.addEventListener('mouseleave', () => { this.mouse.active = false; this.mouse.down = false; });
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
         // Touch Drag with Smart Fingertip Offset (-50px)
@@ -1396,9 +1428,9 @@
         document.getElementById('btn-pause-restart').onclick = () => this.startNewGame();
         document.getElementById('btn-restart-game').onclick = () => this.startNewGame();
 
-        document.getElementById('btn-manual').onclick = () => this.showModal('modal-manual');
-        document.getElementById('btn-open-manual').onclick = () => this.showModal('modal-manual');
-        document.getElementById('btn-close-manual').onclick = () => this.hideModal('modal-manual');
+        document.getElementById('btn-manual').onclick = () => this.openManual();
+        document.getElementById('btn-open-manual').onclick = () => this.openManual();
+        document.getElementById('btn-close-manual').onclick = () => this.closeManual();
 
         document.getElementById('btn-start-game').onclick = () => {
           try {
@@ -1445,7 +1477,7 @@
           const nameEl = document.getElementById('gamepad-name');
           if (nameEl) nameEl.textContent = '手柄已就绪';
           this.createFloatingText(this.player.x, this.player.y - 60, '🎮 手柄已连接！', '#10b981');
-          this.vibrateGamepad(150, 0.4, 0.2);
+          // Haptics often require a user gesture. Confirm on a combat action.
         });
         window.addEventListener('gamepaddisconnected', () => {
           this.gamepadIndex = -1;
@@ -1461,6 +1493,28 @@
       }
       hideModal(id) {
         document.getElementById(id).classList.remove('active');
+      }
+
+      openManual() {
+        if (document.getElementById('modal-manual').classList.contains('active')) return;
+        this.manualPreviousState = this.state;
+        if (this.state === 'playing') this.togglePause();
+        this.hideModal('modal-pause');
+        this.showModal('modal-manual');
+      }
+
+      closeManual() {
+        this.hideModal('modal-manual');
+        if (this.manualPreviousState === 'playing' && this.state === 'paused') this.togglePause();
+        else if (this.manualPreviousState === 'paused') this.showModal('modal-pause');
+        this.manualPreviousState = null;
+      }
+
+      showCombatNotice(text, duration = 2.2) {
+        const el = document.getElementById('combat-notice');
+        el.textContent = text;
+        el.classList.add('visible');
+        this.noticeTimer = duration;
       }
 
       togglePause() {
@@ -1483,10 +1537,10 @@
           const container = document.getElementById(canvasId);
           if (!container) return;
           const cvs = document.createElement('canvas');
-          cvs.width = 72;
-          cvs.height = 72;
+          cvs.width = 135;
+          cvs.height = 118;
           const ctx = cvs.getContext('2d');
-          this.drawFighter(ctx, 36, 36, shipIndex, 0, 1.2);
+          this.drawFighter(ctx, 67.5, 55, shipIndex, 0, 1.2, true);
           container.replaceChildren(cvs);
         };
         drawShipOnCanvas('preview-ship-0', 0);
@@ -1509,7 +1563,12 @@
         this.comboTimer = 0;
         this.wave = 1;
         this.waveTimer = 0;
+        this.waveStartKills = 0;
+        this.visualTime = 0;
+        this.noticeTimer = 0;
         this.boss = null;
+        document.getElementById('boss-hud').classList.remove('active');
+        document.getElementById('combat-notice').classList.remove('visible');
 
         // Reset player based on ship type
         this.player.x = this.width / 2;
@@ -1518,8 +1577,14 @@
         this.player.vy = 0;
         this.player.bombs = 3;
         this.player.hyperMeter = 0;
+        this.hyperReadyAnnounced = false;
         this.player.isHyper = false;
         this.player.invincibleTimer = 2.0;
+        this.player.fireCooldown = 0;
+        this.player.shieldRegenTimer = 0;
+        this.mouse.active = false;
+        this.touch.active = false;
+        this.keys = {};
 
         // Ship specific tuning
         if (this.selectedShip === 0) { // Thunder
@@ -1566,6 +1631,7 @@
         this.drones = [];
 
         this.updateHUD();
+        this.showCombatNotice('WAVE 01  ·  警戒空域', 2.4);
         this.audio.startBGM();
       }
 
@@ -1711,7 +1777,7 @@
 
       pollGamepad(dt) {
         const gp = this.getActiveGamepad();
-        if (!gp) return;
+        if (!gp) { this.gamepadMoving = false; return; }
 
         // Keep badge visible while connected
         const badge = document.getElementById('gamepad-badge');
@@ -1719,6 +1785,7 @@
 
         // Menus first (they consume the frame when open)
         if (this.pollGamepadMenus(gp, dt)) return;
+        if (this.state !== 'playing') return;
 
         // --- Combat: pause on Start (9) ---
         if (this.gpJustPressed(gp, 9)) {
@@ -1738,6 +1805,7 @@
         if (this.gpIsPressed(gp, 15)) mx = 1;
         if (this.gpIsPressed(gp, 12)) my = -1;
         if (this.gpIsPressed(gp, 13)) my = 1;
+        this.gamepadMoving = mx !== 0 || my !== 0;
 
         const spd = this.player.speed * (this.player.focusMode ? 0.5 : 1.0);
         this.player.x += mx * spd * dt;
@@ -1764,18 +1832,7 @@
       }
 
       vibrateGamepad(duration = 100, strong = 0.5, weak = 0.3) {
-        if (!navigator.getGamepads) return;
-        const gps = navigator.getGamepads();
-        for (const gp of gps) {
-          if (gp && gp.vibrationActuator) {
-            gp.vibrationActuator.playEffect('dual-rumble', {
-              startDelay: 0,
-              duration,
-              weakMagnitude: weak,
-              strongMagnitude: strong
-            }).catch(() => {});
-          }
-        }
+        return GamepadHaptics.playConnected(this.gamepadIndex, duration, strong, weak);
       }
 
       // --- WEAPON & BULLET SYSTEMS ---
@@ -1859,13 +1916,18 @@
           e.hp -= 400;
           this.createFloatingText(e.x, e.y, 'NUKE 400', '#ef4444');
         });
+        if (this.boss) {
+          this.boss.hp -= 400;
+          this.boss.hitFlash = 0.26;
+          this.createFloatingText(this.boss.x, this.boss.y + 5, 'CORE -400', '#ffd0a0');
+        }
 
         this.createFloatingText(this.player.x, this.player.y - 40, '⚡ EX BOMB ⚡', '#f87171');
         this.updateHUD();
       }
 
       activateHyper() {
-        if (this.player.hyperMeter < 100 || this.player.isHyper) return;
+        if (this.state !== 'playing' || this.player.hyperMeter < 100 || this.player.isHyper) return;
         this.player.hyperMeter = 0;
         this.player.isHyper = true;
         this.player.hyperTimer = 8.0; // 8 seconds of Hyper mode
@@ -1883,7 +1945,8 @@
         });
         this.enemyBullets = [];
 
-        this.createFloatingText(this.player.x, this.player.y - 40, '🔥 HYPER OVERLOAD! 🔥', '#facc15');
+        this.createFloatingText(this.player.x, this.player.y - 40, 'HYPER OVERLOAD', '#facc15');
+        this.showCombatNotice('HYPER  ·  超载火力已激活', 1.7);
         this.updateHUD();
       }
 
@@ -1926,21 +1989,21 @@
       // --- SPAWNING & WAVE DIRECTORS ---
       updateWaveDirector(dt) {
         this.waveTimer += dt;
-
-        // Check if current boss is alive
-        if (this.boss && this.boss.hp > 0) return;
-
-        // Wave progression
-        if (this.wave === 5 && !this.boss && this.enemies.length === 0) {
-          this.spawnBoss(1); // Wave 5 Boss: Iron Curtain
-          return;
-        } else if (this.wave === 10 && !this.boss && this.enemies.length === 0) {
-          this.spawnBoss(2); // Wave 10 Boss: Void Leviathan
+        // Boss waves do not spawn endless regular enemies. Clear the preceding
+        // formation, then introduce the flagship exactly once.
+        if (this.boss) return;
+        if (this.wave === 5 || this.wave === 10) {
+          // Slow cruisers must not stall a flagship encounter indefinitely.
+          if (this.enemies.length === 0 || this.waveTimer >= 4.5) {
+            this.enemies = [];
+            this.enemyBullets = [];
+            this.spawnBoss(this.wave === 5 ? 1 : 2);
+          }
           return;
         }
 
         // Standard wave enemy spawner
-        if (this.waveTimer > 1.2 && this.enemies.length < 8 + this.wave * 2) {
+        if (this.waveTimer > Math.max(0.78, 1.42 - this.wave * 0.045) && this.enemies.length < Math.min(11, 6 + this.wave)) {
           this.waveTimer = 0;
           const spawnType = Math.random();
 
@@ -1989,9 +2052,15 @@
           }
         }
 
-        // Advance wave if enough kills accumulated
-        if (this.kills >= this.wave * 14 && this.wave < 10) {
+        // Relative, per-wave quotas prevent skipping bosses on cumulative kills.
+        const quota = 6 + Math.ceil(this.wave * 1.35);
+        if (this.kills - this.waveStartKills >= quota) {
           this.wave++;
+          this.waveStartKills = this.kills;
+          this.waveTimer = 0;
+          this.showCombatNotice(this.wave === 5 || this.wave === 10
+            ? `WAVE ${String(this.wave).padStart(2, '0')}  ·  旗舰信号接近`
+            : `WAVE ${String(this.wave).padStart(2, '0')}  ·  敌军编队升级`, 2.4);
           this.triggerUpgradeChoice();
         }
       }
@@ -1999,7 +2068,7 @@
       spawnBoss(bossType) {
         this.audio.playBossAlert();
         this.screenFlash();
-        this.triggerShake(0.8, 18);
+        this.triggerShake(0.35, 9);
 
         const bossHud = document.getElementById('boss-hud');
         bossHud.classList.add('active');
@@ -2009,32 +2078,43 @@
           this.boss = {
             name: 'Iron Curtain',
             x: this.width / 2,
-            y: 110,
-            targetY: 130,
+            y: -100,
+            targetY: Math.max(210, Math.min(240, this.height * 0.29)),
             vx: 80,
-            hp: 2200,
-            maxHp: 2200,
+            hp: 3600,
+            maxHp: 3600,
             phase: 1,
             radius: 65,
             attackTimer: 0,
-            spiralAngle: 0
+            spiralAngle: 0,
+            pattern: 0,
+            patternTimer: 5,
+            telegraph: 0.85,
+            coreOpen: true,
+            hitFlash: 0
           };
         } else { // Void Leviathan
           document.getElementById('boss-title').textContent = '终极领主：利维坦 · 虚空噬星舰';
           this.boss = {
             name: 'Void Leviathan',
             x: this.width / 2,
-            y: 110,
-            targetY: 140,
+            y: -120,
+            targetY: Math.max(240, Math.min(275, this.height * 0.32)),
             vx: 110,
-            hp: 4500,
-            maxHp: 4500,
+            hp: 6600,
+            maxHp: 6600,
             phase: 1,
             radius: 80,
             attackTimer: 0,
-            spiralAngle: 0
+            spiralAngle: 0,
+            pattern: 0,
+            patternTimer: 5,
+            telegraph: 0.85,
+            coreOpen: true,
+            hitFlash: 0
           };
         }
+        this.showCombatNotice(bossType === 1 ? 'WARNING  ·  星港铁幕入侵' : 'WARNING  ·  虚空利维坦入侵', 3);
       }
 
       // --- ROGUELITE UPGRADE SYSTEM ---
@@ -2103,6 +2183,11 @@
       update(dt) {
         if (this.state !== 'playing') return;
 
+        if (this.noticeTimer > 0) {
+          this.noticeTimer -= dt;
+          if (this.noticeTimer <= 0) document.getElementById('combat-notice').classList.remove('visible');
+        }
+
         // Update Screen Shake
         if (this.shakeTimer > 0) {
           this.shakeTimer -= dt;
@@ -2145,41 +2230,25 @@
           this.player.shield = Math.min(this.player.maxShield, this.player.shield + 10 * dt);
         }
 
-        // Movement: Touch > Mouse > Keyboard (gamepad handled in loop())
-        // NOTE: gamepad movement is applied inside pollGamepad(); do not call it here
-        // because update() early-returns outside 'playing' while menus need polling.
+        // Keyboard movement has priority over an idle mouse cursor. Pointer
+        // movement is capped by dt to prevent frame-rate dependent teleports.
         if (this.state !== 'playing') return;
 
         const spd = this.player.speed * (this.player.focusMode ? 0.5 : 1.0);
-
+        let dx = 0, dy = 0;
+        if (this.keys['w'] || this.keys['arrowup']) dy -= 1;
+        if (this.keys['s'] || this.keys['arrowdown']) dy += 1;
+        if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;
+        if (this.keys['d'] || this.keys['arrowright']) dx += 1;
+        const hasKeyboardMovement = dx !== 0 || dy !== 0;
         if (this.touch.active) {
-          this.player.x += (this.touch.x - this.player.x) * 0.28;
-          this.player.y += (this.touch.y - this.player.y) * 0.28;
-          this.firePlayerWeapon();
-        } else if (this.mouse.active) {
-          this.player.x += (this.mouse.x - this.player.x) * 0.22;
-          this.player.y += (this.mouse.y - this.player.y) * 0.22;
-          if (this.mouse.down || true) { // Auto-fire supported
-            this.firePlayerWeapon();
-          }
-        } else {
-          let dx = 0, dy = 0;
-          if (this.keys['w'] || this.keys['arrowup']) dy -= 1;
-          if (this.keys['s'] || this.keys['arrowdown']) dy += 1;
-          if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;
-          if (this.keys['d'] || this.keys['arrowright']) dx += 1;
-
-          if (dx !== 0 && dy !== 0) {
-            dx *= 0.7071;
-            dy *= 0.7071;
-          }
-
-          this.player.x += dx * spd * dt;
-          this.player.y += dy * spd * dt;
-
-          if (this.keys[' '] || this.keys['j']) {
-            this.firePlayerWeapon();
-          }
+          this.moveToward(this.touch.x, this.touch.y, spd * 1.55 * dt);
+        } else if (hasKeyboardMovement) {
+          const mag = Math.hypot(dx, dy);
+          this.player.x += dx / mag * spd * dt;
+          this.player.y += dy / mag * spd * dt;
+        } else if (this.mouse.active && !this.gamepadMoving) {
+          this.moveToward(this.mouse.x, this.mouse.y, spd * 1.55 * dt);
         }
 
         // Boundary Clamp
@@ -2239,16 +2308,16 @@
 
           // Check Hit on Boss
           if (this.boss && Math.hypot(this.boss.x - b.x, this.boss.y - b.y) < this.boss.radius) {
-            this.boss.hp -= b.damage;
+            const weakpointHit = this.boss.coreOpen &&
+              Math.hypot(this.boss.x - b.x, this.boss.y + 3 - b.y) < 23;
+            this.boss.hp -= b.damage * (weakpointHit ? 1.8 : 0.68);
+            this.boss.hitFlash = 0.11;
             this.createExplosion(b.x, b.y, b.color, 4);
+            if (weakpointHit) this.createFloatingText(b.x, b.y - 12, 'CORE BREAK', '#ffdfa8');
             if (b.isCrit) this.createFloatingText(b.x, b.y - 12, 'CRIT!', '#facc15');
-
-            if (!b.pierce || b.pierce <= 1) {
-              this.playerBullets.splice(i, 1);
-              continue;
-            } else {
-              b.pierce--;
-            }
+            // Piercing rounds must not apply damage again every frame in one boss hull.
+            this.playerBullets.splice(i, 1);
+            continue;
           }
 
           // Check Hit on Regular Enemies
@@ -2256,6 +2325,7 @@
             const e = this.enemies[j];
             if (Math.hypot(e.x - b.x, e.y - b.y) < e.radius + 6) {
               e.hp -= b.damage;
+              e.hitFlash = 0.11;
               this.createExplosion(e.x, e.y, b.color, 4);
               if (b.isCrit) this.createFloatingText(b.x, b.y - 12, 'CRIT!', '#facc15');
 
@@ -2281,6 +2351,7 @@
         // Update Enemies
         for (let i = this.enemies.length - 1; i >= 0; i--) {
           const e = this.enemies[i];
+          if (e.hitFlash > 0) e.hitFlash -= dt;
           e.x += e.vx * dt;
           e.y += e.vy * dt;
 
@@ -2361,9 +2432,10 @@
         // Update Boss
         if (this.boss) {
           const b = this.boss;
+          if (b.hitFlash > 0) b.hitFlash -= dt;
           // Smooth glide down into screen
           if (b.y < b.targetY) {
-            b.y += 60 * dt;
+            b.y = Math.min(b.targetY, b.y + 260 * dt);
           }
 
           b.x += b.vx * dt;
@@ -2371,33 +2443,56 @@
             b.vx = -b.vx;
           }
 
-          // Boss Attack Logic
+          // Three HP stages with alternate recognizable patterns. A short
+          // warning window precedes each switch so the player can reposition.
+          const nextPhase = b.hp > b.maxHp * 0.66 ? 1 : (b.hp > b.maxHp * 0.33 ? 2 : 3);
+          if (nextPhase > b.phase) {
+            b.phase = nextPhase;
+            b.telegraph = 0.85;
+            b.pattern = (b.pattern + 1) % 2;
+            b.patternTimer = 5;
+            b.attackTimer = 0;
+            this.showCombatNotice(`BOSS · PHASE ${b.phase}  /  战术变更`, 2.5);
+            this.triggerShake(0.22, 7);
+          }
+          b.patternTimer -= dt;
+          if (b.patternTimer <= 0) {
+            b.pattern = (b.pattern + 1) % 2;
+            b.patternTimer = 5.2;
+            b.telegraph = 0.85;
+            b.attackTimer = 0;
+          }
+          b.telegraph = Math.max(0, b.telegraph - dt);
+          b.coreOpen = b.patternTimer > 2.5 || b.telegraph > 0;
+          b.spiralAngle += (b.name === 'Void Leviathan' ? 2.2 : 1.65) * dt;
+          document.getElementById('boss-phase-text').textContent = `PHASE ${b.phase} / ${b.coreOpen ? 'CORE OPEN' : 'ARMORED'}`;
+
           b.attackTimer -= dt;
-          b.spiralAngle += 2.5 * dt;
-
-          if (b.attackTimer <= 0) {
-            b.attackTimer = 0.18;
-            // Kaleidoscope spiral pattern
-            const numRays = b.hp < b.maxHp * 0.5 ? 4 : 3;
-            for (let r = 0; r < numRays; r++) {
-              const ang = b.spiralAngle + (Math.PI * 2 / numRays) * r;
-              this.enemyBullets.push({
-                x: b.x, y: b.y + 20,
-                vx: Math.cos(ang) * 240,
-                vy: Math.sin(ang) * 240,
-                radius: 5.5, color: '#f43f5e'
-              });
-            }
-
-            // Heavy Aimed Cluster
-            if (Math.random() < 0.08) {
-              const aimedAng = Math.atan2(this.player.y - b.y, this.player.x - b.x);
-              [-0.2, 0, 0.2].forEach(offset => {
+          if (b.y >= b.targetY - 8 && b.telegraph <= 0 && b.attackTimer <= 0 && this.enemyBullets.length < 200) {
+            if (b.pattern === 0) {
+              // Rotating spiral gives players predictable lanes to graze.
+              b.attackTimer = Math.max(0.18, 0.3 - b.phase * 0.025);
+              const rays = (b.name === 'Void Leviathan' ? 4 : 3) + (b.phase === 3 ? 1 : 0);
+              for (let r = 0; r < rays; r++) {
+                const angle = b.spiralAngle + Math.PI * 2 * r / rays;
                 this.enemyBullets.push({
-                  x: b.x, y: b.y + 30,
-                  vx: Math.cos(aimedAng + offset) * 360,
-                  vy: Math.sin(aimedAng + offset) * 360,
-                  radius: 7, color: '#e11d48'
+                  x: b.x, y: b.y + 15,
+                  vx: Math.cos(angle) * (200 + b.phase * 14),
+                  vy: Math.sin(angle) * (200 + b.phase * 14),
+                  radius: 5, color: '#fd9875'
+                });
+              }
+            } else {
+              // Wide aimed salvos with a recovery gap between each volley.
+              b.attackTimer = Math.max(0.74, 1.18 - b.phase * 0.1);
+              const aim = Math.atan2(this.player.y - b.y, this.player.x - b.x);
+              const spread = b.name === 'Void Leviathan' ? 0.22 : 0.26;
+              [-2, -1, 0, 1, 2].forEach(i => {
+                this.enemyBullets.push({
+                  x: b.x, y: b.y + 25,
+                  vx: Math.cos(aim + i * spread) * (265 + b.phase * 15),
+                  vy: Math.sin(aim + i * spread) * (265 + b.phase * 15),
+                  radius: 6, color: '#c99aff'
                 });
               });
             }
@@ -2413,13 +2508,16 @@
             this.score += 15000 * this.combo;
             this.kills += 10;
             document.getElementById('boss-hud').classList.remove('active');
+            this.enemyBullets = [];
+            this.boss = null;
 
             if (b.name === 'Void Leviathan') {
               this.onVictory();
             } else {
               this.createFloatingText(b.x, b.y, 'BOSS DEFEATED!', '#facc15');
-              this.boss = null;
               this.wave++;
+              this.waveStartKills = this.kills;
+              this.waveTimer = 0;
               this.triggerUpgradeChoice();
             }
           }
@@ -2469,8 +2567,9 @@
             this.player.hyperMeter = Math.min(100, this.player.hyperMeter + (this.selectedShip === 1 ? 6 : 4));
             this.score += 80 * this.combo;
 
-            if (this.player.hyperMeter >= 100 && !this.player.isHyper) {
-              this.activateHyper();
+            if (this.player.hyperMeter >= 100 && !this.player.isHyper && !this.hyperReadyAnnounced) {
+              this.hyperReadyAnnounced = true;
+              this.showCombatNotice('HYPER READY  ·  按 Q 释放超载', 2.5);
             }
           }
 
@@ -2552,8 +2651,9 @@
           }
         });
 
-        // Run Wave Spawner
-        this.updateWaveDirector(dt);
+        // A boss defeat can change state to upgrade/victory mid-update.
+        // Never respawn a flagship during the same victory frame.
+        if (this.state === 'playing') this.updateWaveDirector(dt);
         this.updateHUD();
       }
 
@@ -2571,6 +2671,16 @@
           this.player.shield -= absorbed;
           damage -= absorbed;
           this.createFloatingText(this.player.x, this.player.y - 20, 'SHIELD HIT', '#38bdf8');
+          if (this.player.upgrades.deflector > 0) {
+            const reach = 90 + this.player.upgrades.deflector * 28;
+            const previous = this.enemyBullets.length;
+            this.enemyBullets = this.enemyBullets.filter(b =>
+              Math.hypot(b.x - this.player.x, b.y - this.player.y) > reach);
+            if (this.enemyBullets.length !== previous) {
+              this.createExplosion(this.player.x, this.player.y, '#85dce8', 18);
+              this.createFloatingText(this.player.x, this.player.y - 34, 'DEFLECT', '#b8f2fb');
+            }
+          }
         }
 
         if (damage > 0) {
@@ -2631,7 +2741,10 @@
 
       updateHUD() {
         document.getElementById('hud-score').textContent = Math.floor(this.score);
-        document.getElementById('hud-wave').textContent = `WAVE ${this.wave}`;
+        const quota = 6 + Math.ceil(this.wave * 1.35);
+        const waveProgress = Math.max(0, Math.min(quota, this.kills - this.waveStartKills));
+        document.getElementById('hud-wave').textContent = this.wave === 5 || this.wave === 10
+          ? `WAVE ${this.wave} · BOSS` : `WAVE ${this.wave} · ${waveProgress}/${quota}`;
         document.getElementById('hud-kills').textContent = this.kills;
         document.getElementById('hud-combo').textContent = `${this.combo.toFixed(1)}x`;
 
@@ -2647,16 +2760,23 @@
         // Hyper Overload Bar
         const hyperPct = this.player.isHyper ? (this.player.hyperTimer / 8.0) * 100 : this.player.hyperMeter;
         document.getElementById('hyper-fill').style.width = `${hyperPct}%`;
-        document.getElementById('hyper-text').textContent = this.player.isHyper ? `狂暴中 ${this.player.hyperTimer.toFixed(1)}s` : `${Math.floor(this.player.hyperMeter)}%`;
+        const hyperReady = this.player.hyperMeter >= 100 && !this.player.isHyper;
+        document.getElementById('hyper-text').textContent = this.player.isHyper
+          ? `超载中 ${this.player.hyperTimer.toFixed(1)}s`
+          : (hyperReady ? 'READY · Q 启动' : `${Math.floor(this.player.hyperMeter)}%`);
+        document.getElementById('btn-m-hyper').classList.toggle('ready', hyperReady);
 
         // Bombs
         const bombContainer = document.getElementById('bomb-icons-container');
-        bombContainer.innerHTML = '';
-        for (let i = 0; i < this.player.bombs; i++) {
-          const span = document.createElement('span');
-          span.className = 'bomb-item';
-          span.textContent = '💣';
-          bombContainer.appendChild(span);
+        if (this.lastRenderedBombs !== this.player.bombs) {
+          bombContainer.innerHTML = '';
+          for (let i = 0; i < this.player.bombs; i++) {
+            const span = document.createElement('span');
+            span.className = 'bomb-item';
+            span.textContent = '💣';
+            bombContainer.appendChild(span);
+          }
+          this.lastRenderedBombs = this.player.bombs;
         }
 
         // Boss Bar
@@ -2667,120 +2787,8 @@
       }
 
       // --- RENDERING PIPELINE ---
-      drawFighter(ctx, x, y, shipType, tilt = 0, scale = 1.0) {
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(tilt);
-        ctx.scale(scale, scale);
-
-        if (shipType === 0) { // Thunder Blade (Azure delta interceptor)
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = '#00f0ff';
-
-          // Twin Thruster exhaust flames
-          const flameH = Math.random() * 12 + 16;
-          ctx.fillStyle = '#00f0ff';
-          ctx.beginPath();
-          ctx.moveTo(-9, 18);
-          ctx.lineTo(-4, 18 + flameH);
-          ctx.lineTo(1, 18);
-          ctx.moveTo(9, 18);
-          ctx.lineTo(4, 18 + flameH);
-          ctx.lineTo(-1, 18);
-          ctx.fill();
-
-          // Main Fuselage
-          ctx.fillStyle = '#0f172a';
-          ctx.strokeStyle = '#00f0ff';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(0, -26);
-          ctx.lineTo(24, 14);
-          ctx.lineTo(10, 18);
-          ctx.lineTo(0, 12);
-          ctx.lineTo(-10, 18);
-          ctx.lineTo(-24, 14);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-
-          // Canopy
-          ctx.fillStyle = '#38bdf8';
-          ctx.beginPath();
-          ctx.ellipse(0, -6, 5, 11, 0, 0, Math.PI * 2);
-          ctx.fill();
-
-        } else if (shipType === 1) { // Phantom Mirage (Forward-swept rose fighter)
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = '#f472b6';
-
-          // Refraction Exhaust
-          const flameH = Math.random() * 14 + 18;
-          ctx.fillStyle = '#f472b6';
-          ctx.beginPath();
-          ctx.moveTo(-5, 16);
-          ctx.lineTo(0, 16 + flameH);
-          ctx.lineTo(5, 16);
-          ctx.fill();
-
-          // Fuselage
-          ctx.fillStyle = '#1e1b4b';
-          ctx.strokeStyle = '#f472b6';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(0, -28);
-          ctx.lineTo(16, -6);
-          ctx.lineTo(26, 12);
-          ctx.lineTo(6, 15);
-          ctx.lineTo(0, 8);
-          ctx.lineTo(-6, 15);
-          ctx.lineTo(-26, 12);
-          ctx.lineTo(-16, -6);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-
-          // Cockpit
-          ctx.fillStyle = '#ec4899';
-          ctx.beginPath();
-          ctx.ellipse(0, -4, 4, 10, 0, 0, Math.PI * 2);
-          ctx.fill();
-
-        } else { // Heavy Titan (Gold dreadnought)
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = '#facc15';
-
-          // Quad Heavy Flames
-          ctx.fillStyle = '#f59e0b';
-          [-14, -5, 5, 14].forEach(fx => {
-            const fH = Math.random() * 10 + 14;
-            ctx.fillRect(fx - 2, 16, 4, fH);
-          });
-
-          // Chassis
-          ctx.fillStyle = '#1c1917';
-          ctx.strokeStyle = '#facc15';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.moveTo(0, -24);
-          ctx.lineTo(14, -12);
-          ctx.lineTo(28, 6);
-          ctx.lineTo(20, 20);
-          ctx.lineTo(-20, 20);
-          ctx.lineTo(-28, 6);
-          ctx.lineTo(-14, -12);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-
-          // Core Reactor
-          ctx.fillStyle = '#facc15';
-          ctx.beginPath();
-          ctx.arc(0, 2, 7, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.restore();
+      drawFighter(ctx, x, y, shipType, tilt = 0, scale = 1.0, preview = false) {
+        ThunderVisuals.fighter(ctx, x, y, shipType, tilt, scale, this.visualTime || 0, preview);
       }
 
       render() {
@@ -2794,24 +2802,8 @@
           ctx.translate(shakeX, shakeY);
         }
 
-        // 1. Clear background
-        ctx.fillStyle = '#050713';
-        ctx.fillRect(0, 0, this.width, this.height);
-
-        // 2. Stars Layer
-        this.stars.forEach(s => {
-          ctx.fillStyle = s.color;
-          ctx.globalAlpha = s.alpha;
-          if (this.player.isHyper) {
-            // Hyperspace warp lines
-            ctx.fillRect(s.x, s.y, s.size, s.size * 9);
-          } else {
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        });
-        ctx.globalAlpha = 1.0;
+        // 1-2. Parallax battlefield, atmosphere and starfield
+        ThunderVisuals.background(ctx, this.width, this.height, this.stars, this.player.isHyper, this.visualTime || 0);
 
         // 3. Draw Pickups
         this.pickups.forEach(pk => {
@@ -2842,20 +2834,7 @@
         });
 
         // 4. Draw Player Bullets
-        this.playerBullets.forEach(b => {
-          ctx.save();
-          ctx.shadowBlur = 12;
-          ctx.shadowColor = b.color;
-          ctx.fillStyle = b.color;
-          if (b.homing) {
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.width, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            ctx.fillRect(b.x - b.width / 2, b.y - b.height / 2, b.width, b.height);
-          }
-          ctx.restore();
-        });
+        this.playerBullets.forEach(b => ThunderVisuals.bullet(ctx, b));
 
         // 5. Draw Drones
         this.drones.forEach(dr => {
@@ -2875,116 +2854,21 @@
 
         // 6. Draw Regular Enemies
         this.enemies.forEach(e => {
-          ctx.save();
-          ctx.translate(e.x, e.y);
-          ctx.shadowBlur = 14;
-
-          if (e.type === 'drone') {
-            ctx.shadowColor = '#ef4444';
-            ctx.fillStyle = '#1e1b4b';
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, 16);
-            ctx.lineTo(14, -12);
-            ctx.lineTo(-14, -12);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-          } else if (e.type === 'interceptor') {
-            ctx.shadowColor = '#f43f5e';
-            ctx.fillStyle = '#31102f';
-            ctx.strokeStyle = '#f43f5e';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, 20);
-            ctx.lineTo(18, -4);
-            ctx.lineTo(12, -18);
-            ctx.lineTo(-12, -18);
-            ctx.lineTo(-18, -4);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-          } else {
-            ctx.shadowColor = '#a855f7';
-            ctx.fillStyle = '#1e1b4b';
-            ctx.strokeStyle = '#a855f7';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.moveTo(0, 32);
-            ctx.lineTo(28, 8);
-            ctx.lineTo(24, -24);
-            ctx.lineTo(-24, -24);
-            ctx.lineTo(-28, 8);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-          }
-
-          // Enemy HP Bar
+          ThunderVisuals.enemy(ctx, e, this.visualTime || 0);
           if (e.hp < e.maxHp) {
-            const barW = e.radius * 2;
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(-barW / 2, -e.radius - 12, barW, 4);
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(-barW / 2, -e.radius - 12, barW * (e.hp / e.maxHp), 4);
+            const w = e.radius * 2;
+            ctx.fillStyle = 'rgba(6,12,24,.75)';
+            ctx.fillRect(e.x - w / 2, e.y - e.radius - 13, w, 3);
+            ctx.fillStyle = '#f1a68e';
+            ctx.fillRect(e.x - w / 2, e.y - e.radius - 13, w * Math.max(0, e.hp / e.maxHp), 3);
           }
-
-          ctx.restore();
         });
 
         // 7. Draw Boss
-        if (this.boss) {
-          const b = this.boss;
-          ctx.save();
-          ctx.translate(b.x, b.y);
-          ctx.shadowBlur = 25;
-          ctx.shadowColor = '#ef4444';
-
-          // Giant Fortress Chassis
-          ctx.fillStyle = '#111827';
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(0, 55);
-          ctx.lineTo(65, 10);
-          ctx.lineTo(55, -45);
-          ctx.lineTo(0, -35);
-          ctx.lineTo(-55, -45);
-          ctx.lineTo(-65, 10);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-
-          // Rotating Core Reactor
-          ctx.fillStyle = '#ef4444';
-          ctx.beginPath();
-          ctx.arc(0, 5, 20, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#fef08a';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          ctx.restore();
-        }
+        if (this.boss) ThunderVisuals.boss(ctx, this.boss, this.visualTime || 0);
 
         // 8. Draw Enemy Bullets
-        this.enemyBullets.forEach(eb => {
-          ctx.save();
-          ctx.translate(eb.x, eb.y);
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = eb.color;
-          ctx.fillStyle = eb.color;
-          ctx.beginPath();
-          ctx.arc(0, 0, eb.radius, 0, Math.PI * 2);
-          ctx.fill();
-          // Inner bright core
-          ctx.fillStyle = '#fff';
-          ctx.beginPath();
-          ctx.arc(0, 0, eb.radius * 0.45, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        });
+        this.enemyBullets.forEach(eb => ThunderVisuals.bullet(ctx, eb, true));
 
         // 9. Draw Player Fighter
         if (this.state === 'playing' || this.state === 'paused') {
@@ -3052,6 +2936,7 @@
       loop(timestamp) {
         const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
         this.lastTime = timestamp;
+        if (this.state === 'playing') this.visualTime = (this.visualTime || 0) + dt;
 
         // Gamepad must be polled every frame (menus work outside 'playing')
         try {
