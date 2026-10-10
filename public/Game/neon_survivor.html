@@ -780,6 +780,162 @@
       margin: 0;
       padding-left: 16px;
     }
+
+    /* ==========================================================================
+       RESPONSIVE ADAPTATIONS (Tablet & Mobile Layout)
+       ========================================================================== */
+    @media (max-width: 960px) {
+      #hud {
+        padding: 8px 12px;
+        gap: 8px;
+      }
+      .status-bars {
+        min-width: 130px;
+      }
+      .bar-wrap, .dash-segments {
+        width: 130px;
+      }
+      .dash-stats-bar {
+        font-size: 10px;
+      }
+      .stat-pill {
+        padding: 4px 10px;
+        gap: 6px;
+        font-size: 12px;
+      }
+      .stat-pill .value {
+        font-size: 14px;
+      }
+      .hud-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 13px;
+      }
+      .hud-right {
+        gap: 6px;
+      }
+      .hud-left {
+        gap: 8px;
+      }
+      .hud-center {
+        gap: 8px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      #hud {
+        padding: 6px 8px;
+        flex-wrap: wrap;
+        row-gap: 6px;
+        column-gap: 4px;
+        background: linear-gradient(to bottom, rgba(6, 8, 16, 0.96) 0%, rgba(6, 8, 16, 0.65) 85%, transparent 100%);
+      }
+      .hud-left {
+        order: 1;
+        gap: 6px;
+        align-items: center;
+      }
+      #level-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 8px;
+      }
+      .status-bars {
+        min-width: 100px;
+        gap: 2px;
+      }
+      .bar-wrap {
+        width: 100px;
+        height: 6px;
+      }
+      .dash-segments {
+        width: 100px;
+        height: 5px;
+        gap: 2px;
+      }
+      .dash-stats-bar {
+        font-size: 9px;
+        margin-top: 1px;
+        letter-spacing: 0;
+      }
+      .hud-right {
+        order: 2;
+        gap: 4px;
+      }
+      .hud-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+      }
+      .gamepad-pill {
+        padding: 2px 6px !important;
+        font-size: 10px !important;
+      }
+      #gamepad-name {
+        display: none;
+      }
+      .hud-center {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+        gap: 6px;
+        margin-top: 2px;
+      }
+      .stat-pill {
+        padding: 2px 8px;
+        gap: 4px;
+        font-size: 11px;
+        border-radius: 12px;
+      }
+      .stat-pill .icon {
+        font-size: 12px;
+      }
+      .stat-pill .value {
+        font-size: 12px;
+      }
+      #weapons-bar {
+        bottom: 12px;
+        left: 10px;
+        gap: 4px;
+        transform: scale(0.85);
+        transform-origin: bottom left;
+      }
+      .weapon-slot {
+        width: 34px;
+        height: 34px;
+        font-size: 15px;
+      }
+      #touch-dash-btn {
+        bottom: 24px;
+        right: 20px;
+        width: 58px;
+        height: 58px;
+        font-size: 12px;
+      }
+      .modal-card {
+        padding: 20px 16px;
+        max-width: 95%;
+        max-height: 88vh;
+        overflow-y: auto;
+      }
+      .modal-title {
+        font-size: 20px;
+      }
+      .upgrade-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .upgrade-card {
+        padding: 10px 12px;
+      }
+      .upgrade-icon {
+        font-size: 26px;
+        margin: 4px 0;
+      }
+      .upgrade-name {
+        font-size: 14px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -830,7 +986,8 @@
     </div>
 
     <div class="hud-right">
-      <div id="gamepad-badge" class="stat-pill gamepad-pill" style="display:none;" title="手柄已连接">🎮 <span id="gamepad-name">手柄已就绪</span></div>
+      <div id="gamepad-badge" class="stat-pill gamepad-pill" style="display:none;" title="手柄已连接 (点击可测试/切换震动)">🎮 <span id="gamepad-name">手柄已就绪</span></div>
+      <button class="hud-btn" id="btn-vibrate" title="手柄震动：开/关">📳</button>
       <button class="hud-btn" id="btn-help" title="游戏说明 / 战术指南">📖</button>
       <button class="hud-btn" id="btn-aim" title="瞄准模式：自动/手动">🎯</button>
       <button class="hud-btn" id="btn-sound" title="音效开关">🔊</button>
@@ -947,7 +1104,7 @@
                 <li><b>Start / Options 键</b>：暂停游戏 / 呼出菜单</li>
                 <li><b>Select / Y 键</b>：一键切换 🎯 自动/手动瞄准模式</li>
                 <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键确认装配</li>
-                <li><b>震动反馈</b>：支持马达震动（冲刺短震、受击中震、Boss核爆重震）</li>
+                <li><b>震动反馈与独立开关</b>：支持力反馈震动（冲刺短震、受击中震、Boss重震）；可随时轻触顶部 📳 按钮或点击手柄徽章一键开启/关闭震动</li>
               </ul>
             </div>
 
@@ -995,6 +1152,7 @@
             <div class="help-box">
               <div class="help-box-title">📦 4武器 + 4被动约束与超频破限</div>
               <p>战机最多同时装备 <b>4 款主动武器</b> 与 <b>4 款被动模组</b>，避免过于杂糅无序，鼓励专精构筑。当武器或模组升至满级 Lv.5 时，将解锁无限<b>【超频破限 (Limit Break)】</b>，数值可无上限倍率叠加！</p>
+              <p style="margin-top:6px;">📈 <b>等级成长</b>：每升 1 级，全武器基础攻击 <b>+3%</b>（Lv10约+27%，Lv20约+57%，武器强化仍是大头）；移速 <b>+6</b>（最多+120），与推进器叠加但全局不超过 <b>385</b>。自爆蜂靠近会先亮红圈引信 0.55 秒，拉开可空爆！</p>
             </div>
           </div>
         </div>
@@ -1601,14 +1759,14 @@
         statText: ['每次投掷 2 枚极光冰雷', '爆炸半径 +35%, 附带50%减速', '投掷数量 +1 枚', '冰爆伤害 +45%', '绝对零度：大范围冻结与碎冰风暴']
       },
 
-      // PASSIVES
+      // PASSIVES（等级基础攻击：每级+3%全武器伤害，Lv10约+27%，Lv20约+57%，武器强化仍是大头）
       {
         id: 'power',
         type: 'passive',
         name: '强核反应堆',
         icon: '🔥',
         rarity: 'common',
-        desc: '全武器攻击力提升 15%。',
+        desc: '全武器攻击力提升 20%。（等级本身每级+3%基础攻击）',
         maxLvl: 5,
         statText: ['伤害 +15%', '伤害 +30%', '伤害 +45%', '伤害 +60%', '伤害 +85%']
       },
@@ -1628,7 +1786,7 @@
         name: '矢量推进器',
         icon: '👟',
         rarity: 'common',
-        desc: '战机移动速度与冲刺恢复速度大幅提升。',
+        desc: '战机移动速度与冲刺恢复速度大幅提升。等级本身每级+6移速（最多+120），与推进器叠加但不超过385。',
         maxLvl: 5,
         statText: ['移速 +15%', '移速 +28%, 冲刺CD -15%', '移速 +40%', '移速 +52%, 冲刺CD -30%', '光速引擎：无敌冲刺距离翻倍']
       },
@@ -1776,6 +1934,10 @@
         this.dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         this.state = 'start'; // 'start', 'playing', 'paused', 'levelup', 'gameover', 'victory'
+        this.loopRunning = false;
+        this.gamepadVibrationEnabled = SafeStorage.get('neon_vibration', 'true') !== 'false';
+        this.isHelpOpen = false;
+        this.prevHelpState = 'start';
         this.lastTime = 0;
         this.survivalTime = 0;
         this.kills = 0;
@@ -1897,6 +2059,11 @@
         this.setupEvents();
         this.resize();
         this.renderWeaponsHUD();
+
+        // 启动全局唯一定时循环，杜绝多次重开产生并发循环
+        this.loopRunning = true;
+        this.lastTime = performance.now();
+        requestAnimationFrame((t) => this.loop(t));
       }
 
       initDOM() {
@@ -2052,6 +2219,33 @@
           }
         });
 
+        // Gamepad Vibration Toggle Button
+        const btnVibrate = document.getElementById('btn-vibrate');
+        const updateVibrateBtnStyle = () => {
+          if (!btnVibrate) return;
+          btnVibrate.textContent = this.gamepadVibrationEnabled ? '📳' : '🔕';
+          btnVibrate.style.borderColor = this.gamepadVibrationEnabled ? 'var(--neon-green)' : 'rgba(255, 255, 255, 0.2)';
+          btnVibrate.style.color = this.gamepadVibrationEnabled ? '#00ffaa' : '#8899aa';
+          btnVibrate.title = this.gamepadVibrationEnabled ? '手柄震动：【开启】(点击关闭)' : '手柄震动：【关闭】(点击开启)';
+        };
+        if (btnVibrate) {
+          btnVibrate.onclick = () => {
+            this.toggleGamepadVibration();
+            updateVibrateBtnStyle();
+          };
+          updateVibrateBtnStyle();
+        }
+
+        // 点击手柄徽章快速切换/测试震动
+        const gamepadBadge = document.getElementById('gamepad-badge');
+        if (gamepadBadge) {
+          gamepadBadge.style.cursor = 'pointer';
+          gamepadBadge.onclick = () => {
+            this.toggleGamepadVibration();
+            updateVibrateBtnStyle();
+          };
+        }
+
         document.getElementById('btn-start-game').onclick = () => {
           this.sound.init();
           this.startNewGame();
@@ -2188,25 +2382,87 @@
         });
       }
 
+      toggleGamepadVibration() {
+        this.gamepadVibrationEnabled = !this.gamepadVibrationEnabled;
+        SafeStorage.set('neon_vibration', this.gamepadVibrationEnabled ? 'true' : 'false');
+        if (this.gamepadVibrationEnabled) {
+          this.vibrateGamepad(160, 0.65, 0.45);
+        }
+        this.texts.push({
+          x: this.player ? this.player.x : this.width / 2,
+          y: this.player ? this.player.y - 40 : this.height / 2 - 30,
+          text: this.gamepadVibrationEnabled ? '📳 手柄震动：已开启' : '🔕 手柄震动：已关闭',
+          color: this.gamepadVibrationEnabled ? '#00ffaa' : '#8c9cb8',
+          size: 16,
+          life: 1.5,
+          maxLife: 1.5
+        });
+      }
+
       vibrateGamepad(duration = 100, strong = 0.5, weak = 0.3) {
+        if (!this.gamepadVibrationEnabled) return;
         if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
-        const gamepads = navigator.getGamepads();
-        const gp = gamepads && gamepads[this.gamepadIndex];
-        if (gp && gp.vibrationActuator && gp.vibrationActuator.playEffect) {
-          try {
-            gp.vibrationActuator.playEffect('dual-rumble', {
-              startDelay: 0,
-              duration: duration,
-              weakMagnitude: weak,
-              strongMagnitude: strong
-            }).catch(() => {});
-          } catch (err) {}
+        let gamepads;
+        try { gamepads = navigator.getGamepads(); } catch (e) { return; }
+        if (!gamepads) return;
+
+        const activeGps = [];
+        if (this.gamepadIndex >= 0 && gamepads[this.gamepadIndex] && gamepads[this.gamepadIndex].connected) {
+          activeGps.push(gamepads[this.gamepadIndex]);
+        }
+        for (let i = 0; i < gamepads.length; i++) {
+          const g = gamepads[i];
+          if (g && g.connected && !activeGps.includes(g)) {
+            activeGps.push(g);
+          }
+        }
+
+        const d = Math.max(40, Math.min(duration, 1500));
+        const s = Math.max(0, Math.min(strong, 1));
+        const w = Math.max(0, Math.min(weak, 1));
+
+        for (const gp of activeGps) {
+          // 方式 A: vibrationActuator (Chrome, Edge, Opera, WebKit标准实现)
+          if (gp.vibrationActuator) {
+            if (typeof gp.vibrationActuator.playEffect === 'function') {
+              try {
+                gp.vibrationActuator.playEffect('dual-rumble', {
+                  startDelay: 0,
+                  duration: d,
+                  weakMagnitude: w,
+                  strongMagnitude: s
+                }).catch(() => {
+                  try {
+                    if (typeof gp.vibrationActuator.pulse === 'function') {
+                      gp.vibrationActuator.pulse(Math.max(s, w), d);
+                    }
+                  } catch (err2) {}
+                });
+              } catch (err) {}
+            } else if (typeof gp.vibrationActuator.pulse === 'function') {
+              try {
+                gp.vibrationActuator.pulse(Math.max(s, w), d);
+              } catch (err) {}
+            }
+          }
+          // 方式 B: hapticActuators (Firefox, VR控制器, 备用接口)
+          if (gp.hapticActuators && gp.hapticActuators.length > 0) {
+            for (let k = 0; k < gp.hapticActuators.length; k++) {
+              const act = gp.hapticActuators[k];
+              if (act && typeof act.pulse === 'function') {
+                try {
+                  act.pulse(Math.max(s, w), d);
+                } catch (err) {}
+              }
+            }
+          }
         }
       }
 
       pollGamepad(dt) {
         if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
-        const gamepads = navigator.getGamepads();
+        let gamepads;
+        try { gamepads = navigator.getGamepads(); } catch (e) { return; }
         if (!gamepads) return;
 
         let gp = null;
@@ -2257,6 +2513,8 @@
               }
             }
 
+            this.gamepadSelectedUpgradeIdx = Math.max(0, Math.min(this.gamepadSelectedUpgradeIdx, cards.length - 1));
+
             cards.forEach((c, idx) => {
               if (idx === this.gamepadSelectedUpgradeIdx) {
                 c.style.transform = 'translateY(-6px) scale(1.03)';
@@ -2271,11 +2529,17 @@
 
             // Confirm upgrade: A (0), RT (7), RB (5)
             if (justPressed(0) || justPressed(7) || justPressed(5)) {
-              if (cards[this.gamepadSelectedUpgradeIdx]) {
-                cards[this.gamepadSelectedUpgradeIdx].click();
+              const targetCard = cards[this.gamepadSelectedUpgradeIdx] || cards[0];
+              if (targetCard) {
+                targetCard.click();
                 this.vibrateGamepad(120, 0.4, 0.2);
               }
             }
+          } else {
+            // 安全退出避免弹窗死锁
+            if (this.modalLevelup) this.modalLevelup.classList.remove('active');
+            this.state = 'playing';
+            this.lastTime = performance.now();
           }
         }
 
@@ -2285,8 +2549,9 @@
             this.closeHelpModal();
           }
         } else if (this.state === 'paused') {
-          if (justPressed(9) || justPressed(1)) {
+          if (justPressed(9) || justPressed(1) || justPressed(0)) {
             this.resumeGame();
+            this.vibrateGamepad(80, 0.3, 0.2);
           }
         }
 
@@ -2478,7 +2743,10 @@
         this.updateHUD();
 
         this.lastTime = performance.now();
-        requestAnimationFrame((t) => this.loop(t));
+        if (!this.loopRunning) {
+          this.loopRunning = true;
+          requestAnimationFrame((t) => this.loop(t));
+        }
       }
 
       hideAllModals() {
@@ -2584,8 +2852,8 @@
           const gamepads = navigator.getGamepads();
           const gp = gamepads && gamepads[this.gamepadIndex];
           if (gp) {
-            const lx = gp.axes[0] || 0;
-            const ly = gp.axes[1] || 0;
+            const lx = Number.isFinite(gp.axes[0]) ? gp.axes[0] : 0;
+            const ly = Number.isFinite(gp.axes[1]) ? gp.axes[1] : 0;
             if (Math.hypot(lx, ly) > 0.22) {
               dx = lx;
               dy = ly;
@@ -2596,11 +2864,12 @@
         this.vibrateGamepad(100, 0.45, 0.2);
 
         const len = Math.hypot(dx, dy);
-        if (len > 0.05) {
+        if (Number.isFinite(len) && len > 0.05) {
           this.player.dashDir = { x: dx / len, y: dy / len };
         } else {
           // Dash towards aim angle if standing still
-          this.player.dashDir = { x: Math.cos(this.player.aimAngle), y: Math.sin(this.player.aimAngle) };
+          const aim = Number.isFinite(this.player.aimAngle) ? this.player.aimAngle : 0;
+          this.player.dashDir = { x: Math.cos(aim), y: Math.sin(aim) };
         }
 
         // Spawn warp slash shockwave
@@ -2636,6 +2905,11 @@
           this.player.xpNeeded = this.calcXpNeeded(this.player.level);
           this.pendingLevelUps = (this.pendingLevelUps || 0) + 1;
           shouldLevelUp = true;
+        }
+        // 裸等级成长：升级即刷新移速（含硬上限）与冲刺斩等级项
+        if (shouldLevelUp) {
+          this.recalculateMoveSpeed();
+          this.recalculateDashStats();
         }
         if (shouldLevelUp && this.state === 'playing') {
           this.triggerLevelUp();
@@ -2684,6 +2958,7 @@
         }
 
         this.state = 'levelup';
+        this.gamepadSelectedUpgradeIdx = 0;
         try { this.sound.playLevelUp(); } catch (e) {}
         this.shockwaves.push({
           x: this.player.x,
@@ -2825,10 +3100,14 @@
           `;
 
           card.onclick = () => {
-            if (upg.type === 'limit_break') {
-              this.applyLimitBreak(upg);
-            } else {
-              this.applyUpgrade(upg);
+            try {
+              if (upg.type === 'limit_break') {
+                this.applyLimitBreak(upg);
+              } else {
+                this.applyUpgrade(upg);
+              }
+            } catch (err) {
+              console.error("Upgrade application error caught:", err);
             }
             this.pendingLevelUps = Math.max(0, (this.pendingLevelUps || 1) - 1);
             if (this.pendingLevelUps > 0) {
@@ -2900,7 +3179,8 @@
           } else if (upg.id === 'area') {
             this.player.areaMultiplier += 0.06;
           } else if (upg.id === 'thruster') {
-            this.player.baseSpeed += 10;
+            // 破限移速走统一公式，防止绕过硬上限
+            this.recalculateMoveSpeed();
           } else {
             this.player.dmgMultiplier += 0.05;
           }
@@ -2922,14 +3202,25 @@
         this.renderWeaponsHUD();
       }
 
+      recalculateMoveSpeed() {
+        // 等级移速成长：每级+6，最多+120；全局硬上限385（推进器/破限叠加也不超）
+        const LEVEL_SPEED_CAP = 120;
+        const TOTAL_SPEED_CAP = 385;
+        const p = this.player.passives || {};
+        const levelBonus = Math.min(LEVEL_SPEED_CAP, (this.player.level - 1) * 6);
+        const thrusterMult = 1.0 + (p.thruster || 0) * 0.12;
+        const lbBonus = ((this.player.limitBreaks && this.player.limitBreaks.thruster) || 0) * 5;
+        this.player.baseSpeed = Math.min(TOTAL_SPEED_CAP, Math.round(240 * thrusterMult + levelBonus + lbBonus));
+      }
+
       recalculatePassives() {
         const p = this.player.passives;
         // Power
         this.player.dmgMultiplier = 1.0 + (p.power || 0) * 0.18;
         // Haste
         this.player.cdrMultiplier = Math.max(0.35, 1.0 - (p.haste || 0) * 0.1);
-        // Thruster
-        this.player.baseSpeed = 240 * (1.0 + (p.thruster || 0) * 0.12);
+        // Thruster + 等级成长统一收口（含硬上限）
+        this.recalculateMoveSpeed();
         // Magnet
         this.player.magnetRadius = 120 * (1.0 + (p.magnet || 0) * 0.5);
         // Armor
@@ -2964,7 +3255,9 @@
         // 3. Slash Damage
         const dmgLvl = du.dash_dmg || 0;
         const dmgBoost = 1.0 + dmgLvl * 0.6 + (dmgLvl >= 5 ? 0.6 : 0);
-        this.player.dashSlashDmg = Math.round(95 * this.player.dmgMultiplier * dmgBoost * (1 + this.player.level * 0.08));
+        // 冲刺斩等级项与全局等级乘区取max，避免 dealDamage 再乘一次造成 double dip
+        const dashLevelMult = Math.max(1 + this.player.level * 0.08, this.getLevelDmgMult());
+        this.player.dashSlashDmg = Math.round(95 * this.player.dmgMultiplier * dmgBoost * dashLevelMult);
         this.player.dashAlwaysCrit = dmgLvl >= 5;
 
         // 4. Slash Width & Invulnerability
@@ -3470,6 +3763,7 @@
           this.mines.push({
             x: this.player.x + (Math.random() - 0.5) * 60,
             y: this.player.y + (Math.random() - 0.5) * 60,
+            radius: 12,
             blastRadius,
             damage,
             life: 9.0,
@@ -3482,7 +3776,8 @@
 
       dealDamage(target, rawDamage) {
         let isCrit = Math.random() < this.player.critRate;
-        let finalDamage = isCrit ? rawDamage * this.player.critDmg : rawDamage;
+        // 等级基础攻击乘区（每级+3%）：放在护盾减免之前，全武器统一生效
+        let finalDamage = (isCrit ? rawDamage * this.player.critDmg : rawDamage) * this.getLevelDmgMult();
 
         // Boss Carrier Shield Absorption
         if (target.isBoss && target.hasShield) {
@@ -3748,17 +4043,24 @@
         const totalLb = this.player.totalLimitBreaks || 0;
 
         // Player potency (Level + Weapon tiers + Passives + Limit breaks)
+        // 等级/攻击加成对怪血的反哺已压平：玩家变强不再大幅推高怪血
         const potency = (this.player.level - 1) * 0.04
                       + (weaponLevels - 1) * 0.05
                       + passiveLevels * 0.03
                       + totalLb * 0.08
-                      + (this.player.dmgMultiplier - 1.0) * 0.35;
+                      + (this.player.dmgMultiplier - 1.0) * 0.15;
 
-        // "时间越到后面 越难才对"：后期间隙与怪物硬度随时间平滑阶梯攀升
+        // "时间越到后面 越难才对"：后期间隙与怪物硬度随时间平滑阶梯攀升（已放缓）
         const timeMin = this.survivalTime / 60;
-        const timeEscalation = 1.0 + timeMin * 0.18 + Math.pow(Math.max(0, timeMin - 2.5), 1.55) * 0.22;
+        const timeEscalation = 1.0 + timeMin * 0.14 + Math.pow(Math.max(0, timeMin - 3.0), 1.35) * 0.15;
 
         return timeEscalation * (1.0 + Math.max(0, potency));
+      }
+
+      getLevelDmgMult() {
+        // 等级基础攻击：每级 +3%（底薪），武器强化仍是大头，避免数值膨胀
+        // Lv10约+27%，Lv20约+57%，Lv30约+87%
+        return 1.0 + (this.player.level - 1) * 0.03;
       }
 
       updateSpawning(dt) {
@@ -3918,9 +4220,9 @@
             hp: Math.round(28 * hpMult),
             maxHp: Math.round(28 * hpMult),
             radius: 11,
-            speed: 285,
+            speed: 235,
             color: '#ff3300',
-            damage: 25,
+            damage: 18,
             xpVal: 3
           });
         }
@@ -3957,7 +4259,12 @@
         const hpMult = this.getAdaptiveScaling();
         const timeMin = t / 60;
         const spdMult = Math.min(1.6, 1.0 + timeMin * 0.045);
+        const spdMultKamikaze = Math.min(1.30, 1.0 + timeMin * 0.03);
         const dmgMult = 1.0 + Math.min(2.0, timeMin * 0.07);
+        // 自爆蜂同屏上限：超量则本波 fallback 到普通怪，保证经验不断流
+        let aliveKamikaze = 0;
+        for (const en of this.enemies) { if (en.type === 'kamikaze' && !en.dead) aliveKamikaze++; }
+        const kamikazeCapped = aliveKamikaze >= 6;
 
         // If standalone elite roll succeeded, spawn elite unit and return
         if (shouldSpawnElite) {
@@ -4080,8 +4387,8 @@
             xpColor: '#ffea00',
             damage: Math.round(12 * dmgMult)
           });
-        } else if (t > 70 && r < 0.44) {
-          // 纳米自爆蜘蛛 (Kamikaze Tick)
+        } else if (t > 95 && r < 0.40 && !kamikazeCapped) {
+          // 纳米自爆蜘蛛 (Kamikaze Tick)：降频（95s后约5%/波）+ 降速 + 降伤 + 同屏上限
           this.enemies.push({
             type: 'kamikaze',
             x: sx,
@@ -4091,11 +4398,11 @@
             hp: Math.round(28 * hpMult),
             maxHp: Math.round(28 * hpMult),
             radius: 11,
-            speed: 275 * spdMult,
+            speed: 232 * spdMultKamikaze,
             color: '#ff3300',
             xpVal: 4,
             xpColor: '#ff3300',
-            damage: Math.round(25 * dmgMult)
+            damage: Math.round(18 * dmgMult)
           });
         } else if (t > 20 && r < 0.65) {
           // Crimson Swarmer
@@ -4267,6 +4574,18 @@
          ======================================================================== */
       update(dt) {
         if (this.state !== 'playing') return;
+        if (!Number.isFinite(dt) || dt <= 0 || dt > 0.1) dt = 0.016;
+
+        // 玩家坐标与速度自愈防脱离/NaN
+        if (!Number.isFinite(this.player.x) || !Number.isFinite(this.player.y)) {
+          this.player.x = 0;
+          this.player.y = 0;
+          this.player.vx = 0;
+          this.player.vy = 0;
+          this.player.isDashing = false;
+        }
+        if (!Number.isFinite(this.player.vx)) this.player.vx = 0;
+        if (!Number.isFinite(this.player.vy)) this.player.vy = 0;
 
         this.survivalTime += dt;
         this.updateSpawning(dt);
@@ -4307,7 +4626,7 @@
 
           // Piercing slash damage to all enemies along the dash path!
           const slashWidth = this.player.radius + (this.player.dashSlashWidth || 18);
-          const slashDmg = this.player.dashSlashDmg || Math.round(95 * this.player.dmgMultiplier * (1 + this.player.level * 0.08));
+          const slashDmg = this.player.dashSlashDmg || Math.round(95 * this.player.dmgMultiplier * Math.max(1 + this.player.level * 0.08, this.getLevelDmgMult()));
 
           for (const e of this.enemies) {
             if (!this.player.dashHitEnemies.has(e)) {
@@ -4502,6 +4821,10 @@
         // Camera smoothly follows player
         this.camera.x += (this.player.x - this.camera.x) * 0.12;
         this.camera.y += (this.player.y - this.camera.y) * 0.12;
+        if (!Number.isFinite(this.camera.x) || !Number.isFinite(this.camera.y)) {
+          this.camera.x = this.player.x;
+          this.camera.y = this.player.y;
+        }
 
         // --- Weapon Timers & Firing ---
         const weapons = this.player.weapons;
@@ -5009,11 +5332,12 @@
             }
           }
 
-          // Enemy Freeze Slow
+          // Enemy Freeze Slow (修复连续乘0.52导致怪物速度永久归零卡死的bug)
+          if (!e.baseSpeed) e.baseSpeed = e.speed || 120;
           if (e.freezeTimer > 0) {
             e.freezeTimer -= dt;
-            e.speed = (e.baseSpeed || e.speed) * 0.52;
-          } else if (e.baseSpeed) {
+            e.speed = e.baseSpeed * 0.52;
+          } else {
             e.speed = e.baseSpeed;
           }
 
@@ -5057,21 +5381,40 @@
               e.vy = Math.sin(angleToPlayer) * e.speed + sepY * 40;
             }
           } else if (e.type === 'kamikaze') {
-            // Kamikaze rush & proximity explosion
+            // Kamikaze rush & two-stage fuse: 近身先引信预警，走完才结算，拉开可空爆
             e.vx = Math.cos(angleToPlayer) * e.speed;
             e.vy = Math.sin(angleToPlayer) * e.speed;
-            if (distToPlayer < 36) {
-              this.sound.playExplosion('small');
+            if (!e.arming && distToPlayer < 78) {
+              e.arming = true;
+              e.fuse = 0.55;
+              try { this.sound.playZap(); } catch (err) {}
               this.shockwaves.push({
                 x: e.x,
                 y: e.y,
-                radius: 10,
-                maxRadius: 85,
-                alpha: 1,
+                radius: 6,
+                maxRadius: 46,
+                alpha: 0.9,
                 color: '#ff3300'
               });
-              this.hitPlayer(e.damage);
-              e.dead = true;
+            }
+            if (e.arming) {
+              e.fuse -= dt;
+              if (e.fuse <= 0 && !e.dead) {
+                e.dead = true;
+                this.sound.playExplosion('small');
+                this.shockwaves.push({
+                  x: e.x,
+                  y: e.y,
+                  radius: 10,
+                  maxRadius: 85,
+                  alpha: 1,
+                  color: '#ff3300'
+                });
+                // 引信走完仍在90半径内才造成伤害，否则只是空爆
+                if (Vec.dist(e.x, e.y, this.player.x, this.player.y) < 90) {
+                  this.hitPlayer(e.damage);
+                }
+              }
             }
           } else if (e.type === 'shield_pylon') {
             e.vx = Math.cos(angleToPlayer) * e.speed * 0.7 + sepX * 50;
@@ -5209,10 +5552,11 @@
                 e.vx = Math.cos(angleToPlayer) * e.speed;
                 e.vy = Math.sin(angleToPlayer) * e.speed;
 
-                // Summons Kamikaze ticks
-                if (e.spawnTimer > 3.0) {
+                // Summons Kamikaze ticks (节流：4.5s一只，仅无尽/半血以下才两只)
+                if (e.spawnTimer > 4.5) {
                   e.spawnTimer = 0;
-                  for (let s = 0; s < 2; s++) {
+                  const summonCount = (this.endlessMode || e.hp < e.maxHp * 0.5) ? 2 : 1;
+                  for (let s = 0; s < summonCount; s++) {
                     const offAng = (s === 0 ? -0.5 : 0.5) + Math.random() * 0.2;
                     this.enemies.push({
                       type: 'kamikaze',
@@ -5223,9 +5567,9 @@
                       hp: 35,
                       maxHp: 35,
                       radius: 11,
-                      speed: 280,
+                      speed: 230,
                       color: '#ff3300',
-                      damage: 25,
+                      damage: 18,
                       xpVal: 3
                     });
                   }
@@ -5523,18 +5867,21 @@
       render() {
         const ctx = this.ctx;
         ctx.save();
-        ctx.clearRect(0, 0, this.width, this.height);
+        try {
+          ctx.clearRect(0, 0, this.width, this.height);
 
-        // Apply Screen Shake
-        let shakeX = 0, shakeY = 0;
-        if (this.screenShake > 0) {
-          shakeX = Math.cos(this.screenShakeAngle) * this.screenShake;
-          shakeY = Math.sin(this.screenShakeAngle) * this.screenShake;
-        }
+          // Apply Screen Shake
+          let shakeX = 0, shakeY = 0;
+          if (this.screenShake > 0) {
+            shakeX = Math.cos(this.screenShakeAngle) * this.screenShake;
+            shakeY = Math.sin(this.screenShakeAngle) * this.screenShake;
+          }
 
-        // Camera Transform
-        ctx.translate(this.width / 2 + shakeX, this.height / 2 + shakeY);
-        ctx.translate(-this.camera.x, -this.camera.y);
+          // Camera Transform (自愈校验：防止 NaN 导致整屏画面消失)
+          const camX = Number.isFinite(this.camera.x) ? this.camera.x : (this.player ? this.player.x : 0);
+          const camY = Number.isFinite(this.camera.y) ? this.camera.y : (this.player ? this.player.y : 0);
+          ctx.translate(this.width / 2 + shakeX, this.height / 2 + shakeY);
+          ctx.translate(-camX, -camY);
 
         // 1. Draw Cyberpunk Grid
         this.renderCyberGrid(ctx);
@@ -5738,12 +6085,21 @@
             ctx.arc(0, 0, 110, 0, Math.PI * 2);
             ctx.stroke();
           } else if (e.type === 'kamikaze') {
+            // 引信期间闪烁翻倍 + 红色预警环
+            if (e.arming) {
+              ctx.strokeStyle = 'rgba(255, 51, 0, 0.85)';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius + 9, 0, Math.PI * 2);
+              ctx.stroke();
+            }
             const a = Math.atan2(e.vy, e.vx);
             ctx.rotate(a);
             ctx.beginPath();
             ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = Math.sin(this.survivalTime * 20) > 0 ? '#ffff00' : '#ff0000';
+            const blinkFreq = e.arming ? 40 : 20;
+            ctx.fillStyle = Math.sin(this.survivalTime * blinkFreq) > 0 ? '#ffff00' : '#ff0000';
             ctx.beginPath();
             ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
             ctx.fill();
@@ -6129,8 +6485,11 @@
           ctx.fillText(txt.text, txt.x, txt.y);
           ctx.restore();
         });
-
-        ctx.restore();
+        } catch (err) {
+          console.error("Render non-fatal error caught:", err);
+        } finally {
+          ctx.restore();
+        }
       }
 
       renderCyberGrid(ctx) {
