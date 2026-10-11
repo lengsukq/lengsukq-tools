@@ -5142,8 +5142,16 @@
           // Camera Transform (自愈校验：防止 NaN 导致整屏画面消失)
           const camX = Number.isFinite(this.camera.x) ? this.camera.x : (this.player ? this.player.x : 0);
           const camY = Number.isFinite(this.camera.y) ? this.camera.y : (this.player ? this.player.y : 0);
+          const zoom = Math.max(0.65, Math.min(1.5, this.cameraZoom || 1));
+          const halfWidth = this.width / (2 * zoom);
+          const halfHeight = this.height / (2 * zoom);
+          // Shared viewport clipping: never skip a visible boss, missile or
+          // long-range sniper telegraph, only primitives entirely off-screen.
+          const visible = (x, y, radius = 30) =>
+            Math.abs(x - camX) <= halfWidth + radius &&
+            Math.abs(y - camY) <= halfHeight + radius;
           ctx.translate(this.width / 2 + shakeX, this.height / 2 + shakeY);
-          ctx.scale(Math.max(0.65, Math.min(1.5, this.cameraZoom || 1)), Math.max(0.65, Math.min(1.5, this.cameraZoom || 1)));
+          ctx.scale(zoom, zoom);
           ctx.translate(-camX, -camY);
 
         // 1. Draw Cyberpunk Grid
@@ -5151,6 +5159,7 @@
 
         // 2. Draw XP Gems & Items
         this.gems.forEach((g) => {
+          if (!visible(g.x, g.y, (g.radius || 8) + 12)) return;
           ctx.save();
           if (g.type === 'heal') {
             ctx.fillStyle = '#00ff66';
@@ -5187,6 +5196,7 @@
 
         // 3. Draw Shockwaves
         this.shockwaves.forEach((sw) => {
+          if (!visible(sw.x, sw.y, sw.radius || 30)) return;
           ctx.save();
           ctx.beginPath();
           ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
@@ -5199,6 +5209,7 @@
 
         // 4. Draw Particles (Optimized batch rendering)
         this.particles.forEach((p) => {
+          if (!visible(p.x ?? p.x1, p.y ?? p.y1, p.type === 'lightning' ? 600 : 30)) return;
           ctx.save();
           const progress = p.life / p.maxLife;
           ctx.globalAlpha = Math.max(0, progress);
@@ -5230,6 +5241,9 @@
 
         // 5. Draw Enemies
         this.enemies.forEach((e) => {
+          const margin = e.type === 'sniper' ? 640 :
+            e.type === 'shield_pylon' ? 125 : (e.radius || 20) + (e.isBoss ? 95 : 30);
+          if (!visible(e.x, e.y, margin)) return;
           ctx.save();
           ctx.translate(e.x, e.y);
           if (e.isBoss) {
@@ -5494,6 +5508,7 @@
 
         // 7. Draw Black Holes
         this.blackHoles.forEach((bh) => {
+          if (!visible(bh.x, bh.y, bh.radius || 180)) return;
           ctx.save();
           ctx.translate(bh.x, bh.y);
           ctx.rotate(bh.rotAngle);
@@ -5520,6 +5535,7 @@
 
         // 8. Draw Cryo Mines
         this.mines.forEach((m) => {
+          if (!visible(m.x, m.y, 34)) return;
           ctx.save();
           ctx.translate(m.x, m.y);
           ctx.strokeStyle = '#00f3ff';
@@ -5558,6 +5574,7 @@
 
         // 10. Draw Companion Drones
         this.companionDrones.forEach((dr) => {
+          if (!visible(dr.x, dr.y, 20)) return;
           ctx.save();
           ctx.translate(dr.x, dr.y);
           ctx.rotate(dr.angle + Math.PI / 2);
@@ -5581,6 +5598,7 @@
 
         // 11. Draw Enemy Bullets
         this.enemyBullets.forEach((eb) => {
+          if (!visible(eb.x, eb.y, (eb.radius || 4) + 6)) return;
           ctx.fillStyle = eb.color;
           ctx.beginPath();
           ctx.arc(eb.x, eb.y, eb.radius, 0, Math.PI * 2);
@@ -5589,6 +5607,7 @@
 
         // 12. Draw Player Bullets
         this.bullets.forEach((b) => {
+          if (!visible(b.x, b.y, (b.radius || 4) + 20)) return;
           if (b.type === 'missile') {
             ctx.save();
             ctx.translate(b.x, b.y);
@@ -5642,6 +5661,7 @@
           const cy = Number.isFinite(orb.centerY) ? orb.centerY : this.player.y;
           const ox = cx + Math.cos(orb.angle) * orb.distance;
           const oy = cy + Math.sin(orb.angle) * orb.distance;
+          if (!visible(cx, cy, (orb.distance || 70) + (orb.radius || 10))) return;
           ctx.save();
           ctx.shadowBlur = 16;
           ctx.shadowColor = orb.color;
@@ -5729,6 +5749,7 @@
 
         // 10. Draw Floating Combat Text (High-speed batch render)
         this.texts.forEach((txt) => {
+          if (!visible(txt.x, txt.y, 200)) return;
           ctx.save();
           ctx.font = `bold ${txt.size}px monospace`;
           ctx.fillStyle = txt.color;

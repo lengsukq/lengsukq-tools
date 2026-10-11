@@ -42,43 +42,105 @@
     }
     return result;
   }
-  function create(game, state, coop) {
-    const view = Object.create(game);
+  // Build entity-ID lookup and render objects ONCE per received snapshot.
+  // The requestAnimationFrame path only edits x/y in stable objects, avoiding
+  // fresh Maps, array copies and hundreds of short-lived objects at 60+ FPS.
+  function createSampler(current, previous) {
+    const scene = { ...current, host: { ...current.host }, guest: { ...current.guest } };
+    const tracks = [];
+    function track(target, latest, earlier) {
+      if (!earlier || !Number.isFinite(latest.x) || !Number.isFinite(latest.y) ||
+        !Number.isFinite(earlier.x) || !Number.isFinite(earlier.y)) return;
+      tracks.push({ target, fromX: earlier.x, fromY: earlier.y,
+        dx: latest.x - earlier.x, dy: latest.y - earlier.y });
+    }
+    track(scene.host, current.host, previous?.host);
+    track(scene.guest, current.guest, previous?.guest);
+    for (const field of arrays) {
+      const values = current[field] || [];
+      if (field === 'orbiters' || !previous?.[field]?.length) {
+        scene[field] = values;
+        continue;
+      }
+      const previousById = new Map(previous[field].map(item => [item.id, item]));
+      scene[field] = values.map(item => {
+        const older = previousById.get(item.id);
+        if (!older || !Number.isFinite(older.x) || !Number.isFinite(older.y) ||
+          !Number.isFinite(item.x) || !Number.isFinite(item.y)) return item;
+        const target = { ...item };
+        track(target, item, older);
+        return target;
+      });
+    }
+    return {
+      scene,
+      sample(progress = 1) {
+        const t = Math.min(1, Math.max(0, progress));
+        for (const item of tracks) {
+          item.target.x = item.fromX + item.dx * t;
+          item.target.y = item.fromY + item.dy * t;
+        }
+        return scene;
+      }
+    };
+  }
+  // Populate the same guest view in place rather than creating Object.create()
+  // and a new player/camera object for every paint operation.
+  function updateView(view, state, game, coop) {
     const xp = state.teamXP || { xp: 0, xpNeeded: 1, level: state.level || 1 };
     view.isGuestWorldView = true;
-    // Render relative to the guest, never the host's local camera.
     const focus = state.guest.downed && state.host.hp > 0 ? state.host : state.guest;
-    view.camera = { x: focus.x, y: focus.y };
-    view.player = {
-      x: state.guest.x, y: state.guest.y,
-      hp: state.guest.hp, maxHp: state.guest.maxHp,
-      aimAngle: state.guest.aimAngle || 0,
-      radius: state.guest.radius || 16,
-      invulnTimer: state.guest.invuln || 0,
-      downed: Boolean(state.guest.downed),
-      level: xp.level, xp: xp.xp, xpNeeded: xp.xpNeeded,
-      regen: .8 + (state.guest.passives?.armor || 0) * 1.8,
-      crystals: state.host.crystals || 0,
-      maxDashCharges: state.guest.maxCharges || 3, dashCharges: state.guest.charges ?? 3,
-      dashRechargeTime: 2.2, dashRechargeTimer: state.guest.recharge || 0,
-      cdrMultiplier: state.guest.cdrMultiplier || 1,
-      dmgMultiplier: state.guest.dmgMultiplier || 1, areaMultiplier: state.guest.areaMultiplier || 1,
-      dashSlashDmg: 95, dashCombo: 0,
-      aegisTimer: 0, aegisDuration: 0, hasAegis: false,
-      weapons: state.guest.weapons || { blaster: 1 },
-      passives: state.guest.passives || {}, dashUpgrades: state.guest.dashUpgrades || {},
-      limitBreaks: {}
-    };
+    view.camera ||= { x: 0, y: 0 };
+    view.camera.x = focus.x;
+    view.camera.y = focus.y;
+    const player = view.player ||= {};
+    player.x = state.guest.x;
+    player.y = state.guest.y;
+    player.hp = state.guest.hp;
+    player.maxHp = state.guest.maxHp;
+    player.aimAngle = state.guest.aimAngle || 0;
+    player.radius = state.guest.radius || 16;
+    player.invulnTimer = state.guest.invuln || 0;
+    player.downed = Boolean(state.guest.downed);
+    player.level = xp.level;
+    player.xp = xp.xp;
+    player.xpNeeded = xp.xpNeeded;
+    player.regen = .8 + (state.guest.passives?.armor || 0) * 1.8;
+    player.crystals = state.host.crystals || 0;
+    player.maxDashCharges = state.guest.maxCharges || 3;
+    player.dashCharges = state.guest.charges ?? 3;
+    player.dashRechargeTime = 2.2;
+    player.dashRechargeTimer = state.guest.recharge || 0;
+    player.cdrMultiplier = state.guest.cdrMultiplier || 1;
+    player.dmgMultiplier = state.guest.dmgMultiplier || 1;
+    player.areaMultiplier = state.guest.areaMultiplier || 1;
+    player.dashSlashDmg = 95;
+    player.dashCombo = 0;
+    player.aegisTimer = 0;
+    player.aegisDuration = 0;
+    player.hasAegis = false;
+    player.weapons = state.guest.weapons || { blaster: 1 };
+    player.passives = state.guest.passives || {};
+    player.dashUpgrades = state.guest.dashUpgrades || {};
+    player.limitBreaks = player.limitBreaks || {};
     view.survivalTime = state.time || 0;
     view.kills = state.kills || 0;
     view.difficulty = state.difficulty || 0;
     view.currentBoss = (state.enemies || []).find(enemy => enemy.isBoss) || null;
     for (const field of arrays) view[field] = state[field] || [];
-    // Only the host computes entities. Remote renderer is visual-only.
     view.lanCoop = coop;
     view.screenShake = 0;
     view.screenShakeAngle = 0;
     return view;
   }
-  window.NeonLanWorldView = Object.freeze({ arrays, interpolate, create });
+  function create(game, state, coop) {
+    const view = Object.create(game);
+    // Force own copies: the authoritative game.player/camera must never be mutated.
+    view.player = {};
+    view.camera = {};
+    return updateView(view, state, game, coop);
+  }
+  window.NeonLanWorldView = Object.freeze({
+    arrays, interpolate, create, updateView, createSampler
+  });
 })();

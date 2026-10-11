@@ -60,6 +60,10 @@
     };
   }
   let indicator = null;
+  // Reading a HUD bounding rectangle immediately after DOM writes forces a
+  // layout flush. Cache it for a short period and invalidate on viewport size.
+  const hudMeasure = { node: null, width: 0, height: 0, visible: false,
+    bottom: 0, checkedAt: -Infinity };
   function ensureIndicator() {
     if (indicator?.isConnected) return indicator;
     if (typeof document === 'undefined' || !document.body) return null;
@@ -88,8 +92,20 @@
   function update(game, camera, target, own, profile, enabled = true) {
     if (!enabled || !game || !target || !own) { hide(); return; }
     const hud = document.getElementById('hud');
-    const hudBottom = hud && hud.style.display !== 'none'
-      ? (hud.getBoundingClientRect?.().bottom || 0) : (game.height < 500 ? 65 : 88);
+    const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const visible = Boolean(hud && hud.style.display !== 'none');
+    if (hudMeasure.node !== hud || hudMeasure.width !== game.width ||
+        hudMeasure.height !== game.height || hudMeasure.visible !== visible ||
+        now - hudMeasure.checkedAt >= 500) {
+      hudMeasure.node = hud;
+      hudMeasure.width = game.width;
+      hudMeasure.height = game.height;
+      hudMeasure.visible = visible;
+      hudMeasure.bottom = visible ? (hud.getBoundingClientRect?.().bottom || 0) :
+        (game.height < 500 ? 65 : 88);
+      hudMeasure.checkedAt = now;
+    }
+    const hudBottom = hudMeasure.bottom;
     const marker = markerPosition(
       { width: game.width, height: game.height, hudBottom }, camera, target,
       game.cameraZoom || 1

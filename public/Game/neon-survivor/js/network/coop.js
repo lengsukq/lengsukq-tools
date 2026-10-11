@@ -169,8 +169,11 @@
       'orbiters','gems','bullets','enemyBullets']) {
       const items = frame[field];
       while (items?.length && size > LIMIT) {
+        // JSON-stringifying the whole snapshot for every removed effect
+        // caused quadratic CPU spikes in dense fights.
+        const last = items[items.length - 1];
+        size -= JSON.stringify(last).length + (items.length > 1 ? 1 : 0);
         items.pop();
-        size = JSON.stringify(frame).length;
       }
       if (size <= LIMIT) return frame;
     }
@@ -182,8 +185,9 @@
         if (!frame.enemies[i].isBoss) { index = i; break; }
       }
       if (index < 0) break;
+      size -= JSON.stringify(frame.enemies[index]).length +
+        (frame.enemies.length > 1 ? 1 : 0);
       frame.enemies.splice(index, 1);
-      size = JSON.stringify(frame).length;
     }
     return frame;
   }
@@ -207,7 +211,19 @@
       this.previous = null;
       this.receivedAt = 0;
       this.currentRenderState = null;
+      this.frameSampler = null;
+      this.guestView = null;
+      this.lastGuestHudSeq = -1;
+      this.perf?.destroy();
+      this.perf = window.NeonLanPerf?.create(this.game) || null;
+      this.perf = null;
+      this.frameSampler = null;
+      this.guestView = null;
+      this.lastGuestHudSeq = -1;
       this.predicted = null;
+      this.frameSampler = null;
+      this.guestView = null;
+      this.lastGuestHudSeq = -1;
       this.lastInput = null;
       this.lastHudLoadout = null;
       this.guestUpgradeKey = null;
@@ -260,6 +276,8 @@
       return this.rtc.send({ type: 'profile', name: p.name, color: p.colorId });
     }
     stop() {
+      this.perf?.destroy();
+      this.perf = null;
       const survivorDisconnected = !this.guestMode && this.game.player?.downed &&
         this.ally?.hp > 0;
       this.guestMode = false;
@@ -360,6 +378,10 @@
         this.previous = this.latest;
         this.receivedAt = performance.now();
         this.latest = message;
+        this.perf?.packet(this.receivedAt);
+        // Entity correspondence is calculated when a snapshot ARRIVES,
+        // never rebuilt by every animation frame.
+        this.frameSampler = window.NeonLanWorldView?.createSampler(message, this.previous) || null;
         // Host is authoritative; locally predicted position is corrected
         // gradually for small differences and snapped on large drift.
         const guest = message.guest;
@@ -686,6 +708,7 @@
         ctx.stroke();
         ctx.restore();
       }
+      this.perf?.frame(perfStart, performance.now());
       const teammate = this.ally.profile || normalizeProfile(null, 'guest');
       this.game.renderFighter(ctx, this.ally, teammate, true);
       if (link) {
@@ -772,9 +795,13 @@
       const canSteer = this.latest?.phase === 'playing' && !this.latest?.guest?.downed &&
         !this.game.settingsOpen;
       if (this.predicted && canSteer) {
-        const input = this.lastInput || this.sampleInput(false);
-        const speed = (this.latest.guest?.invuln > 0 && this.latest.guest?.charges < 3)
-          ? 240 : 240 + Math.min(120, ((this.latest.teamXP?.level || 1) - 1) * 6);
+        // Sample without consuming dash edges each display frame: a newly
+        // pressed movement direction should not wait for the next 30Hz packet.
+        const input = this.sampleInput(false);
+        const thruster = this.latest.guest?.passives?.thruster || 0;
+        const speed = Math.min(385,
+          (240 + Math.min(120, ((this.latest.teamXP?.level || 1) - 1) * 6)) *
+          (1 + .15 * thruster));
         this.predicted.x += input.dx * speed * dt;
         this.predicted.y += input.dy * speed * dt;
       }
@@ -787,6 +814,7 @@
     }
     renderGuest() {
       const game = this.game, state = this.latest;
+      const perfStart = this.perf ? performance.now() : 0;
       if (!state) {
         window.NeonLanTeammates?.hide();
         game.ctx.clearRect(0, 0, game.width, game.height);
@@ -798,33 +826,43 @@
         return;
       }
       const progress = Math.min(1, (performance.now() - this.receivedAt) / (1000 / hz));
-      const frame = window.NeonLanWorldView
-        ? window.NeonLanWorldView.interpolate(state, this.previous, progress) : state;
-      if (this.predicted) {
-        frame.guest = { ...frame.guest, x: this.predicted.x, y: this.predicted.y };
+      // Tests and older peer adapters may assign latest directly.
+      if (!this.frameSampler && window.NeonLanWorldView) {
+        this.frameSampler = window.NeonLanWorldView.createSampler(state, this.previous);
       }
-      const view = window.NeonLanWorldView
-        ? window.NeonLanWorldView.create(game, frame, this) : null;
+      const frame = this.frameSampler?.sample(progress) || state;
+      if (this.predicted) {
+        frame.guest.x = this.predicted.x;
+        frame.guest.y = this.predicted.y;
+      }
+      const world = window.NeonLanWorldView;
+      if (!this.guestView && world) this.guestView = world.create(game, frame, this);
+      const view = this.guestView && world?.updateView(this.guestView, frame, game, this);
       if (!view) return;
       this.currentRenderState = frame;
       // Invoke the production render() directly. No duplicate game painter.
       game.render.call(view);
       window.NeonLanRevive?.overlay(game.ctx, game, frame);
-      // Exactly the same HUD/upgrades bar components as the host, bound to the
-      // guest's health/dash and shared XP rather than the host's player object.
-      game.updateHUD.call(view);
-      const loadout = JSON.stringify([frame.guest.weapons, frame.guest.passives,
-        frame.guest.dashUpgrades, frame.teamXP?.level]);
-      if (this.lastHudLoadout !== loadout) {
-        game.renderWeaponsHUD.call(view);
-        this.lastHudLoadout = loadout;
+      // HUD DOM writes, innerHTML and card reconciliation only belong to new
+      // network state (~15Hz), not every 60/120Hz paint.
+      if (this.lastGuestHudSeq !== state.seq) {
+        this.lastGuestHudSeq = state.seq;
+        game.updateHUD.call(view);
+        const loadout = JSON.stringify([frame.guest.weapons, frame.guest.passives,
+          frame.guest.dashUpgrades, frame.teamXP?.level]);
+        if (this.lastHudLoadout !== loadout) {
+          game.renderWeaponsHUD.call(view);
+          this.lastHudLoadout = loadout;
+        }
+        this.syncGuestUpgrade(frame, view);
+        const bossName = document.getElementById('boss-name');
+        if (bossName && view.currentBoss) {
+          const title = view.currentBoss.type === 'boss_dual_reactor' ? '双生裁决者 · 共振要塞' :
+            view.currentBoss.type === 'boss_carrier' ? '欧米茄母舰' :
+            view.currentBoss.type === 'boss_nexus' ? '风暴枢纽' : '奇点吞噬者';
+          if (bossName.textContent !== title) bossName.textContent = title;
+        }
       }
-      this.syncGuestUpgrade(frame, view);
-      const bossName = document.getElementById('boss-name');
-      if (bossName && view.currentBoss) bossName.textContent =
-        view.currentBoss.type === 'boss_dual_reactor' ? '双生裁决者 · 共振要塞' :
-        view.currentBoss.type === 'boss_carrier' ? '欧米茄母舰' :
-        view.currentBoss.type === 'boss_nexus' ? '风暴枢纽' : '奇点吞噬者';
       if (frame.phase === 'paused' || frame.phase === 'levelup' ||
         (frame.phase !== 'playing' && frame.phase !== 'lan-client' &&
           frame.phase !== 'coop-guest-upgrade')) {
