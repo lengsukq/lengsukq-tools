@@ -49,6 +49,8 @@
       this.realtimeChannel = null;
       this.connected = false;
       this.clientId = roomCode();
+      this.peers = window.NeonLanPeers ? new window.NeonLanPeers.PeerDirectory() : null;
+      this.roster = null;
       this.rooms = new Map();
       this.broadcast = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL_NAME);
       if (this.broadcast) this.broadcast.onmessage = e => this.handleBroadcast(e.data);
@@ -58,6 +60,9 @@
       this.closePeer();
       this.role = 'host';
       this.room = roomCode();
+      // The legacy signaling endpoint currently accepts one guest. Keep its
+      // advertised capacity at 2 until multi-offer negotiation is migrated.
+      this.roster = window.NeonLanRoster ? new window.NeonLanRoster.RoomRoster(2) : null;
       this.announce();
       this.status('已创建房间 ' + this.room + '。请生成邀请信息或等待同浏览器加入。');
       return this.room;
@@ -134,11 +139,14 @@
       return pc;
     }
     bindChannel(channel) {
+      const remoteId = this.role === 'host' ? 'guest' : 'host';
+      this.peers?.attach(remoteId, channel);
       if (channel.label === 'neon-realtime' || channel.name === 'neon-realtime') {
         this.realtimeChannel = channel;
         channel.onmessage = event => {
           if (typeof event.data !== 'string' || event.data.length > 40000) return;
-          try { this.onData(JSON.parse(event.data)); } catch { /* malformed frame */ }
+          if (this.peers) this.peers.receive(remoteId, event.data, this.onData);
+          else try { this.onData(JSON.parse(event.data)); } catch { /* malformed frame */ }
         };
         channel.onclose = () => {
           if (this.realtimeChannel === channel) this.realtimeChannel = null;
@@ -148,17 +156,23 @@
       this.channel = channel;
       channel.onopen = () => {
         this.connected = true;
+        if (this.role === 'host' && this.roster) {
+          if (!this.roster.has('guest')) this.roster.reserve('guest');
+          this.roster.setStatus('guest', 'connected');
+        }
         this.status('联机连接成功');
         this.onConnection?.(true);
       };
       channel.onclose = () => {
         this.connected = false;
+        if (this.role === 'host' && this.roster?.has('guest')) this.roster.setStatus('guest', 'disconnected');
         this.status('联机连接已关闭');
         this.onConnection?.(false);
       };
       channel.onmessage = event => {
         if (typeof event.data !== 'string' || event.data.length > 40000) return;
-        try { this.onData(JSON.parse(event.data)); } catch { /* ignore malformed frames */ }
+        if (this.peers) this.peers.receive(remoteId, event.data, this.onData);
+        else try { this.onData(JSON.parse(event.data)); } catch { /* ignore malformed frames */ }
       };
     }
     async makeOffer() {
@@ -189,7 +203,13 @@
       await this.peer.setRemoteDescription(answer.description);
       this.status('已接受应答，正在建立局域网连接');
     }
-    send(payload) {
+    sendTo(playerId, payload) {
+      // The multiplayer transport addresses participants by the bound peer
+      // identity, not by user-supplied fields inside gameplay messages.
+      if (this.peers) {
+        return this.peers.sendTo(playerId, payload);
+      }
+      if (playerId !== (this.role === 'host' ? 'guest' : 'host')) return false;
       // Time-sensitive input/snapshot packets may be dropped when superseded;
       // critical menu/profile events always use the reliable control channel.
       const isRealtime = payload?.type === 'input' || payload?.type === 'snapshot';
@@ -201,7 +221,16 @@
       candidate.send(data);
       return true;
     }
+    broadcastToGuests(payloadByPlayerId, excludeId = null) {
+      if (this.role !== 'host' || !this.peers) return [];
+      return this.peers.broadcast(payloadByPlayerId, excludeId);
+    }
+    send(payload) {
+      // Backward-compatible two-player API used by the existing UI and Coop.
+      return this.sendTo(this.role === 'host' ? 'guest' : 'host', payload);
+    }
     closePeer() {
+      this.peers?.clear();
       if (this.realtimeChannel) { this.realtimeChannel.close(); this.realtimeChannel = null; }
       if (this.channel) { this.channel.close(); this.channel = null; }
       if (this.peer) { this.peer.close(); this.peer = null; }

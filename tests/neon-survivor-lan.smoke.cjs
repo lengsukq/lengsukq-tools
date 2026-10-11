@@ -58,6 +58,7 @@ const sandbox = {
 };
 let counter = 0;
 vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync(root + 'js/combat/pilots.js', 'utf8'), sandbox);
 for (const script of ['rtc', 'coop']) {
   vm.runInContext(fs.readFileSync(root + 'js/network/' + script + '.js', 'utf8'), sandbox);
 }

@@ -18,6 +18,17 @@
     game.state = 'lan-lobby';
     let started = false;
     let leaveButton = null;
+    coop.onReadyLeave = () => {
+      started = false;
+      rtc.onConnection = null;
+      void signaling?.close();
+      rtc.close();
+      coop.stop();
+      leaveButton?.remove();
+      leaveButton = null;
+      ui.remove();
+      game.showStartMenu();
+    };
     const overlay = document.getElementById('neon-lan-lobby');
     if (overlay) overlay.remove();
     const ui = document.createElement('div');
@@ -160,7 +171,7 @@
     manualSteps.style.cssText = 'color:#9eb0c3;font-size:12px;line-height:1.6;';
     advanced.appendChild(manualSteps);
     rtc.onStatus = message => { status.textContent = message; };
-    rtc.onData = message => coop.onMessage(message);
+    rtc.onData = (message, remotePlayerId) => coop.onMessage(message, remotePlayerId);
     rtc.onConnection = connected => {
       if (connected && !started) {
         started = true;
@@ -168,22 +179,15 @@
         ui.remove();
         game.sound.init();
         if (rtc.role === 'host') {
-          game.startNewGame();
-          coop.startHost();
+          coop.awaitGuestShip();
         } else {
-          coop.startGuest();
+          coop.enterGuestReady();
         }
         leaveButton = document.createElement('button');
         leaveButton.type = 'button';
         leaveButton.textContent = '断开联机 · ' + rtc.room;
         leaveButton.style.cssText = 'position:fixed;top:70px;right:12px;z-index:90;border:1px solid #f77;border-radius:8px;background:#211525dd;color:#ffc8c8;padding:7px;font-size:11px;';
-        leaveButton.onclick = () => {
-          started = false;
-          rtc.onConnection = null;
-          void signaling?.close();
-          rtc.close(); coop.stop(); leaveButton?.remove();
-          game.showStartMenu();
-        };
+        leaveButton.onclick = () => coop.onReadyLeave();
         document.body.appendChild(leaveButton);
       } else if (!connected && started) {
         started = false;

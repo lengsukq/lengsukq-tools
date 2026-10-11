@@ -117,7 +117,7 @@ const connection = { role: 'guest', connected: true, send(message) { sent.push(m
 const guest = new window.NeonLanCoop.Coop({ player: { x: 0, y: 0 } }, connection);
 assert.equal(guest.sendLocalProfile(), true);
 assert.deepEqual(JSON.parse(JSON.stringify(sent[0])), {
-  type: 'profile', name: '银河领航员', color: 'auto'
+  type: 'profile', name: '银河领航员', color: 'auto', shipId: 'riftblade'
 });
 const hostGame = {
   state: 'playing', endlessMode: false, survivalTime: 12, kills: 3,

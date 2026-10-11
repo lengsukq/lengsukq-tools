@@ -11,7 +11,7 @@ const sandbox = {
   performance: { now: () => 1000 }, setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const file of ['network/experience', 'network/coop', 'core'])
+for (const file of ['network/experience', 'combat/weapons', 'network/coop', 'core'])
   vm.runInContext(fs.readFileSync(root + file + '.js','utf8'), sandbox);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const { Coop } = sandbox.window.NeonLanCoop;
@@ -69,6 +69,8 @@ ally.timers = { blaster: .5, tesla: 2.5, missiles: 2.5, laser: 2.5 };
 host.updateGuestWeapons(.1);
 assert.ok(game.bullets.length >= 2, 'Solo blaster/missiles emit real projectiles for guest');
 assert.ok(game.bullets.every(b => b.owner === 'guest'));
+assert.ok(game.bullets.every(b => b.ownerId === 'guest'),
+  'Real guest gunfire preserves stable damage ownership through shared weapon system');
 assert.ok(game.laserBeams.length > 0, 'Solo laser beam renderer is shared');
 assert.ok(effects.some(effect => effect.attacker === ally),
   'Instant hit weapons must apply guest-specific combat stats');

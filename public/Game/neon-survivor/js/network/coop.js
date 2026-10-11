@@ -55,9 +55,12 @@
       dash: Boolean(data.dash)
     };
   }
-  function newAlly(game) {
+  function newAlly(game, shipId = 'riftblade') {
+    if (window.NeonPlayers?.createRemotePilot)
+      return window.NeonPlayers.createRemotePilot(game, 'guest', shipId);
     return {
-      id: 'guest', x: game.player.x + 60, y: game.player.y,
+      id: 'guest', shipId: window.NeonShips?.DEFAULT_SHIP_ID || 'riftblade',
+      x: game.player.x + 60, y: game.player.y,
       vx: 0, vy: 0, hp: 100, maxHp: 100, level: 1, radius: 16,
       xp: 0, xpNeeded: game.player.xpNeeded || 1,
       aimAngle: 0, invuln: 0, dash: 0, charges: 3, recharge: 0,
@@ -72,7 +75,7 @@
       profile: normalizeProfile(null, 'guest')
     };
   }
-  function snapshot(game, ally, seq, resonance = null) {
+  function snapshot(game, ally, seq, resonance = null, receiverId = 'guest') {
     const limit = (array, max, fields) => (array || []).slice(0, max)
       .map(entity => ({ id: networkId(entity), ...sample(entity, fields) }));
     const nearbyEnemies = [...(game.enemies || [])].filter(enemy => !enemy.dead)
@@ -84,7 +87,7 @@
         );
         return dist(a) - dist(b);
       });
-    return {
+    const frame = {
       type: 'snapshot', seq, time: round(game.survivalTime),
       level: game.player.level, kills: game.kills,
       difficulty: game.difficulty || 0, mode: game.endlessMode ? 'endless' : 'normal',
@@ -98,21 +101,33 @@
         tier: resonance.link?.tier || 0,
         distance: round(resonance.link?.distance || 0),
         damageBonus: resonance.link?.damageBonus || 0,
-        pulseCooldown: round(resonance.pulseCooldown || 0)
+        pulseCooldown: round(resonance.pulseCooldown || 0),
+        shieldSource: Boolean(resonance.link?.shieldSource),
+        shieldNext: round(resonance.link?.shieldSource
+          ? Math.max(0, 12 - (resonance.shieldTimer || 0)) : 0),
+        shieldHost: window.NeonLanResonance?.remainingShield(game.player, game.survivalTime) || 0,
+        shieldGuest: window.NeonLanResonance?.remainingShield(ally, game.survivalTime) || 0,
+        threatFactor: round(resonance.threatFactor || 1)
       } : { tier: 0, distance: 0, damageBonus: 0, pulseCooldown: 0 },
       host: { ...sample(game.player, ['x','y','hp','maxHp','aimAngle','level','radius',
+        'shipId',
         'regen','crystals','invulnTimer','aegisTimer','aegisRadius','maxDashCharges',
         'dashCharges','dashRechargeTimer','dashSlashDmg','dashCombo','aegisDuration',
         'downed','reviveIn']),
         weapons: bag(game.player.weapons, 4), passives: bag(game.player.passives, 4),
+        ...(game.player.shipId === 'astra'
+          ? { arcane: window.NeonLanSnapshots?.arcaneView(game.player) || null } : {}),
         limitBreaks: bag(game.player.limitBreaks, 16),
         name: ownProfile('host').name, color: ownProfile('host').color },
       guest: { ...sample(ally, ['x','y','hp','maxHp','aimAngle','level','charges','radius',
+        'shipId',
         'invuln','recharge','lastSeq','maxCharges','pendingUpgrades',
         'cdrMultiplier','dmgMultiplier','areaMultiplier','upgradeRound',
         'upgradeCapacity','upgradeFinished',
         'downed','reviveIn']),
         weapons: bag(ally.weapons, 4), passives: bag(ally.passives, 4),
+        ...(ally.shipId === 'astra'
+          ? { arcane: window.NeonLanSnapshots?.arcaneView(ally) || null } : {}),
         dashUpgrades: bag(ally.dashUpgrades, 10),
         choices: Array.isArray(ally.choices) ? ally.choices.slice(0, 5) : [],
         pickedUpgradeIds: ally.pickedUpgradeIds?.slice(0, 3) || [],
@@ -158,6 +173,7 @@
       dashTrails: limit(game.dashTrails, 16, ['x1','y1','x2','y2','color','life','maxLife']),
       texts: limit(game.texts, 18, ['x','y','text','color','size','life','maxLife'])
     };
+    return window.NeonLanSnapshots?.decorate(frame, game, receiverId) || frame;
   }
   // Keep within the RTCDataChannel's 40k frame limit, so crowded boss fights
   // do not silently stop synchronizing. Critical players and boss entities
@@ -248,11 +264,120 @@
       this.guestMode = false;
       this.previousGamepadDash = false;
       this.pendingGuestProfile = null;
+      this.pendingGuestShipId = null;
+      this.awaitingGuestShip = false;
+      this.guestShipWaitPanel = null;
+      this.readyRoom = null;
+      this.remoteReady = null;
+      this.localReady = false;
+      this.readySeq = 0;
+      this.readyRevision = -1;
+      this.refreshReadyView = null;
       this.rescue = null;
       this.profileAccumulator = 0;
     }
+    // The host owns the pre-match roster, readiness and match start.
+    awaitGuestShip() {
+      if (this.rtc.role !== 'host' || !this.rtc.connected) return false;
+      if (this.awaitingGuestShip) return false;
+      this.awaitingGuestShip = true;
+      this.game.state = 'lan-waiting';
+      this.localReady = false;
+      this.readyRoom = new window.NeonLanReady.ReadyRoom(2);
+      this.readyRoom.set('host', {
+        shipId: window.NeonShips.resolve(this.game.selectedShipId).id,
+        name: ownProfile('host').name, connected: true
+      });
+      if (this.pendingGuestShipId) this.readyRoom.set('guest', {
+        shipId: this.pendingGuestShipId,
+        name: this.pendingGuestProfile?.name || '队友', connected: true
+      });
+      window.NeonLanReady.mount(this);
+      this.broadcastReady();
+      return true;
+    }
+    enterGuestReady() {
+      if (this.rtc.role !== 'guest' || !this.rtc.connected) return false;
+      this.game.state = 'lan-waiting';
+      this.localReady = false;
+      this.remoteReady = new window.NeonLanReady.ReadyRoom(2).snapshot();
+      this.readyRevision = -1;
+      window.NeonLanReady.mount(this);
+      this.sendLocalProfile();
+      this.sendGuestReady(false);
+      return true;
+    }
+    broadcastReady() {
+      if (!this.readyRoom || this.rtc.role !== 'host') return false;
+      this.refreshReadyView?.();
+      return this.rtc.send({ type: 'ready_roster', ...this.readyRoom.snapshot() });
+    }
+    sendGuestReady(ready) {
+      if (this.rtc.role !== 'guest' || !this.rtc.connected ||
+          this.game.state !== 'lan-waiting') return false;
+      const ship = window.NeonShips?.get(this.game.selectedShipId);
+      if (!ship?.playable) return false;
+      const delivered = this.rtc.send({
+        type: 'ready_update', seq: this.readySeq++,
+        shipId: ship.id, ready
+      });
+      if (delivered) this.localReady = ready;
+      this.refreshReadyView?.();
+      return delivered;
+    }
+    selectReadyShip(id) {
+      const ship = window.NeonShips?.get(id);
+      if (!ship?.playable || this.localReady ||
+          this.game.state !== 'lan-waiting') return false;
+      this.game.selectedShipId = id;
+      if (this.rtc.role === 'host') {
+        if (!this.readyRoom?.set('host', { shipId: id, ready: false })) return false;
+        this.broadcastReady();
+        return true;
+      }
+      return this.sendGuestReady(false);
+    }
+    setReady(ready) {
+      if (typeof ready !== 'boolean' || !this.rtc.connected ||
+          this.game.state !== 'lan-waiting') return false;
+      if (this.rtc.role === 'host') {
+        if (!this.readyRoom?.set('host', { ready })) return false;
+        this.localReady = ready;
+        this.broadcastReady();
+        return true;
+      }
+      return this.sendGuestReady(ready);
+    }
+    beginHostMatch() {
+      if (!this.awaitingGuestShip || !this.rtc.connected ||
+          !this.readyRoom?.canStart()) return false;
+      const host = this.readyRoom.get('host');
+      const guest = this.readyRoom.get('guest');
+      if (!host || !guest || !this.rtc.send({
+        type: 'match_start', revision: this.readyRoom.revision,
+        hostShipId: host.shipId, guestShipId: guest.shipId
+      })) return false;
+      this.readyRoom.start();
+      this.game.selectedShipId = host.shipId;
+      this.pendingGuestShipId = guest.shipId;
+      this.awaitingGuestShip = false;
+      this.guestShipWaitPanel?.remove();
+      this.guestShipWaitPanel = null;
+      this.refreshReadyView = null;
+      this.game.startNewGame();
+      // startNewGame() does not instantiate an ally before the first room
+      // launch. New room restarts already owning an ally are handled there.
+      if (!this.ally) this.startHost();
+      return true;
+    }
     startHost() {
-      this.ally = newAlly(this.game);
+      const selectedShip = window.NeonShips?.get(this.pendingGuestShipId);
+      this.ally = newAlly(this.game, selectedShip?.playable ? selectedShip.id : 'riftblade');
+      if (this.game.players) {
+        if (this.game.players.has('guest')) this.game.players.replace('guest', this.ally);
+        else this.game.players.register('guest', this.ally);
+      }
+      window.NeonShips?.runAbility?.(this.ally, 'onStart', this.game);
       if (this.pendingGuestProfile) this.ally.profile = this.pendingGuestProfile;
       this.guestMode = false;
       this.latest = null;
@@ -261,6 +386,7 @@
     }
     startGuest() {
       this.ally = null;
+      this.game.players?.remove('guest');
       this.guestMode = true;
       this.latest = null;
       this.previous = null;
@@ -282,7 +408,11 @@
     sendLocalProfile() {
       if (this.rtc.role !== 'guest' || !this.rtc.connected) return false;
       const p = ownProfile('guest');
-      return this.rtc.send({ type: 'profile', name: p.name, color: p.colorId });
+      const selected = window.NeonShips?.resolve(this.game.selectedShipId);
+      return this.rtc.send({
+        type: 'profile', name: p.name, color: p.colorId,
+        shipId: selected?.id || 'riftblade'
+      });
     }
     stop() {
       this.perf?.destroy();
@@ -292,6 +422,7 @@
       this.guestMode = false;
       document.body.classList?.remove('neon-lan-guest');
       this.ally = null;
+      this.game.players?.remove('guest');
       this.latest = null;
       this.previous = null;
       this.predicted = null;
@@ -299,6 +430,15 @@
       this.guestUpgradeKey = null;
       this.game.modalLevelup?.classList.remove('active');
       this.pendingGuestProfile = null;
+      this.pendingGuestShipId = null;
+      this.awaitingGuestShip = false;
+      this.readyRoom = null;
+      this.remoteReady = null;
+      this.localReady = false;
+      this.readyRevision = -1;
+      this.guestShipWaitPanel?.remove();
+      this.guestShipWaitPanel = null;
+      this.refreshReadyView = null;
       window.NeonLanTeammates?.hide();
       for (const id of ['btn-pause']) {
         const node = document.getElementById(id);
@@ -307,7 +447,8 @@
           delete node.dataset.lanPreviousDisplay;
         }
       }
-      if (this.game.state === 'lan-client') this.game.showStartMenu();
+      if (this.game.state === 'lan-client' ||
+          this.game.state === 'lan-waiting') this.game.showStartMenu();
       if (this.game.state === 'coop-guest-upgrade') {
         this.game.state = 'playing';
         this.game.lastTime = performance.now();
@@ -316,11 +457,79 @@
       // continuing solo would leave an unwinnable zero-HP game running.
       if (survivorDisconnected && this.game.state === 'playing') this.game.gameOver();
     }
-    onMessage(message) {
+    onMessage(message, remotePlayerId = 'guest') {
+      // Sender identity comes from the bound DataChannel, not the JSON body.
+      // Until the multi-guest authority loop is migrated, reject unknown
+      // connections rather than letting guest-2 control guest's character.
+      if (this.rtc.role === 'host' && remotePlayerId !== 'guest') return;
       if (this.rtc.role === 'host' && message?.type === 'profile') {
         const profile = normalizeProfile(message, 'guest');
         this.pendingGuestProfile = profile;
         if (this.ally) this.ally.profile = profile;
+        // Class choice is allowed ONLY before the host begins a round; a
+        // repeated profile heartbeat must never swap a combatant mid-game.
+        const selected = window.NeonShips?.get(message.shipId);
+        if (this.game.state !== 'playing' && this.game.state !== 'levelup' &&
+            this.game.state !== 'coop-guest-upgrade' && !this.ally) {
+          this.pendingGuestShipId = selected?.playable ? selected.id : 'riftblade';
+          if (this.readyRoom?.set('guest', {
+            shipId: this.pendingGuestShipId, name: profile.name, connected: true
+          })) this.broadcastReady();
+        }
+        return;
+      }
+      if (this.rtc.role === 'host' && message?.type === 'ready_update') {
+        if (!this.awaitingGuestShip || this.game.state !== 'lan-waiting' ||
+            !this.readyRoom || typeof message.ready !== 'boolean') return;
+        const ship = window.NeonShips?.get(message.shipId);
+        if (!ship?.playable) return;
+        const current = this.readyRoom.get('guest');
+        // Switching ships always needs a fresh, separate Ready press.
+        if (current?.shipId !== ship.id && message.ready) return;
+        if (this.readyRoom.set('guest', {
+          seq: message.seq, shipId: ship.id, connected: true,
+          ready: message.ready
+        })) {
+          this.pendingGuestShipId = ship.id;
+          this.broadcastReady();
+        }
+        return;
+      }
+      if (this.rtc.role === 'guest' && message?.type === 'ready_roster') {
+        if (this.game.state !== 'lan-waiting' ||
+            !window.NeonLanReady?.validSnapshot(message) ||
+            message.revision < this.readyRevision) return;
+        this.readyRevision = message.revision;
+        this.remoteReady = {
+          capacity: message.capacity, revision: message.revision,
+          canStart: message.canStart, members: message.members.map(member => ({ ...member }))
+        };
+        this.refreshReadyView?.();
+        return;
+      }
+      if (this.rtc.role === 'guest' && message?.type === 'match_start') {
+        if (this.game.state !== 'lan-waiting' || !this.localReady ||
+            !this.remoteReady?.canStart ||
+            message.revision !== this.readyRevision ||
+            message.guestShipId !== this.game.selectedShipId ||
+            !window.NeonShips?.get(message.hostShipId)?.playable) return;
+        this.guestShipWaitPanel?.remove();
+        this.guestShipWaitPanel = null;
+        this.refreshReadyView = null;
+        this.remoteReady = null;
+        this.startGuest();
+        return;
+      }
+      if (this.rtc.role === 'host' && message?.type === 'spell_cast') {
+        if (this.game.state !== 'playing' || !this.ally ||
+            this.ally.shipId !== 'astra' || this.ally.downed || this.ally.hp <= 0 ||
+            !Number.isSafeInteger(message.seq) || message.seq < 0 ||
+            message.seq <= (this.ally.lastSpellSeq ?? -1) ||
+            (message.spell !== 'meteor' && message.spell !== 'ward')) return;
+        this.ally.lastSpellSeq = message.seq;
+        // No network-controlled targets, mana, cooldown or damage fields.
+        // The registered class hook checks all costs and hit limits on host.
+        window.NeonShips?.runAbility?.(this.ally, 'onAction', this.game, message.spell);
         return;
       }
       if (this.rtc.role === 'host' &&
@@ -339,7 +548,7 @@
           this.ally.pickedUpgradeIds.length >= this.ally.upgradeCapacity ||
           typeof message.id !== 'string' || !this.ally.choices.includes(message.id) ||
           this.ally.pickedUpgradeIds.includes(message.id)) return;
-        const upgrade = this.game.getCoopUpgradeDefinition(message.id);
+        const upgrade = this.game.getCoopUpgradeDefinition(message.id, this.ally);
         if (!this.game.isUpgradeAvailableFor(this.ally, upgrade)) return;
         this.ally.lastUpgradeSeq = message.seq;
         this.applyGuestUpgrade(upgrade);
@@ -348,7 +557,7 @@
         this.ally.upgradeRound++;
         const hasChoices = this.ally.choices.some(id =>
           !this.ally.pickedUpgradeIds.includes(id) &&
-          this.game.isUpgradeAvailableFor(this.ally, this.game.getCoopUpgradeDefinition(id)));
+          this.game.isUpgradeAvailableFor(this.ally, this.game.getCoopUpgradeDefinition(id, this.ally)));
         if (!this.ally.pendingUpgrades ||
           this.ally.pickedUpgradeIds.length >= this.ally.upgradeCapacity || !hasChoices) {
           this.finishGuestUpgrade();
@@ -367,27 +576,7 @@
         this.ally.input = input;
         this.ally.lastSeq = input.seq;
         this.ally.lastInputAt = performance.now();
-        if (!this.ally.downed && input.dash && this.ally.charges > 0 && this.ally.dash <= 0) {
-          this.ally.charges--;
-          this.ally.dash = 0.18;
-          this.ally.invuln = Math.max(this.ally.invuln, 0.28);
-          const warp = this.ally.dashUpgrades || {};
-          if (warp.dash_aegis) this.ally.invuln = Math.max(this.ally.invuln, 0.4);
-          this.ally.dashHitEnemies = new Set();
-          if (warp.dash_blast) {
-            const radius = 100 + warp.dash_blast * 25;
-            for (const enemy of this.game.enemies) {
-              if (!enemy.dead &&
-                  Math.hypot(enemy.x - this.ally.x, enemy.y - this.ally.y) <= radius) {
-                this.game.dealDamage(enemy, 80 + warp.dash_blast * 50,
-                  'lan-ally', false, this.ally);
-              }
-            }
-            if (this.game.shockwaves?.length < 40) this.game.shockwaves.push({
-              x: this.ally.x, y: this.ally.y, radius: 8,
-              maxRadius: radius, alpha: 1, color: '#aaffff'
-            });
-          }
+        if (input.dash && window.NeonPilotSystem?.startDash(this.game, this.ally)) {
           window.NeonLanResonance?.recordDash(this.game, this.ally, this.resonance, 'guest');
         }
       } else if (this.guestMode && safeSnapshot(message) && message.seq > this.lastSnapshotSeq) {
@@ -481,67 +670,19 @@
         window.NeonLanRevive?.knockDown(game, 'guest');
       }
       if (game.state !== 'playing') return;
-      const input = performance.now() - ally.lastInputAt <= 350
-        ? ally.input : { dx: 0, dy: 0, aim: ally.aimAngle };
-      ally.aimAngle = input.aim;
-      ally.level = game.player.level;
-      ally.xp = game.player.xp;
-      ally.xpNeeded = game.player.xpNeeded;
-      ally.invuln = Math.max(0, ally.invuln - dt);
-      if (ally.charges < ally.maxCharges) {
-        ally.recharge += dt;
-        const thruster = ally.passives.thruster || 0;
-        const recharge = 2.2 * ally.cdrMultiplier * (thruster >= 4 ? .7 : thruster >= 2 ? .85 : 1);
-        if (ally.recharge >= recharge) {
-          ally.recharge -= recharge; ally.charges++;
-        }
-      } else ally.recharge = 0;
-      const speed = ally.downed ? 0 : ally.dash > 0 ? 780 : Math.min(385,
-        (240 + Math.min(120, (ally.level - 1) * 6)) *
-          (1 + .15 * (ally.passives.thruster || 0)));
-      const dx = input.dx, dy = input.dy;
-      ally.x += dx * speed * dt;
-      ally.y += dy * speed * dt;
-      if (ally.hp > 0) ally.hp = Math.min(ally.maxHp,
-        ally.hp + dt * (.8 + (ally.passives.armor || 0) * 1.8));
-      if (!ally.downed && ally.dash > 0 && ally.dashHitEnemies) {
-        const warp = ally.dashUpgrades || {};
-        const radius = 42 + (warp.dash_area || 0) * 18;
-        for (const enemy of game.enemies) {
-          if (enemy.dead || ally.dashHitEnemies.has(enemy) ||
-              Math.hypot(enemy.x - ally.x, enemy.y - ally.y) > radius + (enemy.radius || 12)) continue;
-          ally.dashHitEnemies.add(enemy);
-          game.dealDamage(enemy, 95 * (1 + (warp.dash_dmg || 0) * .25) *
-            ally.dmgMultiplier, 'lan-ally', false, ally);
-          if (warp.dash_cryo) enemy.freezeTimer =
-            Math.max(enemy.freezeTimer || 0, .5 + warp.dash_cryo * .35);
-          if (ally.dashHitEnemies.size >= 30) break;
-        }
-        if (warp.dash_fire && game.dashTrails?.length < 35) game.dashTrails.push({
-          x1: ally.x - dx * 22, y1: ally.y - dy * 22,
-          x2: ally.x, y2: ally.y,
-          color: '#ff8844', life: .24, maxLife: .24,
-          damage: 15 * warp.dash_fire
-        });
-      }
+      const input = window.NeonPilotSystem?.inputFor(ally, performance.now()) ||
+        { dx: 0, dy: 0, aim: ally.aimAngle };
+      window.NeonPilotSystem?.stepRemote(game, ally, input, dt);
       window.NeonLanResonance?.update(game, ally, this.resonance, dt);
-      ally.dash = Math.max(0, ally.dash - dt);
+      // The world calls NeonShips.onTick for every registered pilot. Running
+      // class weapons here again would double remote fire and mana recovery.
       this.updateGuestWeapons(dt);
-      if (!ally.downed && ally.invuln <= 0) {
-        // Host also resolves projectiles against the guest ship, never the guest browser.
-        for (let i = game.enemyBullets.length - 1; i >= 0; i--) {
-          const bullet = game.enemyBullets[i];
-          if (Math.hypot(bullet.x - ally.x, bullet.y - ally.y) < (bullet.radius || 4) + ally.radius) {
-            ally.hp = Math.max(0, ally.hp - (bullet.damage || 12) *
-              (window.NeonLanEncounters?.active(game) ? window.NeonLanEncounters.TUNING.enemyDamage : 1));
-            ally.invuln = 0.6;
-            game.enemyBullets.splice(i, 1);
-            break;
-          }
-        }
-      }
       if (ally.weapons.drones) {
         const level = ally.weapons.drones;
+        const nearest = game.enemies.filter(enemy => !enemy.dead).reduce((best, enemy) => {
+          const distance = Math.hypot(enemy.x - ally.x, enemy.y - ally.y);
+          return distance < (best?.distance || 550) ? { enemy, distance } : best;
+        }, null);
         ally.dronePhase = (ally.dronePhase || 0) + dt * 2.4;
         ally.droneShotTime = (ally.droneShotTime || 0) + dt;
         const interval = Math.max(.24, .58 - level * .07) * ally.cdrMultiplier;
@@ -555,28 +696,15 @@
               type: 'blaster', x, y, vx: Math.cos(angle) * 900,
               vy: Math.sin(angle) * 900, radius: 3.5,
               damage: 22 * ally.dmgMultiplier * (1 + (level - 1) * .3),
-              pierce: 1, color: '#00ffaa', life: 1.0, owner: 'guest'
+              pierce: 1, color: '#00ffaa', life: 1.0,
+              owner: ally.id || 'guest', ownerId: ally.id || 'guest'
             });
           }
         }
       }
-      if (!ally.downed && ally.invuln <= 0) {
-        for (const e of game.enemies) {
-          if (e.dead) continue;
-          if (Math.hypot(e.x - ally.x, e.y - ally.y) < (e.radius || 12) + ally.radius) {
-            ally.hp = Math.max(0, ally.hp - Math.max(4, e.damage || 10) *
-              (window.NeonLanEncounters?.active(game) ? window.NeonLanEncounters.TUNING.enemyDamage : 1));
-            ally.invuln = 0.6;
-            break;
-          }
-        }
-      }
-      // Passive once-only cheat death is applied before a true downed state.
-      if (ally.hp <= 0 && ally.passives.armor >= 5 && !ally.cheatDeathUsed) {
-        ally.hp = Math.min(ally.maxHp, 35);
-        ally.invuln = 1.2;
-        ally.cheatDeathUsed = true;
-      }
+      // All registered remote pilots use the same authority-only projectile,
+      // contact, shield and one-time cheat-death resolver.
+      window.NeonPilotSystem?.resolveRemoteHits(game, ally);
       if (ally.hp <= 0 && !ally.downed) window.NeonLanRevive?.knockDown(game, 'guest');
       window.NeonLanRevive?.tick(game, dt);
       this.sendAccumulator += dt;
@@ -587,7 +715,9 @@
     }
     getLinkBonus() {
       return this.rtc.connected && this.ally && window.NeonLanResonance
-        ? window.NeonLanResonance.link(this.game.player, this.ally).damageBonus : 0;
+        ? window.NeonLanResonance.link(this.game.player, this.ally, {
+          threatFactor: this.resonance.threatFactor || 1
+        }).damageBonus : 0;
     }
     onHostDash() {
       if (this.ally && this.rtc.connected) {
@@ -598,6 +728,7 @@
     applyGuestUpgrade(upgrade) {
       const ally = this.ally;
       if (!ally) return;
+      if (window.NeonShips?.runAbility?.(ally, 'onUpgrade', this.game, upgrade) === true) return;
       const group = upgrade.type === 'weapon' ? ally.weapons :
         upgrade.type === 'passive' ? ally.passives : ally.dashUpgrades;
       const level = group[upgrade.id] || 0;
@@ -632,6 +763,36 @@
       else this.showGuestUpgradeWait('升级已提交，等待房主确认…');
       return success;
     }
+    selectGuestUpgradePreview(id) {
+      if (!guestChoosingUpgrade(this.latest) || this.guestUpgradeSubmitted ||
+          !this.latest.guest?.choices?.includes(id) ||
+          this.latest.guest?.pickedUpgradeIds?.includes(id)) return false;
+      const view = this.guestUpgradeView;
+      if (view?.selectUpgradePreview && view.currentUpgradeChoices) {
+        const card = view.currentUpgradeChoices.find(item => item.id === id);
+        if (!view.selectUpgradePreview(card)) return false;
+      }
+      this.pendingGuestUpgradeId = id;
+      this.guestSelectionIdx = this.latest.guest.choices.indexOf(id);
+      return true;
+    }
+    cancelGuestUpgradePreview() {
+      if (!this.pendingGuestUpgradeId && !this.guestUpgradeView?.pendingUpgradeId) return false;
+      this.pendingGuestUpgradeId = null;
+      this.guestUpgradeView?.cancelUpgradePreview?.();
+      return true;
+    }
+    confirmGuestUpgradePreview() {
+      const id = this.guestUpgradeView?.pendingUpgradeId || this.pendingGuestUpgradeId;
+      if (!id) return false;
+      // The guest-side card view uses the same explicit confirmation method
+      // as solo/host. Stubs without a rendered view still use the same gate.
+      const success = this.guestUpgradeView?.confirmUpgradePreview
+        ? this.guestUpgradeView.confirmUpgradePreview()
+        : this.pickGuestUpgrade(id);
+      if (success) this.pendingGuestUpgradeId = null;
+      return success;
+    }
     requestGuestUpgradeFinish() {
       if (!guestChoosingUpgrade(this.latest) || this.guestUpgradeSubmitted) return false;
       this.guestUpgradeSubmitted = true;
@@ -649,6 +810,7 @@
         label.textContent = message;
         grid.appendChild(label);
       }
+      grid?.parentNode?.querySelector?.('#upgrade-bank-actions')?.replaceChildren?.();
       this.game.modalLevelup?.classList.add('active');
     }
     syncGuestUpgrade(frame, view) {
@@ -656,6 +818,9 @@
       if (!guestChoosingUpgrade(frame)) {
         this.guestUpgradeKey = null;
         this.guestUpgradeSubmitted = false;
+        this.pendingGuestUpgradeId = null;
+        this.guestUpgradeView?.cancelUpgradePreview?.();
+        this.guestUpgradeView = null;
         if (frame.phase === 'levelup' || frame.phase === 'coop-guest-upgrade') {
           this.showGuestUpgradeWait(frame.guest?.pendingUpgrades > 0
             ? (frame.guest?.upgradeFinished ? '剩余强化机会已保存，等待房主选择…' : '正在同步你的升级选项…')
@@ -670,9 +835,10 @@
       if (key === this.guestUpgradeKey) return;
       this.guestUpgradeKey = key;
       this.guestUpgradeSubmitted = false;
+      this.pendingGuestUpgradeId = null;
       this.guestSelectionIdx = 0;
       const choices = frame.guest.choices.map(id => {
-        const definition = game.getCoopUpgradeDefinition(id);
+        const definition = game.getCoopUpgradeDefinition(id, frame.guest);
         return definition ? { ...definition,
           pityGuaranteed: frame.guest.legendaryPityId === id,
           alreadyChosen: frame.guest.pickedUpgradeIds?.includes(id) || false } : null;
@@ -686,6 +852,7 @@
       // closing the modal before the authoritative selection is acknowledged.
       view.onUpgradePick = upgrade => this.pickGuestUpgrade(upgrade.id);
       view.onUpgradeFinish = () => this.requestGuestUpgradeFinish();
+      this.guestUpgradeView = view;
       game.renderUpgradeChoices.call(view, choices);
       game.modalLevelup?.classList.add('active');
     }
@@ -699,6 +866,11 @@
       if (nearest) {
         ally.aimAngle = Math.atan2(nearest.enemy.y - ally.y, nearest.enemy.x - ally.x);
       }
+      if (window.NeonWeaponSystem?.update) {
+        // Production path: every pilot fires through the same cooldown table
+        // and ownerId-aware emitter; legacy path remains for isolated VM tests.
+        window.NeonWeaponSystem.update(game, ally, dt);
+      } else {
       // The existing SOLO weapon functions are reused on a host-owned player
       // context; their projectiles/effects join the one authoritative world.
       const source = Object.create(game);
@@ -733,6 +905,7 @@
           for (const mine of game.mines.slice(oldMineCount)) mine.owner = 'guest';
         }
       }
+      }
       // Orbiters use the same orbiting blade visual and collision rules.
       if (ally.weapons.orbit) {
         const level = ally.weapons.orbit;
@@ -756,6 +929,7 @@
         const snapshot = this.currentRenderState;
         if (!snapshot?.host) return;
         const host = snapshot.host;
+        window.NeonShips?.drawNetworkEffects?.(ctx, host, this.game);
         this.game.renderFighter(ctx, host,
           { color: host.color || '#00f3ff', name: host.name || '房主' }, true);
         const boss = snapshot.enemies?.find(enemy => enemy.type === 'boss_dual_reactor');
@@ -772,6 +946,19 @@
           ctx.moveTo(host.x, host.y);
           ctx.lineTo(snapshot.guest.x, snapshot.guest.y);
           ctx.stroke();
+          ctx.restore();
+          ctx.save();
+          ctx.fillStyle = '#bdf8ff';
+          ctx.textAlign = 'center';
+          ctx.font = 'bold 12px system-ui';
+          const r = snapshot.resonance;
+          const info = [r.damageBonus
+            ? `+${Math.round(r.damageBonus * 100)}%攻击` : '',
+            r.shieldSource
+              ? `星织护盾 ${Math.ceil(r.shieldNext || 0)}s · ${Math.round(r.shieldHost || 0)}/${Math.round(r.shieldGuest || 0)}`
+              : ''].filter(Boolean).join(' · ');
+          if (info) ctx.fillText(info, (host.x + snapshot.guest.x) / 2,
+            Math.min(host.y, snapshot.guest.y) - 48);
           ctx.restore();
         }
         window.NeonLanTeammates?.update(
@@ -806,14 +993,18 @@
       }
       this.perf?.frame(perfStart, performance.now());
       const teammate = this.ally.profile || normalizeProfile(null, 'guest');
+      window.NeonShips?.drawPilotEffects?.(ctx, this.ally, this.game);
       this.game.renderFighter(ctx, this.ally, teammate, true);
       if (link) {
         ctx.save();
         ctx.fillStyle = link.active ? '#9fffe3' : '#a0afc4';
         ctx.textAlign = 'center';
         ctx.font = 'bold 13px system-ui';
-        ctx.fillText(link.tier === 2 ? '近距共振 +20% · 双机修复' :
-          link.tier === 1 ? '战机联动 +10%' : '联动中断 · 请靠近队友',
+        const shield = this.resonance.link?.shieldSource
+          ? ` | 星织护盾 ${Math.max(0, Math.ceil(12 - (this.resonance.shieldTimer || 0)))}s` : '';
+        ctx.fillText(link.active
+          ? `战机联动 +${Math.round((this.resonance.link?.damageBonus || 0) * 100)}%攻击${shield}`
+          : '联动中断 · 请靠近队友',
           (this.game.player.x + this.ally.x) / 2, Math.min(this.game.player.y, this.ally.y) - 48);
         ctx.restore();
       }
@@ -854,6 +1045,13 @@
       return { type: 'input', seq: consume ? this.seq++ : this.seq,
         dx, dy, aim, autoAim: true, dash };
     }
+    requestGuestSpell(spell) {
+      if (!this.guestMode || !this.rtc.connected ||
+          this.latest?.phase !== 'playing' || this.latest?.guest?.shipId !== 'astra' ||
+          this.latest?.guest?.downed ||
+          (spell !== 'meteor' && spell !== 'ward')) return false;
+      return this.rtc.send({ type: 'spell_cast', seq: this.seq++, spell });
+    }
     updateGuest(dt) {
       if (!this.guestMode || !this.rtc.connected) return;
       this.profileAccumulator += dt;
@@ -868,20 +1066,26 @@
         const left = Boolean(pad?.buttons?.[14]?.pressed || keys.arrowleft);
         const right = Boolean(pad?.buttons?.[15]?.pressed || keys.arrowright);
         const accept = Boolean(pad?.buttons?.[0]?.pressed || keys.enter);
-        const finish = Boolean(pad?.buttons?.[1]?.pressed || keys.f);
+        const finish = Boolean(pad?.buttons?.[1]?.pressed || keys.f || keys.escape);
         const currentButtons = [left, right, accept, finish].join(':');
         if (currentButtons !== this.previousMenuSelection) {
           if (left) this.guestSelectionIdx = (this.guestSelectionIdx + options.length - 1) %
             Math.max(1, options.length);
           if (right) this.guestSelectionIdx = (this.guestSelectionIdx + 1) %
             Math.max(1, options.length);
-          if (accept && options.length) this.pickGuestUpgrade(options[this.guestSelectionIdx]);
-          if (finish) this.requestGuestUpgradeFinish();
+          if (accept && options.length) {
+            const id = options[this.guestSelectionIdx];
+            if (this.pendingGuestUpgradeId === id) this.confirmGuestUpgradePreview();
+            else this.selectGuestUpgradePreview(id);
+          }
+          if (finish) {
+            if (!this.cancelGuestUpgradePreview()) this.requestGuestUpgradeFinish();
+          }
         }
         this.previousMenuSelection = currentButtons;
         const number = ['1','2','3','4','5'].find(key => keys[key]);
         if (number && number !== this.lastNumberKey && options[Number(number) - 1]) {
-          this.pickGuestUpgrade(options[Number(number) - 1]);
+          this.selectGuestUpgradePreview(options[Number(number) - 1]);
         }
         this.lastNumberKey = number;
         return;
