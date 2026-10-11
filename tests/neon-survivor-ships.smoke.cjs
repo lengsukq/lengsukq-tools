@@ -16,14 +16,14 @@ vm.runInContext(fs.readFileSync(root + 'js/ships.generated.js', 'utf8'), sandbox
 const ships = sandbox.window.NeonShips;
 assert.equal('MAX_SHIPS' in ships, false, 'Adding ship #5 must not require changing the engine');
 assert.equal(ships.DEFAULT_SHIP_ID, 'riftblade');
-assert.equal(ships.list().length, 1, 'Only the finished original ship is playable');
-assert.equal(ships.list(false).length, 3, 'Astra and Phantom metadata are visible but locked');
-assert.equal(ships.get('astra').playable, false);
+assert.equal(ships.list().length, 3, 'All three playable ships are offered');
+assert.equal(ships.list(false).length, 3, 'Exactly three built-in ships are registered');
+assert.equal(ships.get('astra').playable, true);
 assert.equal(ships.get('astra').baseStats.hp, 95);
 assert.equal(ships.get('astra').baseStats.speed, 235);
 assert.equal(ships.get('astra').warpTreeId, 'phase');
 assert.equal(ships.get('astra').activeSkillIds.length, 2);
-assert.equal(ships.get('phantom').playable, false);
+assert.equal(ships.get('phantom').playable, true);
 assert.equal(ships.get('phantom').baseStats.hp, 85);
 assert.equal(ships.get('phantom').baseStats.speed, 260);
 assert.equal(ships.get('phantom').warpTreeId, 'spectral');
@@ -74,12 +74,14 @@ const candidate = {
 };
 const as = ships.register(candidate);
 assert.equal(as.activeSkillIds.length, 2);
-assert.equal(ships.list().length, 1, 'Unimplemented ship is never offered to players');
+assert.equal(ships.list().length, 3, 'Unimplemented fourth ship stays locked');
 assert.equal(ships.list(false).length, 4);
-assert.equal(ships.resolve('astra').id, 'riftblade');
-assert.equal(ships.resolve('phantom').id, 'riftblade');
-assert.equal(ships.startingState('astra').shipId, 'riftblade');
-assert.equal(ships.startingState('phantom').shipId, 'riftblade');
+assert.equal(ships.resolve('astra').id, 'astra');
+assert.equal(ships.resolve('phantom').id, 'phantom');
+assert.equal(ships.startingState('astra').weapons.star_weave, 1);
+assert.equal(ships.startingState('phantom').weapons.phantom_scythe, 1);
+assert.equal(ships.startingState('astra').dashCharges, 2);
+assert.equal(ships.startingState('phantom').dashCharges, 2);
 assert.throws(() => ships.register(candidate), /already registered/);
 assert.throws(() => ships.register({ ...candidate, id: '../escape' }), /Invalid ship definition/);
 ships.register({ ...candidate, id: 'specter', rendererId: 'phantom' });
@@ -94,7 +96,7 @@ assert.throws(() => ships.registerAbilities('sentinel', { damage: 999 }), /Inval
 ships.runAbility({ shipId: 'riftblade', id: 'host' }, 'onStart', { phase: 'ready' });
 assert.equal(callbacks.length, 1);
 assert.equal(callbacks[0][0], 'host');
-assert.equal(ships.runAbility({ shipId: 'astra' }, 'onStart', {}), undefined,
-  'Non-playable ships never execute ability hooks');
+assert.equal(ships.runAbility({ shipId: 'sentinel' }, 'onStart', {}), undefined,
+  'Non-playable test ships never execute ability hooks');
 assert.throws(() => ships.registerRenderer('riftblade', () => {}), /already registered/);
 console.log('Ship registry passed: default Riftblade parity, unlimited ship definitions, lifecycle plugins and safe locked previews.');

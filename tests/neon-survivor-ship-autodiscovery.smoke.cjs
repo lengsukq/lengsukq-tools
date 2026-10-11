@@ -58,8 +58,8 @@ async function main() {
     const ships = sandbox.window.NeonShips;
     assert.equal(ships.get('comet').playable, true);
     assert.equal(ships.get('nova_x').playable, true);
-    assert.equal(ships.get('astra').playable, false);
-    assert.equal(ships.get('phantom').playable, false);
+    assert.equal(ships.get('astra').playable, true);
+    assert.equal(ships.get('phantom').playable, true);
     assert.equal(ships.upgradeCatalogFor({shipId:'nova_x'})[0].id,'nova_x_boost');
     const extra=ships.projectForNetwork({shipId:'comet',fuel:17});
     assert.equal(extra.shipState.fuel,17);
@@ -74,13 +74,13 @@ async function main() {
     const game = {selectedShipId:'riftblade'};
     sandbox.window.NeonShipSelection.render(game);
     const buttons = uiRoot.children[1].children;
-    assert.equal(buttons.length,3,'All ready ships appear automatically; locked prototypes do not');
+    assert.equal(buttons.length,5,'All three built-in and two auto-discovered playable ships appear');
     const cometButton = buttons.find(button => button.textContent === 'comet');
     assert.ok(cometButton);
     cometButton.onclick();
     assert.equal(game.selectedShipId,'comet','New ship can be selected without editing main game');
-    const message=uiRoot.children.at(-1).textContent;
-    assert.ok(message.includes('星织') && message.includes('幽灵'));
+    assert.ok(buttons.some(button=>button.textContent==='星织·织界术师'));
+    assert.ok(buttons.some(button=>button.textContent==='幽灵·共生拟态'));
 
     await fsp.rm(path.join(temp,'comet','renderer.js'));
     await assert.rejects(buildShipBundle(temp,temp),/Missing ships\/comet\/renderer.js/);

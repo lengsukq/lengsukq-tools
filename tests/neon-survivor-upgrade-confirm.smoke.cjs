@@ -7,7 +7,9 @@ class Element {
   constructor() {
     this.children=[]; this.parentNode=null; this.className='';this.style={};
     this.attrs={};this.classList={active:false,
-      add:()=>{this.classList.active=true;},remove:()=>{this.classList.active=false;}};
+      contains:name=>(this.className || '').split(/\s+/).includes(name),
+      add:name=>{this.classList.active=true;this.className=((this.className || '')+' '+name).trim();},
+      remove:name=>{this.classList.active=false;this.className=(this.className || '').split(/\s+/).filter(x=>x!==name).join(' ');}};
   }
   set innerHTML(v){this.html=v;this.children=[];}
   get innerHTML(){return this.html||'';}

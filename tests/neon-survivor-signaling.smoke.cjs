@@ -86,7 +86,9 @@ async function main() {
   assert.equal((await request(body('answer', room, { answer, guestToken: 'bad' }))).status, 400);
   assert.equal((await request(body('answer', room, { answer, guestToken: '0'.repeat(48) }))).status, 403);
   assert.equal((await request(body('poll', room, { hostToken: '0'.repeat(48) }))).status, 403);
-  assert.deepEqual((await request(body('poll', room, { hostToken }))).data, { answer: null });
+  assert.deepEqual((await request(body('poll', room, { hostToken }))).data,
+    { answer: null, answers: {}, capacity: 2 },
+    'Legacy two-person poll keeps answer while exposing a multi-peer answer map');
   assert.equal((await request(body('answer', room, { answer, guestToken }))).status, 200);
   assert.equal((await request(body('answer', room, { answer, guestToken }))).status, 409);
   result = await request(body('poll', room, { hostToken }));
@@ -136,7 +138,8 @@ async function main() {
   assert.equal(await guest.join(guestRTC, 'bc3t92'), 'BC3T92');
   await new Promise(resolve => setTimeout(resolve, 1400));
   assert.equal(accepted.description.sdp, answer.description.sdp);
-  assert.ok(statuses.some(s => s.includes('局域网直连')));
+  assert.ok(statuses.some(s => s.includes('已连接座位')),
+    'Host must report successful seat-specific connection for the multi-peer protocol');
   await host.close();
   await guest.close();
 

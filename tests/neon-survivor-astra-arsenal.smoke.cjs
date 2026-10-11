@@ -11,8 +11,8 @@ for (const name of ['ships','ships.generated']) {
 const a = env.window.NeonAstra, lib = env.window.NeonAstraArsenal;
 assert.equal(a.catalog.length, 24);
 assert.equal(Object.keys(lib.WEAPONS).length, 8);
-assert.equal(env.window.NeonShips.get('astra').playable, false,
-  'New class must remain locked until UI and authority checks are complete');
+assert.equal(env.window.NeonShips.get('astra').playable, true,
+  'Astra is available after class abilities and authoritative actions are wired');
 function makePilot() {
   return { shipId:'astra', hp:95, maxHp:95, level:10,
     x:0,y:0,passives:{},weapons:{star_weave:1},dashUpgrades:{},

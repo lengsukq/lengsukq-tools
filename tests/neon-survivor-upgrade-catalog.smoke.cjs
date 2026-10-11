@@ -39,8 +39,10 @@ for(const id of ids){
   assert.ok(drawn.includes(`${id}_blink`),'Legendary pity must draw from active class');
 }
 assert.throws(()=>registry.registerUpgradeCatalog('mage1',[]),/already registered/);
-assert.equal(game.getUpgradeCatalog({shipId:'astra'}),originalCards,
-  'Locked preview cannot inject incomplete cards into a real run');
+assert.equal(game.getUpgradeCatalog({shipId:'astra'}).length,24,
+  'The unlocked Astra uses its own 9/8/7 deck');
+assert.equal(game.getUpgradeCatalog({shipId:'phantom'}).length,24,
+  'The unlocked Phantom uses its own 9/8/7 deck');
 let handled=0;
 registry.registerAbilities('mage1',{onUpgrade(pilot,world,card){
   assert.equal(world,game);
