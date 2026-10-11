@@ -66,6 +66,43 @@ assert.equal(game.player.maxDashCharges, 9);
 assert.equal(game.player.aegisDuration, 0.40, 'Limit breaks must not increase aura duration');
 assert.equal(game.player.hasAegisBurst, true);
 assert.equal(game.getEffectiveDashRecharge(), 0.70, 'Haste cannot bypass recharge floor');
+
+// Level progression is applied in dealDamage once, including for dash slashes.
+game.endlessMode = false;
+game.player.dashUpgrades = { dash_dmg: 0 };
+game.player.limitBreaks = {};
+game.player.critRate = 0;
+game.player.critDmg = 2;
+game.player.cdrMultiplier = 1;
+game.texts = [];
+game.particles = [];
+game.totalDamageDealt = 0;
+for (const level of [1, 10, 20, 30]) {
+  game.player.level = level;
+  game.recalculateDashStats();
+  assert.equal(game.player.dashSlashDmg, 95,
+    'Dash base damage must not contain a second character-level multiplier');
+  const target = { x: 0, y: 0, hp: 100000, color: '#fff' };
+  game.dealDamage(target, game.player.dashSlashDmg, 'dash');
+  const expected = 95 * (1 + (level - 1) * 0.03);
+  assert.ok(Math.abs(100000 - target.hp - expected) < 0.0001,
+    'Character-level damage is applied once at level ' + level);
+}
+game.player.level = 20;
+game.player.critRate = 1; // Previously a forced dash crit could also randomly crit again.
+game.recalculateDashStats();
+const forcedTarget = { x: 0, y: 0, hp: 100000, color: '#fff' };
+game.dealDamage(forcedTarget, game.player.dashSlashDmg, 'dash', true);
+assert.ok(Math.abs(100000 - forcedTarget.hp - (95 * 1.57 * 2)) < 0.0001,
+  'A guaranteed dash critical hit applies its critical multiplier exactly once');
+
+game.player.dashUpgrades = { dash_charge: 6, dash_aegis: 6, dash_area: 4 };
+game.player.limitBreaks = { dash_aegis: 100 };
+game.player.cdrMultiplier = 0.1;
+game.recalculateDashStats();
+assert.equal(game.player.maxDashCharges, 9);
+assert.equal(game.player.aegisDuration, 0.40);
+assert.equal(game.getEffectiveDashRecharge(), 0.70);
 game.player.dashCharges = 9;
 game.state = 'playing';
 game.survivalTime = 30;
@@ -122,4 +159,4 @@ assert.equal(recorder.getDifficultyRules().name, '标准');
 assert.match(html, /id="help-ascension"/);
 assert.match(html, /id="neon-difficulty-selector"/);
 assert.match(source, /this\.dealDamage\(en, 9999, 'nuke'\)/);
-console.log('Neon Survivor balance smoke test passed: six tiers, drops, 9 dashes, aegis protection, records and manual.');
+console.log('Neon Survivor balance smoke test passed: six tiers, drops, 9 dashes, single level/crit multipliers, aegis, records and manual.');

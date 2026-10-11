@@ -595,12 +595,18 @@
       {
         id: 'multishot',
         type: 'passive',
-        name: '弹幕倍增核心',
-        icon: '🔱',
+        name: '星穹火控矩阵',
+        icon: '🌠',
         rarity: 'legendary',
-        desc: '大幅增加离子炮、飞弹、冰雷等发射型武器的发射弹道数量。',
+        desc: '全武装协同：增幅离子炮、飞弹、冰雷、闪电链与相位刃，并周期性释放自动锁定敌人的星穹齐射。',
         maxLvl: 5,
-        statText: ['全弹道武器 +1 弹药', '弹药飞行速度 +20%', '全弹道武器再 +1 弹药', '武器伤害 +25%', '狂暴弹幕：全发射武器额外再 +2 弹药']
+        statText: [
+          '弹道 +1、闪电链 +1 跳；每8秒自动追踪攻击1名敌人',
+          '星穹齐射进化：每6.5秒自动攻击最多2名敌人',
+          '弹道累计 +2，星穹齐射最多攻击3个目标',
+          '火控共振：每5秒攻击最多4个目标，并提高齐射伤害',
+          '【星穹超载】弹道累计 +3，每3.5秒追踪最多5个目标，伤害进一步强化'
+        ]
       },
       {
         id: 'area',
@@ -2048,7 +2054,7 @@
             } else if (item.id === 'thruster') {
               statDesc = `曲率航行：移动速度 +5%，冲刺恢复加速 +5%！`;
             } else if (item.id === 'multishot') {
-              statDesc = `重构矩阵：弹药初速 +6%，伤害 +5%！`;
+              statDesc = `火控超频：全武器伤害 +5%，不再无限增加弹药数量！`;
             } else {
               statDesc = `引力坍缩：核心拾取范围 +15%，伤害 +5%！`;
             }
@@ -2235,6 +2241,7 @@
         } else {
           this.player.passives[upg.id] = (this.player.passives[upg.id] || 0) + 1;
           this.recalculatePassives();
+          if (upg.id === 'multishot' && this.player.weapons.orbit) this.syncOrbiters();
         }
         this.renderWeaponsHUD();
       }
@@ -2338,7 +2345,8 @@
         this.player.areaMultiplier = 1.0 + (p.area || 0) * 0.25;
         // Multishot
         const multiLvl = p.multishot || 0;
-        this.player.extraProjectiles = multiLvl + (multiLvl >= 5 ? 2 : 0);
+        // Bounded projectile growth; the legendary payoff is its separate starfield salvo.
+        this.player.extraProjectiles = [0, 1, 1, 2, 2, 3][Math.min(5, multiLvl)] || 0;
 
         this.recalculateDashStats();
       }
@@ -2357,10 +2365,10 @@
         // 3. Slash Damage
         const dmgLvl = du.dash_dmg || 0;
         const dmgBoost = 1.0 + dmgLvl * 0.6 + (dmgLvl >= 5 ? 0.6 : 0);
-        // 冲刺斩等级项与全局等级乘区取max，避免 dealDamage 再乘一次造成 double dip
-        const dashLevelMult = Math.max(1 + this.player.level * 0.08, this.getLevelDmgMult());
+        // Shared level growth (+3% / level) is applied exactly once in dealDamage().
+        // Dash mastery, passives and limit breaks remain separate sources of power.
         const dashBreaks = (this.player.limitBreaks || {}).dash_dmg || 0;
-        this.player.dashSlashDmg = Math.round(95 * this.player.dmgMultiplier * dmgBoost * dashLevelMult * Math.pow(1.25, dashBreaks));
+        this.player.dashSlashDmg = Math.round(95 * this.player.dmgMultiplier * dmgBoost * Math.pow(1.25, dashBreaks));
         this.player.dashAlwaysCrit = dmgLvl >= 5;
 
         // 4. Slash Width & Invulnerability
@@ -2408,7 +2416,7 @@
       syncOrbiters() {
         const lvl = this.player.weapons.orbit || 0;
         if (lvl <= 0) return;
-        const count = 2 + (lvl >= 3 ? 1 : 0) + (lvl >= 5 ? 2 : 0) + (this.player.extraProjectiles ? 1 : 0);
+        const count = 2 + (lvl >= 3 ? 1 : 0) + (lvl >= 5 ? 2 : 0) + Math.min(2, this.player.extraProjectiles || 0);
         this.orbiters = [];
         for (let i = 0; i < count; i++) {
           this.orbiters.push({
@@ -2539,7 +2547,8 @@
 
         const statTextEl = document.getElementById('dash-stat-text');
         if (statTextEl) {
-          const slashD = this.player.dashSlashDmg || 95;
+          // HUD shows the current uncritical hit value (including global level scaling).
+          const slashD = Math.round((this.player.dashSlashDmg || 95) * this.getLevelDmgMult());
           const cd = this.getEffectiveDashRecharge().toFixed(1);
           let extraBadges = [];
           if (this.player.hasAegis) extraBadges.push(`🛡️光环${this.player.aegisDuration.toFixed(2)}s`);
@@ -2692,7 +2701,8 @@
         else if (lvl === 3) count = 4;
         else if (lvl === 4) count = 5;
         else if (lvl >= 5) count = 8 + Math.floor(lb / 2);
-        count += (this.player.extraProjectiles || 0) * (lvl >= 5 ? 2 : 1);
+        // Keep the late-game cluster chain inside a stable physical projectile budget.
+        count = Math.min(16, count + (this.player.extraProjectiles || 0) * (lvl >= 5 ? 2 : 1));
 
         let baseDmg = 60;
         if (lvl === 2) baseDmg = 80;
@@ -2880,13 +2890,13 @@
         }
       }
 
-      dealDamage(target, rawDamage, source = 'combat') {
+      dealDamage(target, rawDamage, source = 'combat', forceCrit = false) {
         if (this.endlessMode) {
           rawDamage = window.NeonRogueRelics?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
           rawDamage = window.NeonRogueFusions?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
         }
-        let isCrit = Math.random() < this.player.critRate;
-        // 等级基础攻击乘区（每级+3%）：放在护盾减免之前，全武器统一生效
+        const isCrit = forceCrit || Math.random() < this.player.critRate;
+        // Shared +3% per character level: exactly one multiplication per hit.
         let finalDamage = (isCrit ? rawDamage * this.player.critDmg : rawDamage) * this.getLevelDmgMult();
 
         // Boss Carrier Shield Absorption
@@ -3763,7 +3773,7 @@
 
           // Piercing slash damage to all enemies along the dash path!
           const slashWidth = this.player.radius + (this.player.dashSlashWidth || 18);
-          const slashDmg = this.player.dashSlashDmg || Math.round(95 * this.player.dmgMultiplier * Math.max(1 + this.player.level * 0.08, this.getLevelDmgMult()));
+          const slashDmg = this.player.dashSlashDmg || Math.round(95 * this.player.dmgMultiplier);
 
           for (const e of this.enemies) {
             if (!this.player.dashHitEnemies.has(e)) {
@@ -3792,12 +3802,9 @@
                   e.freezeTimer = this.player.dashCryoDuration || 2.5;
                 }
 
-                // Deal damage (respecting dashAlwaysCrit)
-                if (this.player.dashAlwaysCrit) {
-                  this.dealDamage(e, slashDmg * this.player.critDmg * (precise ? 1 + this.player.dashCombo * 0.08 : 1), 'dash');
-                } else {
-                  this.dealDamage(e, slashDmg * (precise ? 1 + this.player.dashCombo * 0.08 : 1), 'dash');
-                }
+                // Critical, level, and mastery multipliers are each applied once.
+                this.dealDamage(e, slashDmg * (precise ? 1 + this.player.dashCombo * 0.08 : 1),
+                  'dash', this.player.dashAlwaysCrit);
 
                 this.sound.playLaser(780, 'triangle');
                 this.particles.push({
@@ -3986,6 +3993,7 @@
         // --- Weapon Timers & Firing ---
         const weapons = this.player.weapons;
         const cdr = this.player.cdrMultiplier;
+        window.NeonLegendaryArsenal?.update(this, dt);
 
         // 1. Blaster
         if (weapons.blaster) {

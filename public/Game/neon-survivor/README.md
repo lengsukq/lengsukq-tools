@@ -14,6 +14,7 @@ public/Game/
     js/core.js                # 现有战斗逻辑与接入点
     js/endless.js             # 无尽阶段、奖励、路线与Boss词缀
     js/relics.js              # 战术遗物定义和结算钩子
+    js/arsenal.js             # 传说「星穹火控矩阵」独立齐射效果
     js/fusions.js             # 武器融合配方与连击判定
     js/events.js              # 限时战术事件
     js/ui.js                  # 三选一奖励面板与阶段HUD
@@ -22,7 +23,7 @@ public/Game/
 
 原有核心较大，本版本先做无风险抽离，并将**所有新的玩法逻辑**放在独立模块中，而不是继续扩张HTML。后续应按测试覆盖情况再逐步拆分核心战斗代码，避免一次性大规模重写。
 
-加载顺序：`gamepad_haptics.js` → `relics.js` → `fusions.js` → `events.js` → `endless.js` → `ui.js` → `core.js`。无打包运行时依赖。
+加载顺序：`gamepad_haptics.js` → `relics.js` → `fusions.js` → `events.js` → `endless.js` → `ui.js` → `arsenal.js` → `core.js`。无打包运行时依赖。
 
 无尽接口：`window.NeonRogueEndless`；战斗事件只由核心调用公开钩子，UI 不直接操作战斗模型。
 
@@ -34,6 +35,7 @@ node tests/neon-survivor-touch.smoke.cjs
 node tests/neon-survivor-balance.smoke.cjs
 node tests/neon-survivor-endless.smoke.cjs
 node tests/neon-survivor-ui.smoke.cjs
+node tests/neon-survivor-arsenal.smoke.cjs
 git diff --check
 ```
 
