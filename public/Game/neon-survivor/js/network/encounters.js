@@ -129,9 +129,19 @@
     return amount * (boss.coopExposed > 0 ? 1.25 : TUNING.shieldedDamage);
   }
   function renderBoss(ctx, game, boss) {
-    if (boss?.dead || boss?.type !== 'boss_dual_reactor' || !active(game)) return;
+    if (boss?.dead || boss?.type !== 'boss_dual_reactor' ||
+      (!active(game) && !game.isGuestWorldView)) return;
     const points = capturePoints(boss);
-    const status = captureStatus(game, boss);
+    let status = captureStatus(game, boss);
+    if (game.isGuestWorldView) {
+      // Guest paints the SAME capture circles from the authoritative snapshot.
+      // This is a visual occupancy indicator, not a second boss simulation.
+      const host = game.lanCoop?.currentRenderState?.host;
+      const guest = game.lanCoop?.currentRenderState?.guest;
+      const inside = (p, point) => p && Math.hypot(p.x - point.x, p.y - point.y) <= TUNING.captureRadius;
+      status = { left: inside(host, points[0]) || inside(guest, points[0]),
+        right: inside(host, points[1]) || inside(guest, points[1]) };
+    }
     ctx.save();
     points.forEach((p, i) => {
       const taken = i === 0 ? status.left : status.right;

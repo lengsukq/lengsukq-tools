@@ -1851,9 +1851,11 @@
 
       triggerDash() {
         if (this.state === 'lan-client' && this.lanCoop?.guestMode) {
+          if (this.lanCoop.latest?.guest?.downed) return;
           this.lanCoop.dashQueued = true;
           return;
         }
+        if (this.player?.downed) return;
         if (this.player.dashCharges <= 0 || this.player.isDashing || this.state !== 'playing') return;
         this.lanCoop?.onHostDash();
         window.NeonRogueEndless?.onDash(this);
@@ -2016,6 +2018,32 @@
 
         this.renderUpgradeChoices(choices);
         if (this.modalLevelup) this.modalLevelup.classList.add('active');
+      }
+
+      // Co-op upgrade selection uses the SAME upgrade definitions and cards as
+      // solo mode, while authority to validate choices stays on the host.
+      getCoopUpgradeDefinition(id) {
+        return UPGRADES_DB.find(upgrade => upgrade.id === id) || null;
+      }
+
+      getCoopUpgradeChoices(ally) {
+        const weapons = ally.weapons || { blaster: 1 };
+        const passives = ally.passives || {};
+        const dash = ally.dashUpgrades || {};
+        const eligible = UPGRADES_DB.filter(upgrade => {
+          if (upgrade.type === 'weapon') {
+            const level = weapons[upgrade.id] || 0;
+            return level < upgrade.maxLvl && (level > 0 || Object.keys(weapons).length < 4);
+          }
+          if (upgrade.type === 'passive') {
+            const level = passives[upgrade.id] || 0;
+            return level < upgrade.maxLvl &&
+              (level > 0 || Object.keys(passives).length < this.getPassiveSlotLimit());
+          }
+          if (upgrade.type === 'dash') return (dash[upgrade.id] || 0) < upgrade.maxLvl;
+          return false;
+        });
+        return [...eligible].sort(() => Math.random() - 0.5).slice(0, 3).map(upgrade => upgrade.id);
       }
 
       getLimitBreakChoices() {
@@ -2918,7 +2946,7 @@
         }
       }
 
-      dealDamage(target, rawDamage, source = 'combat', forceCrit = false) {
+      dealDamage(target, rawDamage, source = 'combat', forceCrit = false, attacker = this.player) {
         if (this.lanCoop?.ally && !['lan-ally', 'lan-resonance'].includes(source)) {
           rawDamage *= 1 + this.lanCoop.getLinkBonus();
         }
@@ -2926,9 +2954,10 @@
           rawDamage = window.NeonRogueRelics?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
           rawDamage = window.NeonRogueFusions?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
         }
-        const isCrit = forceCrit || Math.random() < this.player.critRate;
+        const isCrit = forceCrit || Math.random() < (attacker.critRate || 0);
         // Shared +3% per character level: exactly one multiplication per hit.
-        let finalDamage = (isCrit ? rawDamage * this.player.critDmg : rawDamage) * this.getLevelDmgMult();
+        let finalDamage = (isCrit ? rawDamage * (attacker.critDmg || 1.5) : rawDamage) *
+          (1 + Math.max(0, (attacker.level || 1) - 1) * 0.03);
 
         // Boss Carrier Shield Absorption
         if (target.isBoss && target.hasShield) {
@@ -3283,12 +3312,21 @@
         return count;
       }
 
+      getActiveSpawnPilot() {
+        // While the host is down, enemies must keep spawning around the
+        // surviving guest. Otherwise the last-stand challenge becomes empty.
+        if (this.player.downed && this.lanCoop?.ally?.hp > 0 &&
+            !this.lanCoop.ally.downed) return this.lanCoop.ally;
+        return this.player;
+      }
+
       spawnSwarmRush() {
         if (this.getNormalEnemyCount() >= 90) return;
+        const spawnPilot = this.getActiveSpawnPilot();
         this.sound.playBossAlert();
         this.texts.push({
-          x: this.player.x,
-          y: this.player.y - 45,
+          x: spawnPilot.x,
+          y: spawnPilot.y - 45,
           text: '⚠️ 密集虫潮蜂拥突袭 (SWARM RUSH)!',
           color: '#ff3300',
           size: 20,
@@ -3302,8 +3340,8 @@
           const spawnDist = Math.hypot(this.width, this.height) / 2 + 70;
           this.enemies.push({
             type: 'swarmer',
-            x: this.player.x + Math.cos(a) * spawnDist,
-            y: this.player.y + Math.sin(a) * spawnDist,
+            x: spawnPilot.x + Math.cos(a) * spawnDist,
+            y: spawnPilot.y + Math.sin(a) * spawnDist,
             vx: 0,
             vy: 0,
             hp: Math.round(26 * hpMult),
@@ -3321,11 +3359,12 @@
         // 精英怪与Boss不受100只普通怪上限限制！仅防范同屏精英过多
         const livingElites = this.enemies.filter(e => e.isElite).length;
         if (livingElites >= 10) return;
+        const spawnPilot = this.getActiveSpawnPilot();
 
         this.sound.playBossAlert();
         this.texts.push({
-          x: this.player.x,
-          y: this.player.y - 45,
+          x: spawnPilot.x,
+          y: spawnPilot.y - 45,
           text: '⚠️ 敌军重装精英突入战场 (ELITE INCURSION)!',
           color: '#ffea00',
           size: 20,
@@ -3338,8 +3377,8 @@
         this.enemies.push({
           type: 'shield_pylon',
           isElite: true,
-          x: this.player.x + Math.cos(a) * dist,
-          y: this.player.y + Math.sin(a) * dist,
+          x: spawnPilot.x + Math.cos(a) * dist,
+          y: spawnPilot.y + Math.sin(a) * dist,
           vx: 0,
           vy: 0,
           hp: Math.round(360 * hpMult),
@@ -3355,8 +3394,8 @@
           this.enemies.push({
             type: 'sniper',
             isElite: true,
-            x: this.player.x + Math.cos(offA) * dist,
-            y: this.player.y + Math.sin(offA) * dist,
+            x: spawnPilot.x + Math.cos(offA) * dist,
+            y: spawnPilot.y + Math.sin(offA) * dist,
             vx: 0,
             vy: 0,
             hp: Math.round(220 * hpMult),
@@ -3403,14 +3442,15 @@
       }
 
       spawnEnemyWave() {
+        const spawnPilot = this.getActiveSpawnPilot();
         const MAX_NORMAL_ENEMIES = 100;
         const eliteHpScale = this.difficulty >= 3 ? 1.20 : 1;
         // Cull distant normal enemies. BOSSES AND ELITES ARE NEVER CULLED!
         for (let i = this.enemies.length - 1; i >= 0; i--) {
           const e = this.enemies[i];
           if (!e.isBoss && !e.isElite) {
-            const dx = e.x - this.player.x;
-            const dy = e.y - this.player.y;
+            const dx = e.x - spawnPilot.x;
+            const dy = e.y - spawnPilot.y;
             if (dx * dx + dy * dy > 1650 * 1650) {
               this.enemies.splice(i, 1);
             }
@@ -3427,8 +3467,8 @@
 
         const angle = Math.random() * Math.PI * 2;
         const spawnDist = Math.hypot(this.width, this.height) / 2 + 80;
-        const sx = this.player.x + Math.cos(angle) * spawnDist;
-        const sy = this.player.y + Math.sin(angle) * spawnDist;
+        const sx = spawnPilot.x + Math.cos(angle) * spawnDist;
+        const sy = spawnPilot.y + Math.sin(angle) * spawnDist;
 
         // Player-Adaptive Durability Scaling + Time Escalation
         const hpMult = this.getAdaptiveScaling();
@@ -3618,10 +3658,11 @@
 
       spawnBoss() {
         this.bossCycle = (this.bossCycle || 0) + 1;
+        const spawnPilot = this.getActiveSpawnPilot();
         this.sound.playBossAlert();
         this.shockwaves.push({
-          x: this.player.x,
-          y: this.player.y,
+          x: spawnPilot.x,
+          y: spawnPilot.y,
           radius: 10,
           maxRadius: 380,
           alpha: 1,
@@ -3630,8 +3671,8 @@
 
         const spawnAngle = Math.random() * Math.PI * 2;
         const spawnDist = 460;
-        const bx = this.player.x + Math.cos(spawnAngle) * spawnDist;
-        const by = this.player.y + Math.sin(spawnAngle) * spawnDist;
+        const bx = spawnPilot.x + Math.cos(spawnAngle) * spawnDist;
+        const by = spawnPilot.y + Math.sin(spawnAngle) * spawnDist;
         const cycle = Math.floor((this.bossCycle - 1) / 3);
         const hpScale = this.getAdaptiveScaling() * (1.0 + cycle * 0.45) * (this.difficulty >= 6 ? 1.12 : 1);
         const timeMin = this.survivalTime / 60;
@@ -3772,7 +3813,7 @@
         if (this.endlessMode) window.NeonRogueEndless?.update(this, dt);
 
         // Player Passive Regen
-        if (this.player.regen > 0 && this.player.hp < this.player.maxHp) {
+        if (!this.player.downed && this.player.regen > 0 && this.player.hp < this.player.maxHp) {
           this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.regen * dt);
         }
 
@@ -3800,7 +3841,13 @@
           this.player.dashRechargeTimer = 0;
         }
 
-        if (this.player.isDashing) {
+        if (this.player.downed) {
+          // Keep simulating enemies, projectiles and the surviving teammate,
+          // but a wreck may not steer, dash, heal or perform weapon attacks.
+          this.player.vx = 0;
+          this.player.vy = 0;
+          this.player.isDashing = false;
+        } else if (this.player.isDashing) {
           this.player.dashTimeLeft -= dt;
           const dashSpeed = this.player.baseSpeed * 3.6;
           const previousDashX = this.player.x;
@@ -3958,7 +4005,9 @@
 
         // Anti-AFK detection: if standing idle in one spot for > 8.5s, spawn pursuers
         const afkMoveDist = Vec.dist(this.player.x, this.player.y, this.lastAfkX || 0, this.lastAfkY || 0);
-        if (afkMoveDist > 6) {
+        if (this.player.downed) {
+          this.afkTimer = 0;
+        } else if (afkMoveDist > 6) {
           this.afkTimer = 0;
           this.lastAfkX = this.player.x;
           this.lastAfkY = this.player.y;
@@ -3971,7 +4020,7 @@
         }
 
         // Update Aegis Aura (时空相位无敌光环)
-        if (this.player.aegisTimer > 0) {
+        if (!this.player.downed && this.player.aegisTimer > 0) {
           this.player.aegisTimer -= dt;
           this.player.aegisPulseTimer = (this.player.aegisPulseTimer || 0) + dt;
 
@@ -4011,7 +4060,9 @@
         }
 
         // Aim Direction Calculation
-        if (this.player.autoAim) {
+        if (this.player.downed && this.lanCoop?.ally?.hp > 0) {
+          this.player.aimAngle = this.player.aimAngle || 0;
+        } else if (this.player.autoAim) {
           const nearest = this.findNearestEnemy(650);
           if (nearest) {
             this.player.aimAngle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
@@ -4023,17 +4074,19 @@
         }
 
         // Camera smoothly follows player
-        this.camera.x += (this.player.x - this.camera.x) * 0.12;
-        this.camera.y += (this.player.y - this.camera.y) * 0.12;
+        const cameraTarget = this.player.downed && this.lanCoop?.ally?.hp > 0
+          ? this.lanCoop.ally : this.player;
+        this.camera.x += (cameraTarget.x - this.camera.x) * 0.12;
+        this.camera.y += (cameraTarget.y - this.camera.y) * 0.12;
         if (!Number.isFinite(this.camera.x) || !Number.isFinite(this.camera.y)) {
           this.camera.x = this.player.x;
           this.camera.y = this.player.y;
         }
 
         // --- Weapon Timers & Firing ---
-        const weapons = this.player.weapons;
+        const weapons = this.player.downed ? {} : this.player.weapons;
         const cdr = this.player.cdrMultiplier;
-        window.NeonLegendaryArsenal?.update(this, dt);
+        if (!this.player.downed) window.NeonLegendaryArsenal?.update(this, dt);
 
         // 1. Blaster
         if (weapons.blaster) {
@@ -4076,7 +4129,7 @@
         }
 
         // 5. Orbiters Update
-        if (this.orbiters.length > 0) {
+        if (!this.player.downed && this.orbiters.length > 0) {
           const rotSpeed = 3.2 + (weapons.orbit || 1) * 0.5;
           this.orbiters.forEach((orb) => {
             orb.angle += rotSpeed * dt;
@@ -4137,7 +4190,7 @@
         }
 
         // --- Update Companion Drones ---
-        if (this.companionDrones.length > 0) {
+        if (!this.player.downed && this.companionDrones.length > 0) {
           this.companionDrones.forEach((dr) => {
             dr.angle += 2.4 * dt;
             dr.shootTimer += dt;
@@ -4457,7 +4510,8 @@
                 hit = true;
                 break;
               } else {
-                this.dealDamage(e, b.damage, b.type === 'blaster' ? 'blaster' : 'combat');
+                this.dealDamage(e, b.damage, b.type === 'blaster' ? 'blaster' : 'combat',
+                  false, b.owner === 'guest' && this.lanCoop?.ally ? this.lanCoop.ally : this.player);
                 if (b.isPlasmaExplosion) {
                   this.shockwaves.push({
                     x: b.x,
@@ -4525,7 +4579,8 @@
           // In LAN co-op, ordinary enemies may target either live ship.
           const ally = this.lanCoop?.rtc?.connected ? this.lanCoop.ally : null;
           const aimPlayer = ally && ally.hp > 0 &&
-            Vec.dist(e.x, e.y, ally.x, ally.y) < Vec.dist(e.x, e.y, this.player.x, this.player.y)
+            (this.player.downed ||
+              Vec.dist(e.x, e.y, ally.x, ally.y) < Vec.dist(e.x, e.y, this.player.x, this.player.y))
             ? ally : this.player;
           const distToPlayer = Vec.dist(e.x, e.y, aimPlayer.x, aimPlayer.y);
           const angleToPlayer = Math.atan2(aimPlayer.y - e.y, aimPlayer.x - e.x);
@@ -4908,13 +4963,15 @@
           e.y += e.vy * dt;
 
           // Melee collision with player
-          if (this.player.invulnTimer <= 0 && distToPlayer < e.radius + this.player.radius) {
+          if (!this.player.downed && this.player.invulnTimer <= 0 &&
+              Vec.dist(e.x, e.y, this.player.x, this.player.y) < e.radius + this.player.radius) {
             this.hitPlayer(e.damage);
           }
         }
 
         // --- Lightning Tether Damage to Player ---
-        if (this.player.invulnTimer <= 0 && this.lightningTethers.length > 0) {
+        if (!this.player.downed && this.player.invulnTimer <= 0 &&
+            this.lightningTethers.length > 0) {
           for (const lt of this.lightningTethers) {
             const ldx = lt.x2 - lt.x1;
             const ldy = lt.y2 - lt.y1;
@@ -5058,6 +5115,7 @@
       }
 
       hitPlayer(dmg) {
+        if (this.player.downed) return;
         if (this.player.invulnTimer > 0) return;
         window.NeonRogueEndless?.onDamageTaken(this);
         dmg *= this.getDifficultyRules().enemyDamage *
@@ -5102,7 +5160,7 @@
               life: 1.5,
               maxLife: 1.5
             });
-          } else {
+          } else if (!window.NeonLanRevive?.knockDown(this, 'host')) {
             this.gameOver();
           }
         }
@@ -5623,8 +5681,10 @@
 
         // 13. Draw Orbiters
         this.orbiters.forEach((orb) => {
-          const ox = this.player.x + Math.cos(orb.angle) * orb.distance;
-          const oy = this.player.y + Math.sin(orb.angle) * orb.distance;
+          const cx = Number.isFinite(orb.centerX) ? orb.centerX : this.player.x;
+          const cy = Number.isFinite(orb.centerY) ? orb.centerY : this.player.y;
+          const ox = cx + Math.cos(orb.angle) * orb.distance;
+          const oy = cy + Math.sin(orb.angle) * orb.distance;
           ctx.save();
           ctx.shadowBlur = 16;
           ctx.shadowColor = orb.color;
@@ -5637,7 +5697,7 @@
           ctx.strokeStyle = 'rgba(0, 255, 170, 0.35)';
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(this.player.x, this.player.y, orb.distance, orb.angle - 0.45, orb.angle);
+          ctx.arc(cx, cy, orb.distance, orb.angle - 0.45, orb.angle);
           ctx.stroke();
           ctx.restore();
         });
@@ -5700,64 +5760,12 @@
           ctx.restore();
         }
 
-        // 14. Draw Player Fighter Craft
-        const localProfile = window.NeonLanTeammates?.ownProfile('host') ||
-          { name: '房主', color: this.shipColor || '#00f3ff' };
-        ctx.save();
-        ctx.translate(this.player.x, this.player.y);
-        ctx.rotate(this.player.aimAngle);
-
-        // Flash if invulnerable
-        if (this.player.invulnTimer > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
-          ctx.globalAlpha = 0.4;
-        }
-
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = localProfile.color;
-
-        // Wings
-        ctx.fillStyle = '#0a1628';
-        ctx.strokeStyle = localProfile.color;
-        ctx.lineWidth = 2.5;
-
-        ctx.beginPath();
-        ctx.moveTo(22, 0); // Nose
-        ctx.lineTo(-14, -18); // Left wingtip
-        ctx.lineTo(-6, -6); // Left inner
-        ctx.lineTo(-16, 0); // Engine rear
-        ctx.lineTo(-6, 6); // Right inner
-        ctx.lineTo(-14, 18); // Right wingtip
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Cockpit glass core
-        ctx.fillStyle = localProfile.color;
-        ctx.beginPath();
-        ctx.arc(0, 0, 6, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Engine thruster flame
-        const flameLen = 10 + Math.random() * 8;
-        ctx.fillStyle = '#ff007f';
-        ctx.shadowColor = '#ff007f';
-        ctx.beginPath();
-        ctx.moveTo(-16, -4);
-        ctx.lineTo(-16 - flameLen, 0);
-        ctx.lineTo(-16, 4);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.restore();
-
-        if (this.lanCoop?.ally && this.lanCoop.rtc.connected) {
-          ctx.save();
-          ctx.fillStyle = localProfile.color;
-          ctx.font = 'bold 13px system-ui';
-          ctx.textAlign = 'center';
-          ctx.fillText(localProfile.name + ' · 我', this.player.x, this.player.y - 35);
-          ctx.restore();
-        }
+        // All participants share this exact fighter renderer.
+        const role = this.isGuestWorldView ? 'guest' : 'host';
+        const localProfile = window.NeonLanTeammates?.ownProfile(role) ||
+          { name: role === 'guest' ? '队友' : '房主', color: this.shipColor || '#00f3ff' };
+        this.renderFighter(ctx, this.player, localProfile,
+          this.isGuestWorldView || (this.lanCoop?.ally && this.lanCoop.rtc.connected));
 
         // The remote co-op fighter is drawn in the same world coordinates.
         this.lanCoop?.renderHost(ctx);
@@ -5774,6 +5782,57 @@
         } catch (err) {
           console.error("Render non-fatal error caught:", err);
         } finally {
+          ctx.restore();
+        }
+      }
+
+      // Shared by both cameras: one fighter model, colors and invulnerability FX.
+      renderFighter(ctx, fighter, profile, showLabel = false) {
+        if (!fighter) return;
+        ctx.save();
+        ctx.translate(fighter.x, fighter.y);
+        ctx.rotate(fighter.aimAngle || 0);
+        if (fighter.downed) ctx.globalAlpha = .5;
+        if ((fighter.invulnTimer || 0) > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
+          ctx.globalAlpha = 0.4;
+        }
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = profile.color;
+        ctx.fillStyle = '#0a1628';
+        ctx.strokeStyle = fighter.downed ? '#ff617e' : profile.color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(22, 0);
+        ctx.lineTo(-14, -18);
+        ctx.lineTo(-6, -6);
+        ctx.lineTo(-16, 0);
+        ctx.lineTo(-6, 6);
+        ctx.lineTo(-14, 18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = fighter.downed ? '#ff617e' : profile.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+        const flameLen = 10 + Math.random() * 8;
+        ctx.fillStyle = '#ff007f';
+        ctx.shadowColor = '#ff007f';
+        ctx.beginPath();
+        ctx.moveTo(-16, -4);
+        ctx.lineTo(-16 - flameLen, 0);
+        ctx.lineTo(-16, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        if (showLabel) {
+          ctx.save();
+          ctx.fillStyle = profile.color;
+          ctx.font = 'bold 13px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(fighter.downed ? profile.name + ' · 等待救援' :
+            profile.name + ' · ' + Math.ceil(fighter.hp || 0) + ' HP',
+            fighter.x, fighter.y - 35);
           ctx.restore();
         }
       }
@@ -5831,6 +5890,11 @@
           this.update(dt);
           this.lanCoop?.updateHost(dt);
           this.render();
+          if (this.lanCoop?.ally && this.lanCoop.rtc?.connected) {
+            window.NeonLanRevive?.overlay(this.ctx, this, {
+              rescue: window.NeonLanRevive.summary(this)
+            });
+          }
         } catch (err) {
           console.error("Game loop non-fatal error caught:", err);
         }

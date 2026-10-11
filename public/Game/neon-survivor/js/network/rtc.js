@@ -46,6 +46,7 @@
       this.room = null;
       this.peer = null;
       this.channel = null;
+      this.realtimeChannel = null;
       this.connected = false;
       this.clientId = roomCode();
       this.rooms = new Map();
@@ -118,11 +119,32 @@
           this.status('连接断开，请重新配对');
         }
       };
-      if (host) this.bindChannel(pc.createDataChannel('neon-game'));
-      else pc.ondatachannel = e => this.bindChannel(e.channel);
+      if (host) {
+        this.bindChannel(pc.createDataChannel('neon-game'));
+        // Frequent positions need latest-state delivery, not retransmissions of
+        // stale snapshots. Upgrades/profile remain on reliable neon-game.
+        try {
+          this.bindChannel(pc.createDataChannel('neon-realtime',
+            { ordered: false, maxRetransmits: 0 }));
+        } catch {
+          // Older WebViews may reject partial reliability; reliable transport
+          // remains fully operational as a fallback.
+        }
+      } else pc.ondatachannel = e => this.bindChannel(e.channel);
       return pc;
     }
     bindChannel(channel) {
+      if (channel.label === 'neon-realtime' || channel.name === 'neon-realtime') {
+        this.realtimeChannel = channel;
+        channel.onmessage = event => {
+          if (typeof event.data !== 'string' || event.data.length > 40000) return;
+          try { this.onData(JSON.parse(event.data)); } catch { /* malformed frame */ }
+        };
+        channel.onclose = () => {
+          if (this.realtimeChannel === channel) this.realtimeChannel = null;
+        };
+        return;
+      }
       this.channel = channel;
       channel.onopen = () => {
         this.connected = true;
@@ -168,13 +190,19 @@
       this.status('已接受应答，正在建立局域网连接');
     }
     send(payload) {
-      if (!this.channel || this.channel.readyState !== 'open') return false;
+      // Time-sensitive input/snapshot packets may be dropped when superseded;
+      // critical menu/profile events always use the reliable control channel.
+      const isRealtime = payload?.type === 'input' || payload?.type === 'snapshot';
+      const candidate = isRealtime && this.realtimeChannel?.readyState === 'open'
+        ? this.realtimeChannel : this.channel;
+      if (!candidate || candidate.readyState !== 'open') return false;
       const data = JSON.stringify(payload);
-      if (data.length > 40000 || this.channel.bufferedAmount > 100000) return false;
-      this.channel.send(data);
+      if (data.length > 40000 || candidate.bufferedAmount > 100000) return false;
+      candidate.send(data);
       return true;
     }
     closePeer() {
+      if (this.realtimeChannel) { this.realtimeChannel.close(); this.realtimeChannel = null; }
       if (this.channel) { this.channel.close(); this.channel = null; }
       if (this.peer) { this.peer.close(); this.peer = null; }
       this.connected = false;

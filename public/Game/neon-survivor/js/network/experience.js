@@ -22,7 +22,8 @@
   }
   function pickupRadius(game, target) {
     return target === game.player ? game.player.magnetRadius :
-      120 + Math.min(100, Math.max(0, (target.level - 1) * 2));
+      120 * (1 + Math.min(5, target.passives?.magnet || 0) * .5) +
+        Math.min(100, Math.max(0, (target.level - 1) * 2));
   }
   function activateMapMagnet(game) {
     // Ignore uncollected health / nukes / magnet items. The magnet is a
@@ -38,6 +39,11 @@
   function synchronizeLevel(game) {
     if (!active(game)) return;
     const ally = game.lanCoop.ally;
+    // Each team level-up grants BOTH pilots one independent upgrade card.
+    if (game.player.level > ally.level) {
+      ally.pendingUpgrades = (ally.pendingUpgrades || 0) +
+        (game.player.level - ally.level);
+    }
     ally.level = game.player.level;
     ally.xp = game.player.xp;
     ally.xpNeeded = game.player.xpNeeded;
