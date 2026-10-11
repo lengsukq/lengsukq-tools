@@ -705,6 +705,55 @@
       padding: 9px 0;
     }
     .neon-lan-code-row .neon-lan-action { flex: 1 1 165px; }
+    .neon-lan-qr-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: center;
+      margin: 12px 0 16px;
+      padding: 16px;
+      border: 1px solid #3a8e9c;
+      border-radius: 14px;
+      background: linear-gradient(140deg, #123a47 0%, #0d2236 100%);
+    }
+    .neon-lan-qr-panel[hidden] { display: none; }
+    .neon-lan-qr-code {
+      box-sizing: content-box;
+      width: 200px;
+      height: 200px;
+      padding: 10px;
+      flex: 0 0 200px;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      border-radius: 10px;
+      color: #173448;
+      text-align: center;
+      overflow: hidden;
+    }
+    .neon-lan-qr-code img,
+    .neon-lan-qr-code canvas { display: block; max-width: 100%; }
+    .neon-lan-qr-info {
+      flex: 1 1 190px;
+      min-width: 0;
+      line-height: 1.6;
+      color: #b8d1e3;
+    }
+    .neon-lan-qr-info strong { color: #afffe5; font-size: 16px; }
+    .neon-lan-qr-info p { margin: 8px 0; font-size: 13px; }
+    .neon-lan-invite-url {
+      display: inline-block;
+      color: #95eefa;
+      font-size: 13px;
+      text-decoration: underline;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 460px) {
+      .neon-lan-qr-panel { padding: 12px; }
+      .neon-lan-qr-code { margin: auto; }
+      .neon-lan-qr-info { text-align: center; }
+    }
     .neon-settings-card {
       width: min(560px, 100%);
       max-height: 92dvh;

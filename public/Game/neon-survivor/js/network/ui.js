@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  function open(game) {
+  function open(game, options = {}) {
     if (!window.NeonLanRTC || !window.NeonLanCoop) return;
     const previous = game.lanRTC;
     previous?.close();
@@ -70,10 +70,10 @@
     joinCode.autocapitalize = 'characters';
     joinCode.setAttribute('aria-label', '输入6位房间码');
     joinCode.oninput = () => { joinCode.value = joinCode.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); };
-    try {
-      const code = new URL(window.location.href).searchParams.get('lanRoom');
-      if (code && /^[A-Z0-9]{6}$/.test(code.toUpperCase())) joinCode.value = code.toUpperCase();
-    } catch { /* URL handling may be unavailable in lightweight test contexts */ }
+    const invitedCode = options.roomCode || window.NeonLanInvite?.parse(window.location?.href)?.room;
+    if (typeof invitedCode === 'string' && /^[A-Z0-9]{6}$/.test(invitedCode.toUpperCase())) {
+      joinCode.value = invitedCode.toUpperCase();
+    }
     joinRow.appendChild(joinCode);
     card.appendChild(joinRow);
     function button(label, action) {
@@ -92,6 +92,44 @@
     const roomLabel = document.createElement('strong');
     roomLabel.style.cssText = 'display:block;color:#90f6dd;margin:10px 0;';
     card.appendChild(roomLabel);
+    const invitePanel = document.createElement('section');
+    invitePanel.className = 'neon-lan-qr-panel';
+    invitePanel.hidden = true;
+    const qrSide = document.createElement('div');
+    qrSide.className = 'neon-lan-qr-code';
+    qrSide.setAttribute('aria-label', '扫码加入当前联机房间');
+    const inviteInfo = document.createElement('div');
+    inviteInfo.className = 'neon-lan-qr-info';
+    const inviteTitle = document.createElement('strong');
+    inviteTitle.textContent = '手机扫码 · 自动加入';
+    const inviteCaption = document.createElement('p');
+    inviteCaption.textContent = '让队友用手机相机扫描，打开链接即可自动填写房间码并建立连接。二维码约5分钟内有效，两台设备必须能局域网直连。';
+    const inviteLink = document.createElement('a');
+    inviteLink.className = 'neon-lan-invite-url';
+    inviteLink.target = '_blank';
+    inviteLink.rel = 'noopener noreferrer';
+    inviteInfo.append(inviteTitle, inviteCaption, inviteLink);
+    invitePanel.append(qrSide, inviteInfo);
+    card.appendChild(invitePanel);
+    if (signaling) signaling.onExpired = () => {
+      invitePanel.hidden = true;
+      roomLabel.textContent = '房间已过期 · 请重新创建';
+    };
+    function showInvite(room) {
+      const invite = window.NeonLanInvite;
+      if (!invite) return;
+      const link = invite.build(room, window.location.origin);
+      invitePanel.hidden = false;
+      inviteLink.href = link;
+      inviteLink.textContent = '打开或分享邀请链接';
+      try {
+        invite.render(qrSide, link);
+      } catch (error) {
+        qrSide.replaceChildren();
+        qrSide.textContent = '二维码不可用，可复制邀请链接';
+        status.textContent = error.message || '二维码加载失败，可复制邀请链接';
+      }
+    }
     const rooms = document.createElement('div');
     card.appendChild(rooms);
     const advanced = document.createElement('details');
@@ -169,32 +207,36 @@
     };
     button('创建房间', async () => {
       if (!signaling) throw Error('浏览器不支持房间码信令，请使用高级手动配对');
+      invitePanel.hidden = true;
       const room = await signaling.create(rtc);
       refreshIdentity();
       roomLabel.textContent = '房间码：' + room + ' · 等待队友';
       joinCode.value = room;
+      showInvite(room);
     });
-    const join = button('输入房间码加入', async () => {
+    async function joinRoom() {
       if (!signaling) throw Error('浏览器不支持房间码信令，请使用高级手动配对');
       const room = await signaling.join(rtc, joinCode.value);
       refreshIdentity();
       roomLabel.textContent = '正在加入：' + room;
-    });
+      return room;
+    }
+    const join = button('输入房间码加入', joinRoom);
     joinRow.appendChild(join);
     row.removeChild(join);
     button('复制邀请链接', async () => {
       if (!signaling?.room || !signaling.hostToken) throw Error('请先创建房间');
-      const link = new URL('/Game/neon-survivor/index.html', window.location.origin);
-      link.searchParams.set('lanRoom', signaling.room);
+      const link = window.NeonLanInvite.build(signaling.room, window.location.origin);
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(link.toString());
-        status.textContent = '邀请链接已复制，发给队友后输入房间码即可加入';
+        await navigator.clipboard.writeText(link);
+        status.textContent = '邀请链接已复制；队友打开后将自动加入房间';
       } else {
-        status.textContent = '邀请链接：' + link.toString();
+        status.textContent = '邀请链接：' + link;
       }
     });
     control('手动创建房间', () => {
       void signaling?.close();
+      invitePanel.hidden = true;
       const room = rtc.host();
       refreshIdentity();
       roomLabel.textContent = '手动配对房间：' + room;
@@ -226,6 +268,16 @@
       rtc.close(); coop.stop(); ui.remove(); game.showStartMenu();
     });
     exit.style.borderColor = '#944b64';
+    // Camera-scanned invitation: open the lobby and start the same room-code
+    // signaling path automatically. Errors stay in the visible lobby so guests
+    // can retry manually, without reloading or re-scanning.
+    if (options.autoJoin && /^[A-Z0-9]{6}$/.test(joinCode.value)) {
+      join.disabled = true;
+      status.textContent = '已扫描邀请，正在自动加入房间 ' + joinCode.value + '…';
+      void Promise.resolve().then(joinRoom).catch(error => {
+        status.textContent = (error.message || String(error)) + '；可以检查房间码后重新加入';
+      }).finally(() => { if (ui.isConnected) join.disabled = false; });
+    }
     return { rtc, coop, ui };
   }
   window.NeonLanLobby = Object.freeze({ open });

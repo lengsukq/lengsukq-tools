@@ -87,6 +87,7 @@
           if (++checks >= 74) {
             this.polling = false;
             this.onStatus('房间已超时，请重新创建');
+            this.onExpired?.();
             return;
           }
         } catch (error) {
