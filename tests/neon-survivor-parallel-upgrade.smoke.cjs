@@ -60,11 +60,11 @@ function setup(levels = 1) {
   assert.equal(coop.ally.pendingUpgrades, levels);
   game.triggerLevelUp();
   assert.equal(game.state, 'levelup');
-  assert.equal(grid.children.length, 3, 'Host sees 3 cards immediately');
-  assert.equal(coop.ally.choices.length, 3, 'Guest cards are ready at same time');
+  assert.equal(grid.children.length, 5, 'Host sees 5 cards at standard difficulty');
+  assert.equal(coop.ally.choices.length, 5, 'Guest cards are ready at same time');
   const frame = sandbox.window.NeonLanCoop.snapshot(game, coop.ally, 1);
   assert.equal(frame.phase, 'levelup', 'Guest receives choices in host levelup snapshot');
-  assert.equal(frame.guest.choices.length, 3);
+  assert.equal(frame.guest.choices.length, 5);
   return { game, coop, modal, grid, sent };
 }
 // Guest finishes first: the host must remain paused and able to choose.
@@ -92,7 +92,7 @@ function setup(levels = 1) {
   coop.onMessage({ type: 'upgrade_pick', id: guestChoice, seq: 8 });
   assert.equal(game.state, 'playing', 'Only both confirmations resume game');
   coop.onMessage({ type: 'upgrade_pick', id: guestChoice, seq: 8 });
-  assert.equal(coop.ally.upgradeRound, 1, 'Repeated choice cannot double-spend');
+  assert.equal(coop.ally.pickedUpgradeIds.length, 1, 'Repeated choice cannot double-spend');
 }
 // Consecutive team level-ups retain separate queues, without early resuming.
 {
@@ -100,14 +100,16 @@ function setup(levels = 1) {
   const firstGuest = coop.ally.choices[0];
   coop.onMessage({ type: 'upgrade_pick', id: firstGuest, seq: 1 });
   assert.equal(coop.ally.pendingUpgrades, 1);
-  assert.equal(coop.ally.choices.length, 3, 'Guest receives next cards independently');
+  assert.equal(coop.ally.choices.length, 5, 'Guest keeps the same visible cards for this draft');
   grid.children[0].click();
-  assert.equal(game.state, 'levelup', 'Host second card remains selectable');
+  assert.equal(game.state, 'levelup', 'Host may choose a second DIFFERENT card');
   assert.equal(game.pendingLevelUps, 1);
-  coop.onMessage({ type: 'upgrade_pick', id: coop.ally.choices[0], seq: 2 });
+  coop.onMessage({ type: 'upgrade_pick', id: firstGuest, seq: 2 });
+  assert.equal(coop.ally.pendingUpgrades, 1, 'Same card cannot be bought twice in one draft');
+  coop.onMessage({ type: 'upgrade_pick', id: coop.ally.choices.find(id => id !== firstGuest), seq: 3 });
   assert.equal(coop.ally.pendingUpgrades, 0);
   assert.equal(game.state, 'levelup');
-  grid.children[0].click();
+  grid.children[1].click();
   assert.equal(game.pendingLevelUps, 0);
   assert.equal(game.state, 'playing');
 }
@@ -175,9 +177,10 @@ function setup(levels = 1) {
   const { game, coop, grid } = setup();
   coop.ally.pendingUpgrades = 1;
   coop.ally.choices = [];
+  coop.ally.upgradeFinished = true;
   game.getCoopUpgradeChoices = () => [];
   grid.children[0].click();
-  assert.equal(coop.ally.pendingUpgrades, 0);
+  assert.equal(coop.ally.pendingUpgrades, 1, 'Guest keeps unspent chance when no valid cards exist');
   assert.equal(game.state, 'playing', 'An empty guest pool must not freeze gameplay');
 }
 console.log('Parallel upgrade passed: simultaneous selection, both finish orders, queued levels, guest click acknowledgment and empty-pool recovery.');

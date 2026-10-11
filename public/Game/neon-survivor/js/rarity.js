@@ -38,5 +38,31 @@
     }
     return result;
   }
-  window.NeonUpgradeRarity = Object.freeze({ weights, pick });
+  const PITY_LEVEL = 10;
+  function hasLegendary(player, catalog) {
+    if (!player || !Array.isArray(catalog)) return false;
+    return catalog.some(card => {
+      if (card.rarity !== 'legendary') return false;
+      const group = card.type === 'weapon' ? player.weapons :
+        card.type === 'passive' ? player.passives :
+          card.type === 'dash' ? player.dashUpgrades : null;
+      return Number(group?.[card.id] || 0) > 0;
+    });
+  }
+  // Pity counts acquired abilities, not cards merely offered. Until the
+  // pilot picks a legendary, one valid legendary is offered every level >=10.
+  // No illegal new weapon/passive slots or banished cards are introduced.
+  function pickForPilot(eligible, count, difficulty, player, catalog, random = Math.random) {
+    const pool = Array.isArray(eligible) ? eligible : [];
+    if (count <= 0 || (player?.level || 0) < PITY_LEVEL ||
+        hasLegendary(player, catalog)) return pick(pool, count, difficulty, random);
+    const legendary = pool.filter(card => card.rarity === 'legendary');
+    if (!legendary.length) return pick(pool, count, difficulty, random);
+    const roll = Math.max(0, Math.min(.999999999999, Number(random()) || 0));
+    const guaranteed = legendary[Math.floor(roll * legendary.length)];
+    const remainder = pool.filter(card => card.id !== guaranteed.id);
+    return [{ ...guaranteed, pityGuaranteed: true },
+      ...pick(remainder, count - 1, difficulty, random)];
+  }
+  window.NeonUpgradeRarity = Object.freeze({ weights, pick, pickForPilot, hasLegendary, PITY_LEVEL });
 })();

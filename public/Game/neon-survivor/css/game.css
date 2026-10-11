@@ -380,6 +380,46 @@
       margin-bottom: 16px;
     }
 
+    #modal-levelup .modal-card {
+      max-width: min(1100px, calc(100vw - 26px));
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+      padding: clamp(12px, 2vw, 26px);
+    }
+    #modal-levelup .upgrade-grid {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+      gap: clamp(8px, 1vw, 14px);
+    }
+    #modal-levelup .upgrade-card { padding: 14px 9px; }
+    .upgrade-card.picked,
+    .upgrade-card.picked:hover {
+      opacity: .52;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+      border-color: #6e96a0;
+    }
+    .upgrade-bank-actions {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 10px auto 6px;
+      color: #c1e6ff;
+      font-size: 13px;
+    }
+    .upgrade-bank-actions button {
+      padding: 9px 14px;
+      color: #baffdf;
+      background: #112a37;
+      border: 1px solid #51b991;
+      border-radius: 9px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .upgrade-bank-actions button:hover { background: #164735; }
+
     .upgrade-card {
       background: rgba(18, 26, 48, 0.8);
       border: 1.5px solid rgba(0, 243, 255, 0.25);

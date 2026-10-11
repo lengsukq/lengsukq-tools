@@ -52,6 +52,6 @@ assert.ok(max.common > normal.common,
 // Endless and co-op must call the SAME weights, rather than diverging.
 const core = fs.readFileSync(root + 'js/core.js', 'utf8');
 const endless = fs.readFileSync(root + 'js/endless.js', 'utf8');
-assert.match(core, /NeonUpgradeRarity\?\.pick\(eligible, 3, this\.difficulty\)/);
+assert.match(core, /NeonUpgradeRarity\?\.pickForPilot\(/);
 assert.match(endless, /NeonUpgradeRarity\?\.pick\(eligible, count, difficulty, random\)/);
 console.log('Upgrade rarity passed: weighted unique rolls, ascension scaling, no hard ban and deterministic frequency checks.');

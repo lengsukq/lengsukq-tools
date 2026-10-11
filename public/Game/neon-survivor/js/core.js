@@ -1463,11 +1463,10 @@
               const chosen = this.currentUpgradeChoices?.[this.gamepadSelectedUpgradeIdx];
               if (chosen) this.banishEndlessUpgrade(chosen.id);
             }
+            if (justPressed(1)) this.finishUpgradeSelection(); // B banks unspent chances
           } else {
             // 安全退出避免弹窗死锁
-            if (this.modalLevelup) this.modalLevelup.classList.remove('active');
-            this.state = 'playing';
-            this.lastTime = performance.now();
+            this.finishUpgradeSelection();
           }
           this.finishGamepadMenuFrame(gp, this.state === 'playing');
           return;
@@ -1605,6 +1604,7 @@
         this.player.xp = 0;
         this.player.xpNeeded = this.calcXpNeeded(1);
         this.pendingLevelUps = 0;
+        this.upgradeSession = null;
         this.endlessUpgradeRerolls = 2;
         this.endlessUpgradeBanishes = 2;
         this.banishedUpgrades = new Set();
@@ -1920,42 +1920,45 @@
         this.updateHUD();
       }
 
-      triggerLevelUp() {
-        const weaponCount = Object.keys(this.player.weapons).length;
-        const passiveCount = Object.keys(this.player.passives).length;
+      getUpgradeChoiceCount() {
+        // Standard / Ascension I-II: five, III-IV: four, V-VI: three.
+        return this.difficulty >= 5 ? 3 : this.difficulty >= 3 ? 4 : 5;
+      }
 
-        // Difficulty V+ restricts only passive modules. Dash is always independent.
-        const eligible = UPGRADES_DB.filter(u => {
-          if (this.banishedUpgrades?.has(u.id)) return false;
-          if (u.type === 'weapon') {
-            const curLvl = this.player.weapons[u.id] || 0;
-            if (curLvl >= u.maxLvl) return false;
-            return curLvl > 0 ? true : (weaponCount < 4);
-          } else if (u.type === 'passive') {
-            const curLvl = this.player.passives[u.id] || 0;
-            if (curLvl >= u.maxLvl) return false;
-            return curLvl > 0 ? true : (passiveCount < this.getPassiveSlotLimit());
-          } else if (u.type === 'dash') {
-            // Dedicated Dash Upgrade: Independent, always available until max level!
-            const curLvl = (this.player.dashUpgrades && this.player.dashUpgrades[u.id]) || 0;
-            return curLvl < u.maxLvl;
-          }
-          return false;
-        });
+      isUpgradeAvailableFor(player, upgrade, banished = null) {
+        if (!upgrade || banished?.has(upgrade.id)) return false;
+        const field = upgrade.type === 'weapon' ? 'weapons' :
+          upgrade.type === 'passive' ? 'passives' :
+            upgrade.type === 'dash' ? 'dashUpgrades' : null;
+        if (!field) return false;
+        const loadout = player[field] || {};
+        const level = loadout[upgrade.id] || 0;
+        if (level >= upgrade.maxLvl) return false;
+        if (level > 0 || upgrade.type === 'dash') return true;
+        return Object.keys(loadout).length <
+          (upgrade.type === 'weapon' ? 4 : this.getPassiveSlotLimit());
+      }
+
+      triggerLevelUp() {
+        if ((this.pendingLevelUps || 0) <= 0) return;
+        this.upgradeSession = { picked: new Set(), capacity: Math.min(3, this.pendingLevelUps) };
+        const count = this.getUpgradeChoiceCount();
+        const eligible = UPGRADES_DB.filter(u =>
+          this.isUpgradeAvailableFor(this.player, u, this.banishedUpgrades));
 
         // If all standard upgrades are maxed, activate infinite Limit Break!
         this.levelupEligible = eligible;
         let choices = [];
         if (eligible.length === 0) {
-          choices = this.getLimitBreakChoices();
+          choices = this.getLimitBreakChoices(count);
         } else {
-          choices = window.NeonUpgradeRarity?.pick(eligible, 3, this.difficulty) ||
-            [...eligible].sort(() => Math.random() - 0.5).slice(0, 3);
-          // If fewer than 3 standard options left, fill remainder with Limit Break cards
-          if (choices.length < 3) {
-            const lbChoices = this.getLimitBreakChoices();
+          choices = window.NeonUpgradeRarity?.pickForPilot(
+            eligible, count, this.difficulty, this.player, UPGRADES_DB) ||
+            [...eligible].sort(() => Math.random() - 0.5).slice(0, count);
+          if (choices.length < count) {
+            const lbChoices = this.getLimitBreakChoices(count);
             for (const lbc of lbChoices) {
-              if (choices.length < 3 && !choices.some(c => c.id === lbc.id)) {
+              if (choices.length < count && !choices.some(c => c.id === lbc.id)) {
                 choices.push(lbc);
               }
             }
@@ -1987,28 +1990,16 @@
       }
 
       getCoopUpgradeChoices(ally) {
-        const weapons = ally.weapons || { blaster: 1 };
-        const passives = ally.passives || {};
-        const dash = ally.dashUpgrades || {};
-        const eligible = UPGRADES_DB.filter(upgrade => {
-          if (upgrade.type === 'weapon') {
-            const level = weapons[upgrade.id] || 0;
-            return level < upgrade.maxLvl && (level > 0 || Object.keys(weapons).length < 4);
-          }
-          if (upgrade.type === 'passive') {
-            const level = passives[upgrade.id] || 0;
-            return level < upgrade.maxLvl &&
-              (level > 0 || Object.keys(passives).length < this.getPassiveSlotLimit());
-          }
-          if (upgrade.type === 'dash') return (dash[upgrade.id] || 0) < upgrade.maxLvl;
-          return false;
-        });
-        const choices = window.NeonUpgradeRarity?.pick(eligible, 3, this.difficulty) ||
-          [...eligible].sort(() => Math.random() - 0.5).slice(0, 3);
+        const eligible = UPGRADES_DB.filter(upgrade =>
+          this.isUpgradeAvailableFor(ally, upgrade));
+        const choices = window.NeonUpgradeRarity?.pickForPilot(
+          eligible, this.getUpgradeChoiceCount(), this.difficulty, ally, UPGRADES_DB) ||
+          [...eligible].sort(() => Math.random() - 0.5).slice(0, this.getUpgradeChoiceCount());
+        ally.legendaryPityId = choices.find(upgrade => upgrade.pityGuaranteed)?.id || null;
         return choices.map(upgrade => upgrade.id);
       }
 
-      getLimitBreakChoices() {
+      getLimitBreakChoices(count = this.getUpgradeChoiceCount()) {
         const equippedList = [
           ...Object.keys(this.player.weapons).map(id => ({ id, type: 'weapon' })),
           ...Object.keys(this.player.passives).map(id => ({ id, type: 'passive' })),
@@ -2030,7 +2021,7 @@
         }
 
         const shuffled = equippedList.filter(item => !this.banishedUpgrades?.has(item.id)).sort(() => Math.random() - 0.5);
-        const picked = shuffled.slice(0, 3);
+        const picked = shuffled.slice(0, count);
 
         return picked.map(item => {
           const def = UPGRADES_DB.find(u => u.id === item.id);
@@ -2093,15 +2084,24 @@
       }
 
       nextEndlessUpgradeChoices() {
-        const pool = (this.levelupEligible || []).filter(u => !this.banishedUpgrades?.has(u.id));
+        const pool = (this.levelupEligible || []).filter(u =>
+          !this.banishedUpgrades?.has(u.id) && !this.upgradeSession?.picked.has(u.id) &&
+          this.isUpgradeAvailableFor(this.player, u));
         const alternatives = pool.filter(u => !(this.currentUpgradeChoices || []).some(chosen => chosen.id === u.id));
-        const candidates = alternatives.length >= 3 ? alternatives : pool;
+        const count = this.getUpgradeChoiceCount();
+        const pityActive = this.player.level >= (window.NeonUpgradeRarity?.PITY_LEVEL || 10) &&
+          !window.NeonUpgradeRarity?.hasLegendary(this.player, UPGRADES_DB);
+        // Reroll should not accidentally exclude the only remaining legendary.
+        const candidates = alternatives.length >= count &&
+          (!pityActive || alternatives.some(card => card.rarity === 'legendary'))
+          ? alternatives : pool;
         if (!candidates.length) return this.getLimitBreakChoices();
-        const result = window.NeonRogueEndless.pickUpgrades(candidates, 3, Math.random,
-          this.difficulty);
-        if (result.length < 3) {
-          for (const option of this.getLimitBreakChoices()) {
-            if (result.length >= 3) break;
+        const result = window.NeonUpgradeRarity?.pickForPilot(
+          candidates, count, this.difficulty, this.player, UPGRADES_DB) ||
+          window.NeonRogueEndless.pickUpgrades(candidates, count, Math.random, this.difficulty);
+        if (result.length < count) {
+          for (const option of this.getLimitBreakChoices(count)) {
+            if (result.length >= count) break;
             if (!result.some(item => item.id === option.id)) result.push(option);
           }
         }
@@ -2118,6 +2118,7 @@
 
       banishEndlessUpgrade(id) {
         if (!this.endlessMode || this.state !== 'levelup' || this.endlessUpgradeBanishes <= 0) return false;
+        if (this.upgradeSession?.picked.has(id)) return false;
         if (this.banishedUpgrades.has(id) || !(this.currentUpgradeChoices || []).some(c => c.id === id)) return false;
         this.endlessUpgradeBanishes--;
         this.banishedUpgrades.add(id);
@@ -2130,16 +2131,44 @@
         if (!this.endlessMode || this.state !== 'levelup') return false;
         this.player.crystals += 12;
         this.pendingLevelUps = Math.max(0, (this.pendingLevelUps || 1) - 1);
-        if (this.pendingLevelUps > 0) this.triggerLevelUp();
-        else {
-          this.modalLevelup?.classList.remove('active');
-          if (!this.lanCoop?.waitForGuestUpgrade?.()) {
-            this.state = 'playing';
-            this.lastTime = performance.now();
-          }
-          this.gamepadCombatInputLocked = true;
+        // One opportunity is exchanged for crystals; the rest stay banked.
+        return this.finishUpgradeSelection();
+      }
+
+      finishUpgradeSelection() {
+        if (this.state !== 'levelup') return false;
+        this.upgradeSession = null;
+        this.modalLevelup?.classList.remove('active');
+        if (!this.lanCoop?.waitForGuestUpgrade?.()) {
+          this.state = 'playing';
+          this.lastTime = performance.now();
         }
+        this.gamepadCombatInputLocked = true;
         return true;
+      }
+
+      refreshUpgradeControls() {
+        const parent = this.upgradeGrid?.parentNode;
+        if (!parent) return;
+        let controls = parent.querySelector?.('#upgrade-bank-actions');
+        if (!controls) {
+          controls = document.createElement('div');
+          controls.id = 'upgrade-bank-actions';
+          controls.className = 'upgrade-bank-actions';
+          parent.appendChild(controls);
+        }
+        controls.replaceChildren();
+        const credits = this.onUpgradePick ? this.guestUpgradeCredits : this.pendingLevelUps;
+        const chosen = this.onUpgradePick ? this.guestUpgradeChosen : this.upgradeSession?.picked?.size || 0;
+        const cap = this.onUpgradePick ? this.guestUpgradeCapacity : this.upgradeSession?.capacity || 1;
+        const info = document.createElement('span');
+        info.textContent = `本轮 ${chosen}/${cap} 次 · 剩余 ${credits || 0} 次强化机会（可保留）`;
+        controls.appendChild(info);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = credits ? `保留剩余 ${credits} 次并继续` : '完成选择';
+        button.onclick = () => this.onUpgradeFinish ? this.onUpgradeFinish() : this.finishUpgradeSelection();
+        controls.appendChild(button);
       }
 
       renderUpgradeChoices(choices) {
@@ -2150,7 +2179,8 @@
         if (subtitle && weights) {
           const total = weights.common + weights.rare + weights.legendary;
           const pct = tier => (100 * weights[tier] / total).toFixed(1).replace(/\.0$/, '');
-          subtitle.textContent = `各稀有度均可选时：普通 ${pct('common')}% · 稀有 ${pct('rare')}% · 传说 ${pct('legendary')}%（抽空后重分配）`;
+          subtitle.textContent = `各稀有度均可选时：普通 ${pct('common')}% · 稀有 ${pct('rare')}% · 传说 ${pct('legendary')}%（抽空后重分配）` +
+            (choices.some(card => card.pityGuaranteed) ? ' · 已触发10级传说保底' : '');
         }
         const weaponCount = Object.keys(this.player.weapons).length;
         const passiveCount = Object.keys(this.player.passives).length;
@@ -2182,9 +2212,10 @@
           }
 
           const card = document.createElement('div');
-          card.className = `upgrade-card ${upg.rarity} ${isLb ? 'limit-break' : ''} ${isDash ? 'dash-card' : ''}`;
+          const alreadyPicked = upg.alreadyChosen || this.upgradeSession?.picked.has(upg.id);
+          card.className = `upgrade-card ${upg.rarity} ${isLb ? 'limit-break' : ''} ${isDash ? 'dash-card' : ''} ${alreadyPicked ? 'picked' : ''}`;
           card.innerHTML = `
-            <div class="rarity-tag" style="${isLb ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isDash ? 'color:#00f3ff;background:rgba(0,243,255,0.2);' : '')}">${isDash ? 'WARP UPGRADE' : (isLb ? 'LIMIT BREAK' : upg.rarity)}</div>
+            <div class="rarity-tag" style="${upg.pityGuaranteed ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isLb ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isDash ? 'color:#00f3ff;background:rgba(0,243,255,0.2);' : ''))}">${upg.pityGuaranteed ? '★ 传说保底' : (isDash ? 'WARP UPGRADE' : (isLb ? 'LIMIT BREAK' : upg.rarity))}</div>
             <div class="upgrade-icon">${upg.icon}</div>
             <div class="upgrade-name">${upg.name}</div>
             <div class="upgrade-desc">${upg.desc}</div>
@@ -2193,12 +2224,17 @@
           `;
 
           card.onclick = () => {
+            if (upg.alreadyChosen || this.upgradeSession?.picked.has(upg.id)) return;
             // Guest selections must stay open until the host acknowledges the
             // chosen card. Never spend a host-side level-up in the guest view.
             if (typeof this.onUpgradePick === 'function') {
               this.onUpgradePick(upg);
               return;
             }
+            if ((this.pendingLevelUps || 0) <= 0 ||
+                this.upgradeSession?.picked.size >= this.upgradeSession?.capacity ||
+                (upg.type !== 'limit_break' &&
+                  !this.isUpgradeAvailableFor(this.player, upg, this.banishedUpgrades))) return;
             try {
               if (upg.type === 'limit_break') {
                 this.applyLimitBreak(upg);
@@ -2207,16 +2243,20 @@
               }
             } catch (err) {
               console.error("Upgrade application error caught:", err);
+              return;
             }
-            this.pendingLevelUps = Math.max(0, (this.pendingLevelUps || 1) - 1);
-            if (this.pendingLevelUps > 0) {
-              this.triggerLevelUp();
+            this.pendingLevelUps = Math.max(0, this.pendingLevelUps - 1);
+            this.upgradeSession?.picked.add(upg.id);
+            card.className += ' picked';
+            const session = this.upgradeSession;
+            const hasMore = this.currentUpgradeChoices?.some(option =>
+              !session?.picked.has(option.id) &&
+              (option.type === 'limit_break' ||
+                this.isUpgradeAvailableFor(this.player, option, this.banishedUpgrades)));
+            if (this.pendingLevelUps <= 0 || session?.picked.size >= session?.capacity || !hasMore) {
+              this.finishUpgradeSelection();
             } else {
-              if (this.modalLevelup) this.modalLevelup.classList.remove('active');
-              if (!this.lanCoop?.waitForGuestUpgrade?.()) {
-                this.state = 'playing';
-                this.lastTime = performance.now();
-              }
+              this.refreshUpgradeControls();
             }
           };
           if (this.endlessMode && this.endlessUpgradeBanishes > 0) {
@@ -2234,6 +2274,7 @@
 
           this.upgradeGrid.appendChild(card);
         });
+        this.refreshUpgradeControls();
         const parent = this.upgradeGrid.parentNode;
         let controls = document.getElementById('endless-upgrade-actions');
         if (!controls && parent) {

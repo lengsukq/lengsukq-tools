@@ -42,8 +42,10 @@ assert.equal(ally.level, 1);
 sandbox.window.NeonLanExperience.synchronizeLevel(game);
 assert.equal(ally.pendingUpgrades, 1, 'Both pilots earn one card at the shared level up');
 host.updateHost(.08);
+host.prepareGuestUpgrade();
+host.waitForGuestUpgrade();
 assert.equal(game.state, 'coop-guest-upgrade');
-assert.ok(ally.choices.length > 0 && ally.choices.length <= 3);
+assert.ok(ally.choices.length > 0 && ally.choices.length <= 5);
 const invalid = { type: 'upgrade_pick', id: '__inject', seq: 10 };
 host.onMessage(invalid);
 assert.equal(ally.pendingUpgrades, 1, 'Invalid upgrade cannot be injected');
@@ -57,7 +59,7 @@ const collection = expected.type === 'weapon' ? ally.weapons :
   expected.type === 'passive' ? ally.passives : ally.dashUpgrades;
 assert.ok(collection[selection] > 0);
 host.onMessage({ type: 'upgrade_pick', id: selection, seq: 11 });
-assert.equal(ally.upgradeRound, 1, 'Repeated pick cannot stack cards');
+assert.equal(ally.pickedUpgradeIds.length, 1, 'Repeated pick cannot stack cards');
 
 // Both pilots use original solo weapon functions, never a simplified fixed
 // 22-damage guest-only implementation.
