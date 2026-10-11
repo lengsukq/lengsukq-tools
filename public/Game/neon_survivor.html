@@ -41,6 +41,7 @@
       width: 100%;
       height: 100%;
       z-index: 1;
+      touch-action: none;
     }
 
     canvas {
@@ -395,6 +396,7 @@
       flex-direction: column;
       align-items: center;
       cursor: pointer;
+      touch-action: none;
       transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
       position: relative;
       overflow: hidden;
@@ -1055,6 +1057,7 @@
       <div style="font-size: 12px; color: #7383a0; margin-bottom: 20px;">
         全面支持 Xbox / PS / Switch / PC 手柄 + 键鼠 + 触控双摇杆；支持自动/手动瞄准！
       </div>
+      <div id="neon-difficulty-selector" style="margin:0 auto 20px;max-width:550px;text-align:left;"></div>
 
       <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
         <button class="cyber-btn" id="btn-start-game">立即出击 (START MISSION)</button>
@@ -1106,6 +1109,7 @@
         <button class="help-tab-btn" data-tab="help-mechanics">🚀 核心机体机制</button>
         <button class="help-tab-btn" data-tab="help-weapons">💥 对群爆炸与控制</button>
         <button class="help-tab-btn" data-tab="help-bosses">👾 敌机与首领</button>
+        <button class="help-tab-btn" data-tab="help-ascension">⚔️ 六阶进阶</button>
       </div>
 
       <div class="help-content-scroll">
@@ -1118,7 +1122,8 @@
               <ul>
                 <li><b>左摇杆 / 十字键</b>：360° 模拟飞行移动与八向平移</li>
                 <li><b>右摇杆</b>：360° 双摇杆独立瞄准射击</li>
-                <li><b>A 键 / B 键 / RB / RT / LB / LT</b>：触发【三段折跃冲刺斩】</li>
+                <li><b>A 键 / B 键 / RB / RT / LB / LT</b>：消耗一段折跃充能；从3段最多成长至9段</li>
+                <li><b>开始界面</b>：十字键左右切换已解锁的进阶难度，A 确认开局</li>
                 <li><b>Start / Options 键</b>：暂停游戏 / 呼出菜单</li>
                 <li><b>Select / Y 键</b>：一键切换 🎯 自动/手动瞄准模式</li>
                 <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键确认装配</li>
@@ -1144,6 +1149,7 @@
               <ul>
                 <li><b>左侧区域</b>：按住滑动呼出动态虚拟摇杆，控制机体自由飞行</li>
                 <li><b>右下角 DASH 按钮</b>：轻触释放折跃瞬移斩（实时展示可用充能）</li>
+                <li><b>双指联动</b>：左手持续按住摇杆移动，右手点击或松开 DASH 均不会打断左手方向控制；仅松开左手摇杆时停止控制</li>
                 <li><b>顶部状态栏</b>：轻触右上角对应按钮可快速切换瞄准、音效与暂停</li>
               </ul>
             </div>
@@ -1159,10 +1165,11 @@
             </div>
 
             <div class="help-box">
-              <div class="help-box-title">⚡ 独立三段折跃专精 (WARP MASTERY)</div>
-              <p>折跃冲刺<b>完全独立于4个武器槽</b>，最高可储存 3~6 段充能。瞬移路径造成高额破盾切割斩击，并可专精升级：</p>
+              <div class="help-box-title">⚡ 独立九段折跃专精 (WARP MASTERY)</div>
+              <p>折跃冲刺<b>独立于武器与模组槽</b>，可由初始3段逐步升级至9段。精准穿越敌人可累积连击奖励，瞬移路径造成切割伤害：</p>
               <ul>
-                <li><b>时空无敌光环</b>：折跃后获得最高 0.75 秒完全免疫伤害与贴身排斥光环，终结时迸发 8 向贯穿死光</li>
+                <li><b>时空无敌光环</b>：六级精细成长 0.15/0.20/0.25/0.30/0.35/0.40 秒；与折跃无敌保护重叠，不累加；六级终结释放8向激光</li>
+                <li><b>精准折跃连击</b>：贴近敌人核心完成斩击，可连续积累至5层精准奖励，每层精准伤害+8%，超时或空斩中断；不会返还无敌或折跃次数</li>
                 <li><b>落点爆轰</b>：折跃目的地引发超新星核爆与引力坍缩聚怪</li>
                 <li><b>等离子火墙</b>：身后留下持续蒸发敌人的离子隔离带</li>
                 <li><b>极光冰霜</b>：闪烁穿刺附带大范围强力深度冻结</li>
@@ -1170,8 +1177,8 @@
             </div>
 
             <div class="help-box">
-              <div class="help-box-title">📦 4武器 + 4被动约束与超频破限</div>
-              <p>战机最多同时装备 <b>4 款主动武器</b> 与 <b>4 款被动模组</b>，避免过于杂糅无序，鼓励专精构筑。当武器或模组升至满级 Lv.5 时，将解锁无限<b>【超频破限 (Limit Break)】</b>，数值可无上限倍率叠加！</p>
+              <div class="help-box-title">📦 4武器 + 4模组与超频破限</div>
+              <p>标准难度最多同时装备 <b>4 款主动武器</b> 与 <b>4 款被动模组</b>；进阶V及以上只有3个模组槽位，折跃升级独立。满级后的<b>超频破限 (Limit Break)</b>继续强化伤害与范围，但无敌光环时长不再无限提升。</p>
               <p style="margin-top:6px;">📈 <b>等级成长</b>：每升 1 级，全武器基础攻击 <b>+3%</b>（Lv10约+27%，Lv20约+57%，武器强化仍是大头）；移速 <b>+6</b>（最多+120），与推进器叠加但全局不超过 <b>385</b>。自爆蜂靠近会先亮红圈引信 0.55 秒，拉开可空爆！</p>
             </div>
           </div>
@@ -1206,7 +1213,7 @@
           <div class="help-card-grid">
             <div class="help-box">
               <div class="help-box-title">👾 100 只小怪上限与 ★ELITE 重装精英</div>
-              <p>普通小怪同屏严格限制在 100 只以内，保障任何设备 60 FPS 丝滑高帧率；<b>而重装精英怪（ELITE）与首领完全独立刷新，绝不受 100 只小怪上限限制</b>！精英怪带有金色旋转力场与头顶徽记，击破必掉高额黄金经验与急救自愈包！</p>
+              <p>普通小怪同屏限制在 100 只以内；<b>精英与首领独立计算</b>。精英击破掉落额外经验，修复道具的掉落机会随进阶等级下降。</p>
             </div>
 
             <div class="help-box">
@@ -1217,6 +1224,31 @@
             <div class="help-box">
               <div class="help-box-title">🛡️ 06:00 母舰要塞·欧米茄核心 (OMEGA CARRIER)</div>
               <p>拥有 85% 伤害减免的超能偏转护盾。<b>必须击破与母舰链接的 3 架护盾无人机，破盾瞬间母舰将过载瘫痪 4 秒并受到暴击伤害</b>！</p>
+            </div>
+          </div>
+        </div>
+        <!-- TAB 5: ASCENSIONS -->
+        <div class="help-section" id="help-ascension">
+          <div class="help-card-grid">
+            <div class="help-box">
+              <div class="help-box-title">⚔️ 基础模式 + 六阶进阶</div>
+              <p>击败首领通关后依次解锁更高阶。每阶继承前面全部挑战，死亡或通关后可从开始界面重新选择。</p>
+              <ul>
+                <li><b>I · 敌潮：</b>敌人更密集，全局毁灭掉率80%</li>
+                <li><b>II · 重击：</b>敌人伤害+15%，全局毁灭65%</li>
+                <li><b>III · 精英：</b>精英入侵更频繁，全局毁灭50%</li>
+                <li><b>IV · 匮乏：</b>物资更少，全局毁灭35%</li>
+                <li><b>V · 取舍：</b>只有3个模组槽位，全局毁灭20%</li>
+                <li><b>VI · 噩梦：</b>首领低于60%生命后追加预警连射，全局毁灭10%</li>
+              </ul>
+            </div>
+            <div class="help-box">
+              <div class="help-box-title">💣 全局毁灭与掉落</div>
+              <p>普通敌人基础概率：治疗1.5%、磁铁1.1%、全局毁灭0.9%。各阶分别乘对应倍率，进阶VI全局毁灭约0.09%。清屏击杀不会再产生新的清屏道具，正常击杀经验仍保留。</p>
+            </div>
+            <div class="help-box">
+              <div class="help-box-title">📈 战绩与保护规则</div>
+              <p>各阶战绩独立保存，原有最长生存与击杀记录保留。折跃防护和光环保护重叠计算，每次释放的新增防护最多0.40秒；正常受击仍提供独立短暂保护。</p>
             </div>
           </div>
         </div>
@@ -1258,6 +1290,17 @@
   <!-- JAVASCRIPT GAME LOGIC -->
   <script src="/Game/gamepad_haptics.js"></script>
   <script>
+    // 0 is the independent standard mode; ascensions I–VI accumulate rules.
+    const NEON_DIFFICULTIES = Object.freeze([
+      { name: '标准', rule: '完整四武器/四模组，标准战斗与道具掉落', enemyCount: 1, enemyDamage: 1, eliteRate: 1, normalDrops: 1, nukeDrops: 1 },
+      { name: 'I · 敌潮', rule: '敌潮密度提高，全局毁灭更稀有', enemyCount: 1.15, enemyDamage: 1, eliteRate: 1, normalDrops: 1, nukeDrops: 0.8 },
+      { name: 'II · 重击', rule: '敌人伤害 +15%', enemyCount: 1.15, enemyDamage: 1.15, eliteRate: 1, normalDrops: 0.95, nukeDrops: 0.65 },
+      { name: 'III · 精英', rule: '精英入侵频率与强度提升', enemyCount: 1.15, enemyDamage: 1.15, eliteRate: 1.4, normalDrops: 0.9, nukeDrops: 0.5 },
+      { name: 'IV · 匮乏', rule: '治疗/磁铁物资更少', enemyCount: 1.15, enemyDamage: 1.15, eliteRate: 1.4, normalDrops: 0.8, nukeDrops: 0.35 },
+      { name: 'V · 取舍', rule: '辅助模组仅有 3 个槽位', enemyCount: 1.15, enemyDamage: 1.15, eliteRate: 1.4, normalDrops: 0.7, nukeDrops: 0.2 },
+      { name: 'VI · 噩梦', rule: 'Boss 额外攻击阶段，后期火力升级', enemyCount: 1.25, enemyDamage: 1.25, eliteRate: 1.6, normalDrops: 0.6, nukeDrops: 0.1 }
+    ]);
+    const NEON_AEGIS_DURATIONS = Object.freeze([0.15, 0.20, 0.25, 0.30, 0.35, 0.40]);
     /* ==========================================================================
        1. SYNTHESIS AUDIO SYSTEM (Web Audio API - Zero External Audio Files)
        ========================================================================== */
@@ -1870,13 +1913,14 @@
         icon: '🛡️',
         rarity: 'legendary',
         desc: '折跃后展开绝对无敌光环，延长免疫时间，并对光环范围内敌人造成持续粉碎震荡伤害！',
-        maxLvl: 5,
+        maxLvl: 6,
         statText: [
-          '折跃后激活 0.15秒 无敌相位光环，周身爆发能量震荡',
-          '光环延长至 0.30秒，光环每0.05秒对周围造成 55 点脉冲辐射伤害',
-          '光环半径扩大 +50%，脉冲辐射伤害提升至 95 点',
-          '光环延长至 0.50秒，伤害提升至 150 点并强力击退触碰敌人',
-          '【神谕降临·天神力场】：光环延长至 0.75秒绝对免疫！范围翻倍，造成 240 点高频暴烈粉碎伤害，并在光环结束时迸发全向神谕激光束！'
+          '相位光环 0.15秒，获得贴身震荡防护',
+          '光环 0.20秒，解锁持续脉冲伤害',
+          '光环 0.25秒，脉冲半径与伤害提升',
+          '光环 0.30秒，强化脉冲击退',
+          '光环 0.35秒，进一步提升范围和攻击力',
+          '神谕力场：光环 0.40秒并在结束时释放八向贯穿激光（时间有上限）'
         ]
       },
       {
@@ -1885,9 +1929,9 @@
         name: '折跃储能矩阵',
         icon: '⚡',
         rarity: 'rare',
-        desc: '冲刺充能次数上限 +1（最大可扩充至 6 次连续折跃！），并提升恢复速度。',
-        maxLvl: 3,
-        statText: ['充能上限 +1 (变为4段)', '充能上限 +1 (变为5段)，恢复速度 +20%', '极限充能 +1 (变为6段)，恢复速度 +35%']
+        desc: '每级增加一段折跃储能，从初始3段成长至最多9段；合理规划恢复与连击。',
+        maxLvl: 6,
+        statText: ['4段折跃', '5段折跃，恢复速度提升', '6段折跃', '7段折跃', '8段折跃', '9段折跃：九连极限机动']
       },
       {
         id: 'dash_dmg',
@@ -1905,9 +1949,9 @@
         name: '时空撕裂折跃面',
         icon: '🔮',
         rarity: 'common',
-        desc: '大幅扩宽冲刺时的切割判定宽度与无敌时间，更易扫荡成排敌群。',
+        desc: '扩大冲刺斩击宽度，提升命中能力；防护时间受安全上限约束。',
         maxLvl: 4,
-        statText: ['折跃切割宽度 +45%, 无敌帧微幅延长', '折跃切割宽度 +90%', '折跃切割宽度 +140%, 无敌帧延长40%', '超维折跃：超宽裂缝扫荡，无敌帧翻倍！']
+        statText: ['折跃切割宽度提升', '更宽的斩击判定', '宽幅扫荡与少量防护延长', '超维折跃：最大斩击宽度，防护不超过安全上限']
       },
       {
         id: 'dash_blast',
@@ -1957,6 +2001,10 @@
         this.state = 'start'; // 'start', 'playing', 'paused', 'levelup', 'gameover', 'victory'
         this.loopRunning = false;
         this.gamepadVibrationEnabled = SafeStorage.get('neon_vibration', 'true') !== 'false';
+        this.unlockedDifficulty = Math.max(0, Math.min(6, parseInt(SafeStorage.get('neon_ascension_unlocked', '0'), 10) || 0));
+        this.selectedDifficulty = Math.max(0, Math.min(this.unlockedDifficulty, parseInt(SafeStorage.get('neon_difficulty_selected', '0'), 10) || 0));
+        this.difficulty = this.selectedDifficulty;
+        this.combatTelemetry = { invulnerableSeconds: 0, nukeDrops: 0, damageTaken: 0, preciseDashes: 0 };
         this.isHelpOpen = false;
         this.prevHelpState = 'start';
         this.lastTime = 0;
@@ -2007,6 +2055,7 @@
           hasPlasmaTrail: false,
           dashUpgrades: {},
           aegisTimer: 0,
+          aegisPulseTimer: 0,
           hasAegis: false,
           aegisDuration: 0,
           aegisDamage: 0,
@@ -2021,6 +2070,9 @@
           hasDashCryo: false,
           dashCryoDuration: 0,
           dashAlwaysCrit: false,
+          dashCombo: 0,
+          dashComboUntil: 0,
+          dashPreciseHit: false,
           limitBreaks: {},
           totalLimitBreaks: 0,
           // Equipped weapons: id -> level
@@ -2068,7 +2120,7 @@
         // Controls
         this.keys = {};
         this.mouse = { x: this.width / 2, y: this.height / 2, down: false };
-        this.touch = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0 };
+        this.touch = { active: false, identifier: null, startX: 0, startY: 0, currentX: 0, currentY: 0 };
 
         // Visual effects
         this.screenShake = 0;
@@ -2078,6 +2130,7 @@
 
         this.initDOM();
         this.setupEvents();
+        this.renderDifficultySelector();
         this.resize();
         this.renderWeaponsHUD();
 
@@ -2085,6 +2138,75 @@
         this.loopRunning = true;
         this.lastTime = performance.now();
         requestAnimationFrame((t) => this.loop(t));
+      }
+
+      showStartMenu() {
+        this.state = 'start';
+        this.releaseJoystickTouch();
+        this.hideAllModals();
+        this.modalStart.classList.add('active');
+        this.renderDifficultySelector();
+      }
+
+      getDifficultyRules() {
+        return NEON_DIFFICULTIES[this.difficulty || 0];
+      }
+
+      getPassiveSlotLimit() {
+        return this.difficulty >= 5 ? 3 : 4;
+      }
+
+      getEffectiveDashRecharge() {
+        // Even maximum haste must leave a meaningful gap between protective dashes.
+        return Math.max(0.70, this.player.dashRechargeTime * this.player.cdrMultiplier);
+      }
+
+      renderDifficultySelector() {
+        const el = document.getElementById('neon-difficulty-selector');
+        if (!el) return;
+        const accessible = Math.max(0, this.unlockedDifficulty);
+        el.innerHTML = `<div style="color:#00f3ff;font-weight:800;margin-bottom:8px">进阶难度 <small style="color:#9cb0d0">(通关逐阶解锁，规则叠加)</small></div>
+          <div id="neon-difficulty-buttons" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <div id="neon-difficulty-description" style="font-size:12px;color:#bbc9e0;margin-top:9px"></div>`;
+        const buttons = el.querySelector('#neon-difficulty-buttons');
+        NEON_DIFFICULTIES.forEach((tier, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.disabled = index > accessible;
+          button.textContent = index === 0 ? '标准' : `进阶 ${index}${index > accessible ? ' 🔒' : ''}`;
+          button.style.cssText = `border:1px solid ${index === this.selectedDifficulty ? '#00f3ff' : '#43516d'};border-radius:9px;padding:8px 9px;background:${index === this.selectedDifficulty ? '#12394e' : '#151b30'};color:${index > accessible ? '#65738c' : '#eaf7ff'};cursor:${index > accessible ? 'not-allowed' : 'pointer'};font-size:12px`;
+          button.onclick = () => this.selectDifficulty(index);
+          buttons.appendChild(button);
+        });
+        el.querySelector('#neon-difficulty-description').textContent =
+          `${NEON_DIFFICULTIES[this.selectedDifficulty].name}：${NEON_DIFFICULTIES[this.selectedDifficulty].rule}。当前解锁至进阶 ${accessible}。`;
+      }
+
+      selectDifficulty(index) {
+        if (this.state !== 'start' && this.state !== 'gameover' && this.state !== 'victory') return;
+        if (!Number.isInteger(index) || index < 0 || index > this.unlockedDifficulty || index > 6) return;
+        this.selectedDifficulty = index;
+        SafeStorage.set('neon_difficulty_selected', String(index));
+        this.renderDifficultySelector();
+      }
+
+      saveRunResults(won) {
+        const key = 'neon_ascension_records_v2';
+        let records = {};
+        try { records = JSON.parse(SafeStorage.get(key, '{}')) || {}; } catch (e) { records = {}; }
+        const index = String(this.difficulty);
+        const record = records[index] || { wins: 0, attempts: 0, bestKills: 0, bestSeconds: 0 };
+        record.attempts++;
+        if (won) record.wins++;
+        record.bestKills = Math.max(record.bestKills, this.kills);
+        record.bestSeconds = Math.max(record.bestSeconds, this.survivalTime);
+        records[index] = record;
+        SafeStorage.set(key, JSON.stringify(records));
+        if (won) {
+          this.unlockedDifficulty = Math.max(this.unlockedDifficulty, Math.min(6, this.difficulty + 1));
+          SafeStorage.set('neon_ascension_unlocked', String(this.unlockedDifficulty));
+          this.renderDifficultySelector();
+        }
       }
 
       initDOM() {
@@ -2115,6 +2237,77 @@
         this.canvas.height = this.height * this.dpr;
         this.ctx.resetTransform();
         this.ctx.scale(this.dpr, this.dpr);
+      }
+
+      releaseJoystickTouch() {
+        this.touch.active = false;
+        this.touch.identifier = null;
+        const joyBase = document.getElementById('joystickBase');
+        if (joyBase) joyBase.style.display = 'none';
+      }
+
+      setupTouchControls() {
+        const touchArea = document.getElementById('touch-controls');
+        const joyBase = document.getElementById('joystickBase');
+        const joyThumb = document.getElementById('joystickThumb');
+        const dashBtn = document.getElementById('touch-dash-btn');
+        if (!touchArea || !joyBase || !joyThumb || !dashBtn) return;
+
+        if ('ontouchstart' in window) touchArea.style.display = 'block';
+
+        // Only one specific finger owns the joystick. Dash touches are independent.
+        window.addEventListener('touchstart', (e) => {
+          if (this.state !== 'playing' || this.touch.active) return;
+          if (e.target && typeof e.target.closest === 'function' &&
+              e.target.closest('#hud, .modal-overlay, #touch-dash-btn')) return;
+          const rect = dashBtn.getBoundingClientRect();
+          for (const t of e.changedTouches || []) {
+            if (t.clientX >= rect.left && t.clientX <= rect.right &&
+                t.clientY >= rect.top && t.clientY <= rect.bottom) continue;
+            this.touch.identifier = t.identifier;
+            this.touch.active = true;
+            this.touch.startX = t.clientX;
+            this.touch.startY = t.clientY;
+            this.touch.currentX = t.clientX;
+            this.touch.currentY = t.clientY;
+            joyBase.style.display = 'block';
+            joyBase.style.left = `${t.clientX}px`;
+            joyBase.style.top = `${t.clientY}px`;
+            joyThumb.style.left = '50%';
+            joyThumb.style.top = '50%';
+            break;
+          }
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+          if (!this.touch.active) return;
+          const t = Array.from(e.changedTouches || []).find(t => t.identifier === this.touch.identifier);
+          if (!t) return; // The dash finger must not steer the ship.
+          if (e.cancelable) e.preventDefault();
+          this.touch.currentX = t.clientX;
+          this.touch.currentY = t.clientY;
+          const dx = t.clientX - this.touch.startX;
+          const dy = t.clientY - this.touch.startY;
+          const dist = Math.min(50, Math.hypot(dx, dy));
+          const angle = Math.atan2(dy, dx);
+          joyThumb.style.left = `calc(50% + ${Math.cos(angle) * dist}px)`;
+          joyThumb.style.top = `calc(50% + ${Math.sin(angle) * dist}px)`;
+        }, { passive: false });
+
+        const onTouchFinish = (e) => {
+          if (!this.touch.active) return;
+          const ownerReleased = Array.from(e.changedTouches || [])
+            .some(t => t.identifier === this.touch.identifier);
+          if (ownerReleased) this.releaseJoystickTouch();
+        };
+        window.addEventListener('touchend', onTouchFinish);
+        window.addEventListener('touchcancel', onTouchFinish);
+
+        dashBtn.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.triggerDash();
+        }, { passive: false });
       }
 
       setupEvents() {
@@ -2166,64 +2359,7 @@
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        // Touch Joystick
-        const touchArea = document.getElementById('touch-controls');
-        const joyBase = document.getElementById('joystickBase');
-        const joyThumb = document.getElementById('joystickThumb');
-        const dashBtn = document.getElementById('touch-dash-btn');
-
-        if ('ontouchstart' in window) {
-          touchArea.style.display = 'block';
-        }
-
-        window.addEventListener('touchstart', (e) => {
-          if (this.state !== 'playing') return;
-          const t = e.touches[0];
-          // Check if touch is on dash button
-          const rect = dashBtn.getBoundingClientRect();
-          if (t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom) {
-            return;
-          }
-          this.touch.active = true;
-          this.touch.startX = t.clientX;
-          this.touch.startY = t.clientY;
-          this.touch.currentX = t.clientX;
-          this.touch.currentY = t.clientY;
-
-          joyBase.style.display = 'block';
-          joyBase.style.left = `${this.touch.startX}px`;
-          joyBase.style.top = `${this.touch.startY}px`;
-          joyThumb.style.left = '50%';
-          joyThumb.style.top = '50%';
-        }, { passive: false });
-
-        window.addEventListener('touchmove', (e) => {
-          if (!this.touch.active) return;
-          const t = e.touches[0];
-          this.touch.currentX = t.clientX;
-          this.touch.currentY = t.clientY;
-
-          const dx = this.touch.currentX - this.touch.startX;
-          const dy = this.touch.currentY - this.touch.startY;
-          const dist = Math.min(50, Math.hypot(dx, dy));
-          const angle = Math.atan2(dy, dx);
-
-          joyThumb.style.left = `calc(50% + ${Math.cos(angle) * dist}px)`;
-          joyThumb.style.top = `calc(50% + ${Math.sin(angle) * dist}px)`;
-        }, { passive: false });
-
-        const endTouch = () => {
-          this.touch.active = false;
-          joyBase.style.display = 'none';
-        };
-        window.addEventListener('touchend', endTouch);
-        window.addEventListener('touchcancel', endTouch);
-
-        dashBtn.addEventListener('touchstart', (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          this.triggerDash();
-        });
+        this.setupTouchControls();
 
         // UI Buttons
         const btnAim = document.getElementById('btn-aim');
@@ -2300,8 +2436,8 @@
 
         document.getElementById('btn-resume').onclick = () => this.resumeGame();
         document.getElementById('btn-restart-pause').onclick = () => this.startNewGame();
-        document.getElementById('btn-restart-over').onclick = () => this.startNewGame();
-        document.getElementById('btn-restart-vic').onclick = () => this.startNewGame();
+        document.getElementById('btn-restart-over').onclick = () => this.showStartMenu();
+        document.getElementById('btn-restart-vic').onclick = () => this.showStartMenu();
         document.getElementById('btn-endless').onclick = () => {
           this.modalVictory.classList.remove('active');
           this.endlessMode = true;
@@ -2633,6 +2769,8 @@
         // Start screen confirmation
         const modalStart = document.getElementById('modal-start');
         if (modalStart && modalStart.classList.contains('active')) {
+          if (justPressed(14)) this.selectDifficulty(Math.max(0, this.selectedDifficulty - 1));
+          if (justPressed(15)) this.selectDifficulty(Math.min(this.unlockedDifficulty, this.selectedDifficulty + 1));
           if (justPressed(0) || justPressed(9)) {
             const btnStart = document.getElementById('btn-start-game');
             if (btnStart) btnStart.click();
@@ -2744,6 +2882,9 @@
 
       startNewGame() {
         this.state = 'playing';
+        this.releaseJoystickTouch();
+        this.difficulty = this.selectedDifficulty;
+        this.combatTelemetry = { invulnerableSeconds: 0, nukeDrops: 0, damageTaken: 0, preciseDashes: 0 };
         this.survivalTime = 0;
         this.kills = 0;
         this.totalDamageDealt = 0;
@@ -2790,6 +2931,7 @@
         this.player.hasPlasmaTrail = false;
         this.player.dashUpgrades = {};
         this.player.aegisTimer = 0;
+        this.player.aegisPulseTimer = 0;
         this.player.hasAegis = false;
         this.player.aegisDuration = 0;
         this.player.aegisDamage = 0;
@@ -2804,6 +2946,9 @@
         this.player.hasDashCryo = false;
         this.player.dashCryoDuration = 0;
         this.player.dashAlwaysCrit = false;
+        this.player.dashCombo = 0;
+        this.player.dashComboUntil = 0;
+        this.player.dashPreciseHit = false;
         this.player.limitBreaks = {};
         this.player.totalLimitBreaks = 0;
         this.recalculateDashStats();
@@ -2856,6 +3001,7 @@
       pauseGame() {
         if (this.state !== 'playing') return;
         this.state = 'paused';
+        this.releaseJoystickTouch();
         try { this.renderStatsTable('pause-stats'); } catch (e) { console.error(e); }
         if (this.modalPause) this.modalPause.classList.add('active');
       }
@@ -2869,13 +3015,18 @@
 
       gameOver() {
         this.state = 'gameover';
+        this.releaseJoystickTouch();
+        this.saveRunResults(false);
         try { this.sound.playExplosion('large'); } catch (e) {}
         try { this.renderStatsTable('gameover-stats'); } catch (e) { console.error(e); }
         if (this.modalGameover) this.modalGameover.classList.add('active');
       }
 
       victory() {
+        if (this.state !== 'playing') return;
         this.state = 'victory';
+        this.releaseJoystickTouch();
+        this.saveRunResults(true);
         try { this.sound.playLevelUp(); } catch (e) {}
         try { this.renderStatsTable('victory-stats'); } catch (e) { console.error(e); }
         if (this.modalVictory) this.modalVictory.classList.add('active');
@@ -2907,6 +3058,11 @@
 
         el.innerHTML = `
           <div class="stat-row"><span class="lbl">生存时间</span><span class="val">${timeStr}</span></div>
+          <div class="stat-row"><span class="lbl">进阶难度</span><span class="val">${this.getDifficultyRules().name}</span></div>
+          <div class="stat-row"><span class="lbl">无敌覆盖率</span><span class="val">${(100 * this.combatTelemetry.invulnerableSeconds / Math.max(1, this.survivalTime)).toFixed(1)}%</span></div>
+          <div class="stat-row"><span class="lbl">精准折跃 / 毁灭掉落</span><span class="val">${this.combatTelemetry.preciseDashes} / ${this.combatTelemetry.nukeDrops}</span></div>
+          <div class="stat-row"><span class="lbl">每秒平均输出</span><span class="val">${Math.round(this.totalDamageDealt / Math.max(1, this.survivalTime)).toLocaleString()}</span></div>
+          <div class="stat-row"><span class="lbl">本局累计承伤</span><span class="val">${Math.round(this.combatTelemetry.damageTaken)}</span></div>
           <div class="stat-row"><span class="lbl">历史最长生存</span><span class="val" style="color:#ffaa00">🏆 ${bestTimeStr}</span></div>
           <div class="stat-row"><span class="lbl">本局击杀</span><span class="val">${this.kills}</span></div>
           <div class="stat-row"><span class="lbl">最高击杀纪录</span><span class="val" style="color:#ffaa00">👑 ${bestKillsNum}</span></div>
@@ -2919,12 +3075,18 @@
 
       triggerDash() {
         if (this.player.dashCharges <= 0 || this.player.isDashing || this.state !== 'playing') return;
+        if (this.survivalTime > (this.player.dashComboUntil || 0)) this.player.dashCombo = 0;
+        this.player.dashPreciseHit = false;
         this.player.dashCharges--;
         this.player.isDashing = true;
         this.player.dashTimeLeft = this.player.dashDuration;
-        this.player.invulnTimer = this.player.dashDuration + 0.12 + (this.player.dashInvulnBonus || 0) + (this.player.hasAegis ? this.player.aegisDuration : 0);
+        // Movement and aura protection overlap rather than summing into a long immunity window.
+        const dashProtection = this.player.dashDuration + 0.08 + (this.player.dashInvulnBonus || 0);
+        this.player.invulnTimer = Math.max(this.player.invulnTimer,
+          Math.min(0.40, Math.max(dashProtection, this.player.hasAegis ? this.player.aegisDuration : 0)));
         if (this.player.hasAegis) {
           this.player.aegisTimer = this.player.aegisDuration;
+          this.player.aegisPulseTimer = 0;
         }
         this.player.dashStartX = this.player.x;
         this.player.dashStartY = this.player.y;
@@ -2944,7 +3106,7 @@
         }
 
         // Support Gamepad Left-Stick Dash Direction
-        if (typeof navigator !== 'undefined' && navigator.getGamepads) {
+        if (!this.touch.active && typeof navigator !== 'undefined' && navigator.getGamepads) {
           const gamepads = navigator.getGamepads();
           const gp = gamepads && gamepads[this.gamepadIndex];
           if (gp) {
@@ -3017,7 +3179,7 @@
         const weaponCount = Object.keys(this.player.weapons).length;
         const passiveCount = Object.keys(this.player.passives).length;
 
-        // Filter eligible upgrades: Weapons (max 4 slots), Passives (max 4 slots), Dash (independent!)
+        // Difficulty V+ restricts only passive modules. Dash is always independent.
         const eligible = UPGRADES_DB.filter(u => {
           if (u.type === 'weapon') {
             const curLvl = this.player.weapons[u.id] || 0;
@@ -3026,7 +3188,7 @@
           } else if (u.type === 'passive') {
             const curLvl = this.player.passives[u.id] || 0;
             if (curLvl >= u.maxLvl) return false;
-            return curLvl > 0 ? true : (passiveCount < 4);
+            return curLvl > 0 ? true : (passiveCount < this.getPassiveSlotLimit());
           } else if (u.type === 'dash') {
             // Dedicated Dash Upgrade: Independent, always available until max level!
             const curLvl = (this.player.dashUpgrades && this.player.dashUpgrades[u.id]) || 0;
@@ -3107,7 +3269,7 @@
             }
           } else if (item.type === 'dash') {
             if (item.id === 'dash_aegis') {
-              statDesc = `时空光环无敌时间 +0.10秒，光环脉冲粉碎伤害与半径全面提升！`;
+              statDesc = `时空光环伤害 +25%、范围 +10%，防护时间不超过0.40秒！`;
             } else if (item.id === 'dash_dmg') {
               statDesc = `折跃斩切割伤害 +25%（可无限叠加），暴击伤害 +20%！`;
             } else if (item.id === 'dash_blast') {
@@ -3178,7 +3340,7 @@
             badgeText = `⚡ 破限 +${upg.lbCount}`;
             badgeColor = '#ffea00';
           } else if (isNew) {
-            badgeText = isWeapon ? `✨ 新武器 (已用 ${weaponCount}/4)` : `🔷 新模组 (已用 ${passiveCount}/4)`;
+            badgeText = isWeapon ? `✨ 新武器 (已用 ${weaponCount}/4)` : `🔷 新模组 (已用 ${passiveCount}/${this.getPassiveSlotLimit()})`;
             badgeColor = '#00ffaa';
           } else {
             badgeText = `强化 ➔ Lv.${nextLvl}`;
@@ -3248,9 +3410,7 @@
           }
         } else {
           if (upg.id === 'dash_aegis') {
-            this.player.aegisDuration += 0.10;
-            this.player.aegisDamage = Math.round((this.player.aegisDamage || 100) * 1.25);
-            this.player.aegisRadius = Math.round((this.player.aegisRadius || 50) * 1.15);
+            // Applied centrally by recalculateDashStats; duration is intentionally capped.
           } else if (upg.id === 'dash_dmg') {
             this.player.dashSlashDmg = Math.round((this.player.dashSlashDmg || 95) * 1.25);
             this.player.dashSlashDmgMult = (this.player.dashSlashDmgMult || 1.0) + 0.25;
@@ -3341,11 +3501,11 @@
         const du = this.player.dashUpgrades || {};
 
         // 1. Max charges: 3 base + dash_charge
-        this.player.maxDashCharges = 3 + (du.dash_charge || 0);
+        this.player.maxDashCharges = Math.min(9, 3 + (du.dash_charge || 0));
         this.player.dashCharges = Math.min(this.player.maxDashCharges, this.player.dashCharges);
 
         // 2. Recharge cooldown: reduced by haste and dash_charge
-        const chargeHaste = (du.dash_charge || 0) * 0.15;
+        const chargeHaste = (du.dash_charge || 0) * 0.12;
         this.player.dashRechargeTime = Math.max(0.9, 2.2 / (1 + chargeHaste));
 
         // 3. Slash Damage
@@ -3353,42 +3513,44 @@
         const dmgBoost = 1.0 + dmgLvl * 0.6 + (dmgLvl >= 5 ? 0.6 : 0);
         // 冲刺斩等级项与全局等级乘区取max，避免 dealDamage 再乘一次造成 double dip
         const dashLevelMult = Math.max(1 + this.player.level * 0.08, this.getLevelDmgMult());
-        this.player.dashSlashDmg = Math.round(95 * this.player.dmgMultiplier * dmgBoost * dashLevelMult);
+        const dashBreaks = (this.player.limitBreaks || {}).dash_dmg || 0;
+        this.player.dashSlashDmg = Math.round(95 * this.player.dmgMultiplier * dmgBoost * dashLevelMult * Math.pow(1.25, dashBreaks));
         this.player.dashAlwaysCrit = dmgLvl >= 5;
 
         // 4. Slash Width & Invulnerability
         const areaLvl = du.dash_area || 0;
         this.player.dashSlashWidth = (18 + areaLvl * 10) * this.player.areaMultiplier;
-        this.player.dashInvulnBonus = areaLvl * 0.06;
+        this.player.dashInvulnBonus = Math.min(0.08, areaLvl * 0.02);
 
         // 5. Blast Nova
         const blastLvl = du.dash_blast || 0;
         this.player.hasDashBlast = blastLvl > 0;
-        this.player.dashBlastDamage = blastLvl > 0 ? Math.round((140 + (blastLvl - 1) * 70) * this.player.dmgMultiplier) : 0;
+        this.player.dashBlastDamage = blastLvl > 0 ? Math.round((140 + (blastLvl - 1) * 70) * this.player.dmgMultiplier * Math.pow(1.3, (this.player.limitBreaks || {}).dash_blast || 0)) : 0;
         this.player.dashBlastRadius = (110 + (blastLvl - 1) * 35) * this.player.areaMultiplier;
 
         // 6. Fire Trail
         const fireLvl = du.dash_fire || 0;
         this.player.hasFireTrail = fireLvl > 0;
         this.player.fireTrailDuration = 2.2 + fireLvl * 0.4;
-        this.player.fireTrailDamage = fireLvl > 0 ? Math.round((55 + (fireLvl - 1) * 30) * this.player.dmgMultiplier) : 0;
+        this.player.fireTrailDamage = fireLvl > 0 ? Math.round((55 + (fireLvl - 1) * 30) * this.player.dmgMultiplier * Math.pow(1.25, (this.player.limitBreaks || {}).dash_fire || 0)) : 0;
 
         // 7. Cryo Freeze
         const cryoLvl = du.dash_cryo || 0;
         this.player.hasDashCryo = cryoLvl > 0;
-        this.player.dashCryoDuration = 2.0 + cryoLvl * 0.5;
+        this.player.dashCryoDuration = 2.0 + cryoLvl * 0.5 + ((this.player.limitBreaks || {}).dash_cryo || 0) * 0.5;
 
         // 8. Phase Aegis Aura (时空相位无敌光环)
         const aegisLvl = du.dash_aegis || 0;
         this.player.hasAegis = aegisLvl > 0;
         if (aegisLvl > 0) {
-          const durations = [0.15, 0.30, 0.38, 0.50, 0.75];
-          const damages = [0, 55, 95, 150, 240];
-          const radii = [45, 55, 82, 95, 130];
-          this.player.aegisDuration = durations[aegisLvl - 1] || 0.15;
-          this.player.aegisDamage = Math.round((damages[aegisLvl - 1] || 0) * this.player.dmgMultiplier);
-          this.player.aegisRadius = (radii[aegisLvl - 1] || 45) * this.player.areaMultiplier;
-          this.player.hasAegisBurst = aegisLvl >= 5;
+          const damages = [0, 55, 75, 100, 130, 165];
+          const radii = [45, 55, 65, 80, 95, 110];
+          const breaks = (this.player.limitBreaks || {}).dash_aegis || 0;
+          this.player.aegisDuration = NEON_AEGIS_DURATIONS[Math.min(aegisLvl, 6) - 1] || 0.15;
+          // Infinite limit breaks must not evolve into a full-screen passive kill aura.
+          this.player.aegisDamage = Math.round((damages[Math.min(aegisLvl, 6) - 1] || 0) * this.player.dmgMultiplier * Math.min(3, Math.pow(1.25, breaks)));
+          this.player.aegisRadius = radii[Math.min(aegisLvl, 6) - 1] * this.player.areaMultiplier * Math.min(1.7, Math.pow(1.1, breaks));
+          this.player.hasAegisBurst = aegisLvl >= 6;
         } else {
           this.player.aegisDuration = 0;
           this.player.aegisDamage = 0;
@@ -3455,7 +3617,7 @@
         }
         this.weaponsBar.appendChild(rowWeapons);
 
-        // Passive modules row (max 4)
+        // Passive modules; the last slot is locked at ascension V+.
         const rowPassives = document.createElement('div');
         rowPassives.className = 'equip-group';
         const passiveEntries = Object.entries(this.player.passives);
@@ -3470,9 +3632,10 @@
             slot.title = `${def ? def.name : id} 等级 ${lvl} ${lb > 0 ? `(超频破限 +${lb})` : ''}`;
             slot.innerHTML = `<span>${def ? def.icon : '🔮'}</span><span class="lvl-text" style="color:${lb > 0 ? '#ffea00' : '#d37aff'}">${lvlText}</span>`;
           } else {
+            const locked = i >= this.getPassiveSlotLimit();
             slot.className = 'weapon-slot empty';
-            slot.title = '模组空槽位 (通过升级选择新模组)';
-            slot.innerHTML = `<span style="font-size:11px;opacity:0.3">🔷</span>`;
+            slot.title = locked ? '进阶 V：该模组槽已锁定' : '模组空槽位 (通过升级选择新模组)';
+            slot.innerHTML = locked ? '<span style="font-size:11px;opacity:0.55">🔒</span>' : '<span style="font-size:11px;opacity:0.3">🔷</span>';
           }
           rowPassives.appendChild(slot);
         }
@@ -3487,12 +3650,12 @@
           this.hudHp.parentElement.title = `生命值: ${Math.round(this.player.hp)}/${this.player.maxHp} (自愈: +${this.player.regen.toFixed(1)}/s)`;
         }
 
-        // Dynamic Dash Segments HUD (supports 3 up to 6 charges with dash_blade upgrade)
+        // Dynamic Dash Segments HUD (3–9 charges)
         const dashContainer = document.getElementById('dash-segments');
         const maxCharges = this.player.maxDashCharges || 3;
         const charges = this.player.dashCharges;
         const rechargeProgress = charges < maxCharges
-          ? (this.player.dashRechargeTimer / (this.player.dashRechargeTime * this.player.cdrMultiplier)) * 100
+          ? (this.player.dashRechargeTimer / this.getEffectiveDashRecharge()) * 100
           : 0;
 
         if (dashContainer) {
@@ -3531,7 +3694,7 @@
         const statTextEl = document.getElementById('dash-stat-text');
         if (statTextEl) {
           const slashD = this.player.dashSlashDmg || 95;
-          const cd = (this.player.dashRechargeTime * this.player.cdrMultiplier).toFixed(1);
+          const cd = this.getEffectiveDashRecharge().toFixed(1);
           let extraBadges = [];
           if (this.player.hasAegis) extraBadges.push(`🛡️光环${this.player.aegisDuration.toFixed(2)}s`);
           if (this.player.hasDashBlast) extraBadges.push('💥爆轰');
@@ -3543,7 +3706,7 @@
                             + ((this.player.limitBreaks && this.player.limitBreaks['dash_blast']) || 0);
           const lbStr = totalDashLb > 0 ? ` <span style="color:#ffea00;font-weight:900;">(+${totalDashLb}破限)</span>` : '';
           const extraStr = extraBadges.length > 0 ? ` | ${extraBadges.join(' ')}` : '';
-          statTextEl.innerHTML = `⚡ ${maxCharges}段 | ⚔️ ${slashD}${lbStr} | ⏱️ ${cd}s${extraStr}`;
+          statTextEl.innerHTML = `⚡ ${maxCharges}段 | ⚔️ ${slashD}${lbStr} | ⏱️ ${cd}s | 精准连击×${this.player.dashCombo || 0}${extraStr}`;
         }
 
         const xpPct = (this.player.xp / this.player.xpNeeded) * 100;
@@ -3870,7 +4033,7 @@
         }
       }
 
-      dealDamage(target, rawDamage) {
+      dealDamage(target, rawDamage, source = 'combat') {
         let isCrit = Math.random() < this.player.critRate;
         // 等级基础攻击乘区（每级+3%）：放在护盾减免之前，全武器统一生效
         let finalDamage = (isCrit ? rawDamage * this.player.critDmg : rawDamage) * this.getLevelDmgMult();
@@ -3933,11 +4096,22 @@
 
         if (target.hp <= 0 && !target.dead) {
           target.dead = true;
-          this.onEnemyKilled(target);
+          this.onEnemyKilled(target, source);
         }
       }
 
-      onEnemyKilled(enemy) {
+      rollNormalDrop(roll, source = 'combat') {
+        const rules = this.getDifficultyRules();
+        const heal = 0.015 * rules.normalDrops;
+        const magnet = 0.011 * rules.normalDrops;
+        const nuke = source === 'nuke' ? 0 : 0.009 * rules.nukeDrops;
+        if (roll < heal) return 'heal';
+        if (roll < heal + magnet) return 'magnet';
+        if (roll < heal + magnet + nuke) return 'nuke';
+        return 'gem';
+      }
+
+      onEnemyKilled(enemy, source = 'combat') {
         this.kills++;
         this.sound.playExplosion(enemy.isBoss ? 'large' : 'small');
         this.screenShake = Math.max(this.screenShake, enemy.isBoss ? 15 : 2.5);
@@ -4032,10 +4206,14 @@
               radius: 7.0
             });
           }
-          this.gems.push({ type: 'heal', x: enemy.x - 35, y: enemy.y, radius: 11 });
-          this.gems.push({ type: 'magnet', x: enemy.x + 35, y: enemy.y, radius: 11 });
+          if (Math.random() < this.getDifficultyRules().normalDrops) {
+            this.gems.push({ type: 'heal', x: enemy.x - 35, y: enemy.y, radius: 11 });
+          }
+          if (Math.random() < this.getDifficultyRules().normalDrops) {
+            this.gems.push({ type: 'magnet', x: enemy.x + 35, y: enemy.y, radius: 11 });
+          }
           if (!this.endlessMode) {
-            setTimeout(() => this.victory(), 1400);
+            setTimeout(() => { if (this.currentBoss === null && this.state === 'playing') this.victory(); }, 1400);
           } else {
             this.texts.push({
               x: this.player.x,
@@ -4077,16 +4255,14 @@
               radius: 6.5
             });
           }
-          if (Math.random() < 0.3) {
+          if (Math.random() < 0.3 * this.getDifficultyRules().normalDrops) {
             this.gems.push({ type: 'heal', x: enemy.x, y: enemy.y, radius: 10 });
           }
         } else {
-          if (dropRoll < 0.015) {
-            this.gems.push({ type: 'heal', x: enemy.x, y: enemy.y, radius: 10 });
-          } else if (dropRoll < 0.026) {
-            this.gems.push({ type: 'magnet', x: enemy.x, y: enemy.y, radius: 10 });
-          } else if (dropRoll < 0.035) {
-            this.gems.push({ type: 'nuke', x: enemy.x, y: enemy.y, radius: 10 });
+          const drop = this.rollNormalDrop(dropRoll, source);
+          if (drop !== 'gem') {
+            this.gems.push({ type: drop, x: enemy.x, y: enemy.y, radius: 10 });
+            if (drop === 'nuke') this.combatTelemetry.nukeDrops++;
           } else {
             let gemColor = enemy.xpColor || '#00f3ff';
             let gemRadius = 4.5;
@@ -4165,7 +4341,7 @@
 
         const timeMin = this.survivalTime / 60;
         // As time advances, spawn interval accelerates from 1.25s down to 0.12s
-        const spawnInterval = Math.max(0.12, 1.25 - timeMin * 0.12);
+        const spawnInterval = Math.max(0.12, (1.25 - timeMin * 0.12) / this.getDifficultyRules().enemyCount);
 
         // Boss spawn at 3 minutes (180s), and periodically in endless mode
         if (this.survivalTime >= 180 && !this.bossSpawned) {
@@ -4186,7 +4362,7 @@
         }
 
         // Elite Incursion every 85s after 75s
-        if (this.survivalTime > 75 && this.survivalTime - (this.lastEliteWave || 0) >= 85) {
+        if (this.survivalTime > 75 && this.survivalTime - (this.lastEliteWave || 0) >= 85 / this.getDifficultyRules().eliteRate) {
           this.lastEliteWave = this.survivalTime;
           this.spawnEliteIncursion();
         }
@@ -4218,9 +4394,10 @@
           life: 2.2,
           maxLife: 2.2
         });
-        const hpMult = this.getAdaptiveScaling();
-        for (let i = 0; i < 20; i++) {
-          const a = (i / 20) * Math.PI * 2;
+        const hpMult = this.getAdaptiveScaling() * (this.difficulty >= 3 ? 1.20 : 1);
+        const swarmCount = Math.round(20 * this.getDifficultyRules().enemyCount);
+        for (let i = 0; i < swarmCount; i++) {
+          const a = (i / swarmCount) * Math.PI * 2;
           const spawnDist = Math.hypot(this.width, this.height) / 2 + 70;
           this.enemies.push({
             type: 'swarmer',
@@ -4242,6 +4419,7 @@
       spawnEliteIncursion() {
         // 精英怪与Boss不受100只普通怪上限限制！仅防范同屏精英过多
         const livingElites = this.enemies.filter(e => e.isElite).length;
+        const eliteHpScale = this.difficulty >= 3 ? 1.20 : 1;
         if (livingElites >= 10) return;
 
         this.sound.playBossAlert();
@@ -4341,7 +4519,7 @@
         const t = this.survivalTime;
         const livingElites = this.enemies.filter(e => e.isElite).length;
         // 随时间推移，有独立概率刷新游荡精英怪（不受100只普通怪限制）
-        const shouldSpawnElite = (t > 90 && Math.random() < 0.07 && livingElites < 6);
+        const shouldSpawnElite = (t > 90 && Math.random() < 0.07 * this.getDifficultyRules().eliteRate && livingElites < 6);
 
         // 100只怪的数量限制仅限制普通杂兵，精英和BOSS绝对不被限制！
         if (!shouldSpawnElite && this.getNormalEnemyCount() >= MAX_NORMAL_ENEMIES) return;
@@ -4373,8 +4551,8 @@
               y: sy,
               vx: 0,
               vy: 0,
-              hp: Math.round(220 * hpMult),
-              maxHp: Math.round(220 * hpMult),
+              hp: Math.round(220 * hpMult * eliteHpScale),
+              maxHp: Math.round(220 * hpMult * eliteHpScale),
               radius: 22,
               speed: 200 * spdMult,
               chargeTimer: 1.8,
@@ -4392,8 +4570,8 @@
               y: sy,
               vx: 0,
               vy: 0,
-              hp: Math.round(180 * hpMult),
-              maxHp: Math.round(180 * hpMult),
+              hp: Math.round(180 * hpMult * eliteHpScale),
+              maxHp: Math.round(180 * hpMult * eliteHpScale),
               radius: 20,
               speed: 100 * spdMult,
               aimTimer: 1.3,
@@ -4554,7 +4732,7 @@
         const bx = this.player.x + Math.cos(spawnAngle) * spawnDist;
         const by = this.player.y + Math.sin(spawnAngle) * spawnDist;
         const cycle = Math.floor((this.bossCycle - 1) / 3);
-        const hpScale = this.getAdaptiveScaling() * (1.0 + cycle * 0.45);
+        const hpScale = this.getAdaptiveScaling() * (1.0 + cycle * 0.45) * (this.difficulty >= 6 ? 1.12 : 1);
         const timeMin = this.survivalTime / 60;
         const dmgScale = 1.0 + Math.min(2.0, timeMin * 0.08) + cycle * 0.15;
 
@@ -4699,13 +4877,14 @@
 
         // Invulnerability
         if (this.player.invulnTimer > 0) {
+          this.combatTelemetry.invulnerableSeconds += Math.min(dt, this.player.invulnTimer);
           this.player.invulnTimer -= dt;
         }
 
         // Dash 3-Charge Recharge System
         if (this.player.dashCharges < this.player.maxDashCharges) {
           this.player.dashRechargeTimer += dt;
-          const targetRecharge = this.player.dashRechargeTime * this.player.cdrMultiplier;
+          const targetRecharge = this.getEffectiveDashRecharge();
           if (this.player.dashRechargeTimer >= targetRecharge) {
             this.player.dashRechargeTimer = 0;
             this.player.dashCharges++;
@@ -4717,8 +4896,13 @@
         if (this.player.isDashing) {
           this.player.dashTimeLeft -= dt;
           const dashSpeed = this.player.baseSpeed * 3.6;
+          const previousDashX = this.player.x;
+          const previousDashY = this.player.y;
           this.player.x += this.player.dashDir.x * dashSpeed * dt;
           this.player.y += this.player.dashDir.y * dashSpeed * dt;
+          const segmentX = this.player.x - previousDashX;
+          const segmentY = this.player.y - previousDashY;
+          const segmentLengthSq = segmentX * segmentX + segmentY * segmentY;
 
           // Piercing slash damage to all enemies along the dash path!
           const slashWidth = this.player.radius + (this.player.dashSlashWidth || 18);
@@ -4726,9 +4910,24 @@
 
           for (const e of this.enemies) {
             if (!this.player.dashHitEnemies.has(e)) {
-              const d = Vec.dist(this.player.x, this.player.y, e.x, e.y);
+              // Swept collision avoids skipping enemies at high dash speed / low FPS.
+              const projection = segmentLengthSq > 0
+                ? Math.max(0, Math.min(1, ((e.x - previousDashX) * segmentX + (e.y - previousDashY) * segmentY) / segmentLengthSq))
+                : 1;
+              const hitX = previousDashX + projection * segmentX;
+              const hitY = previousDashY + projection * segmentY;
+              const d = Vec.dist(hitX, hitY, e.x, e.y);
               if (d < e.radius + slashWidth) {
                 this.player.dashHitEnemies.add(e);
+                const precise = d < e.radius + Math.max(7, slashWidth * 0.40);
+                if (precise && !this.player.dashPreciseHit) {
+                  this.player.dashPreciseHit = true;
+                  this.player.dashCombo = Math.min(5, (this.player.dashCombo || 0) + 1);
+                  this.player.dashComboUntil = this.survivalTime + 1.20;
+                  this.combatTelemetry.preciseDashes++;
+                  this.texts.push({ x: e.x, y: e.y - 30, text: `精准折跃 ×${this.player.dashCombo}`, color: '#00f3ff', size: 15, life: 0.8, maxLife: 0.8 });
+                  this.vibrateGamepad(55, 0.25, 0.15);
+                }
                 
                 // If cryo dash is unlocked:
                 if (this.player.hasDashCryo) {
@@ -4737,9 +4936,9 @@
 
                 // Deal damage (respecting dashAlwaysCrit)
                 if (this.player.dashAlwaysCrit) {
-                  this.dealDamage(e, slashDmg * this.player.critDmg);
+                  this.dealDamage(e, slashDmg * this.player.critDmg * (precise ? 1 + this.player.dashCombo * 0.08 : 1));
                 } else {
-                  this.dealDamage(e, slashDmg);
+                  this.dealDamage(e, slashDmg * (precise ? 1 + this.player.dashCombo * 0.08 : 1));
                 }
 
                 this.sound.playLaser(780, 'triangle');
@@ -4771,6 +4970,10 @@
 
           if (this.player.dashTimeLeft <= 0) {
             this.player.isDashing = false;
+            if (!this.player.dashPreciseHit) {
+              this.player.dashCombo = 0;
+              this.player.dashComboUntil = 0;
+            }
 
             // Trigger Destination Nova Blast if upgraded!
             if (this.player.hasDashBlast) {
@@ -5615,6 +5818,31 @@
             }
           } else if (e.isBoss) {
             // BOSS ARCHETYPES
+            // Ascension VI: an extra, telegraphed phase below 60% HP.
+            if (this.difficulty >= 6 && e.hp < e.maxHp * 0.60) {
+              e.nightmareCharge = (e.nightmareCharge === undefined ? 2.8 : e.nightmareCharge) - dt;
+              if (e.nightmareCharge <= 0 && !e.nightmareTelegraph) {
+                e.nightmareTelegraph = 0.60;
+                e.nightmareCharge = 4.0;
+                this.shockwaves.push({ x: e.x, y: e.y, radius: 12, maxRadius: 190, alpha: 1, color: '#ff3366' });
+                this.texts.push({ x: e.x, y: e.y - 75, text: '⚠ 噩梦连射 · 准备闪避', color: '#ff6688', size: 18, life: 0.85, maxLife: 0.85 });
+              }
+              if (e.nightmareTelegraph > 0) {
+                e.nightmareTelegraph -= dt;
+                if (e.nightmareTelegraph <= 0) {
+                  e.nightmareTelegraph = 0;
+                  const baseAngle = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+                  for (let i = -3; i <= 3; i++) {
+                    const angle = baseAngle + i * 0.17;
+                    this.enemyBullets.push({
+                      x: e.x, y: e.y,
+                      vx: Math.cos(angle) * 280, vy: Math.sin(angle) * 280,
+                      radius: 5, color: '#ff3366', damage: 23, life: 3.0
+                    });
+                  }
+                }
+              }
+            }
             if (e.type === 'boss_nexus') {
               e.attackTimer += dt;
               e.vx = Math.cos(angleToPlayer) * e.speed;
@@ -5854,9 +6082,9 @@
                 for (let k = this.enemies.length - 1; k >= 0; k--) {
                   const en = this.enemies[k];
                   if (en.isBoss) {
-                    this.dealDamage(en, 650);
+                    this.dealDamage(en, 650, 'nuke');
                   } else {
-                    this.dealDamage(en, 9999);
+                    this.dealDamage(en, 9999, 'nuke');
                   }
                 }
               } else {
@@ -5912,6 +6140,8 @@
 
       hitPlayer(dmg) {
         if (this.player.invulnTimer > 0) return;
+        dmg *= this.getDifficultyRules().enemyDamage;
+        this.combatTelemetry.damageTaken += dmg;
         this.player.hp -= dmg;
         this.player.invulnTimer = 0.35; // Invulnerable frame
         this.screenShake = 12;
