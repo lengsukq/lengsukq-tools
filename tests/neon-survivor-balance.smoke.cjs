@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const html = fs.readFileSync('public/Game/neon_survivor.html', 'utf8');
+const html = fs.readFileSync('public/Game/neon-survivor/index.html', 'utf8');
+const source = fs.readFileSync('public/Game/neon-survivor/js/core.js', 'utf8');
 const storage = new Map();
 const sandbox = {
   window: { addEventListener() {} },
@@ -17,9 +18,7 @@ const sandbox = {
   setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
-  if (match[1].trim()) vm.runInContext(match[1], sandbox);
-}
+vm.runInContext(source, sandbox);
 
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const tiers = vm.runInContext('NEON_DIFFICULTIES', sandbox);
@@ -122,5 +121,5 @@ assert.equal(recorder.getDifficultyRules().name, '标准');
 
 assert.match(html, /id="help-ascension"/);
 assert.match(html, /id="neon-difficulty-selector"/);
-assert.match(html, /this\.dealDamage\(en, 9999, 'nuke'\)/);
+assert.match(source, /this\.dealDamage\(en, 9999, 'nuke'\)/);
 console.log('Neon Survivor balance smoke test passed: six tiers, drops, 9 dashes, aegis protection, records and manual.');

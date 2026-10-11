@@ -1,6 +1,6 @@
-# 霓虹幸存者：深空裂变 — V2 玩家说明与维护手册
+# 霓虹幸存者：深空裂变 — V3 玩家说明与维护手册
 
-本说明与游戏内「📖 深空战术指挥手册」保持一致。游戏入口：`/Game/neon_survivor.html`，无需后端服务。
+本说明与游戏内「📖 深空战术指挥手册」保持一致。原入口 `/Game/neon_survivor.html` 会跳转至 `/Game/neon-survivor/index.html`，不依赖专用后端。
 
 ## 开始与进阶
 
@@ -45,6 +45,21 @@
 
 手柄震动受浏览器、操作系统、连接方式和硬件支持影响。升级卡片确认后需要松开操作键才会恢复战斗折跃，防止确认键穿透。
 
+## V3 无尽模式（肉鸽系统）
+
+普通模式首次击败Boss后点击「进入无尽炼狱」。此时不重置武器、经验和六阶难度，立刻开启三选一遗物奖励，然后选择下一战区。
+
+- **Boss 循环与奖励**：每三分钟一轮 Boss；每轮击破后再选择随机遗物或满足前置条件的武器融合，之后重新选路线。
+- **战术遗物**：16件，去重抽取（普通/稀有/传说按权重），包括精准折跃、低血量爆发、对Boss增伤、冰冻构筑、精英回血、击杀连击等。遗物随本局保存，不能突破九段/0.40秒上限。
+- **武器融合**：五组，满足对应武器/折跃升级条件（普通武器至少Lv.3，折跃相关至少Lv.2）后才可能进入Boss奖励池。不占武器或模组槽位；每组只获得一次。
+- **战区路线**：猎杀（精英更密集、敌方血量提高）、补给（治疗/磁铁掉率×1.5）、裂隙（敌方血量提高，击杀Boss奖励晶体）。
+- **战术事件**：无尽期间有8种任务，包括击杀挑战、精英猎首、精准折跃、无伤生存、禁用折跃等。成功获得25晶体及12点治疗；失败不提供奖励。HUD显示进度与剩余时间。
+- **Boss随机词缀**：量子装甲、再生核心、散射轰炸、狂热推进、召唤大师，前期一条、后续轮次最多两条，受到同屏弹幕与召唤数量预算约束。
+- **无尽升级卡**：普通/稀有/传说的基础抽取权重60/28/12（归一化且不放回）；初始拥有2次重随、2次永久禁用；允许跳过当前升级获得12晶体。手柄Y重随、X禁用选中的卡；鼠标和触屏可直接点击按钮。
+- **暂停战斗**：在三选一遗物/融合和路线选择时，游戏时钟停止；选完继续。不自动为玩家决策。
+
+特殊事件在下一Boss到来之前触发，且不会覆盖六阶进阶难度。遗物和融合都是本局增益，下一次重新部署会重置。
+
 ## 存档与统计
 
 仅使用本地存储，不依赖联网。旧记录 `neon_best_time` / `neon_best_kills`、震动设置 `neon_vibration` 不会被删除。新增：
@@ -52,12 +67,14 @@
 - `neon_ascension_unlocked`：最高已解锁阶级（0–6）
 - `neon_difficulty_selected`：开始界面已选择阶级
 - `neon_ascension_records_v2`：每档尝试次数、获胜次数、最高击杀和最高生存秒数
+- `neon_endless_records_v3`：每个进阶难度下的无尽尝试次数、最佳阶段、最长生存秒数和单局最多遗物数
 
 暂停 / 结束成绩中附有难度、当前无敌覆盖率、精准折跃和全局毁灭掉落次数，便于平衡观察。
 
 ## 开发维护与验证
 
-- 核心游戏仍为 `neon_survivor.html` 中的 `NeonSurvivorGame`；六阶规则集中于 `NEON_DIFFICULTIES`，光环时长集中于 `NEON_AEGIS_DURATIONS`。
+- 游戏主入口为 `index.html`，核心代码位于 `js/core.js` 中的 `NeonSurvivorGame`；六阶规则集中于 `NEON_DIFFICULTIES`，光环时长集中于 `NEON_AEGIS_DURATIONS`。
+- 肉鸽扩展拆为 `js/endless.js`（阶段与路线）、`js/relics.js`（遗物）、`js/fusions.js`（武器融合）、`js/events.js`（限时事件）、`js/ui.js`（奖励菜单与HUD）；样式在 `css/game.css`。
 - `getDifficultyRules()` 提供掉落、敌人伤害、数量和精英频率系数；`getPassiveSlotLimit()` 负责进阶 V 后模组限额。
 - `rollNormalDrop(roll, source)` 集中掉率判断；`source === 'nuke'` 禁止新的核爆道具掉落。
 - `getEffectiveDashRecharge()` 统一 HUD 和主循环充能时间；`recalculateDashStats()` 负责九段储能与无敌圈重算。
@@ -70,6 +87,8 @@
 node tests/neon-survivor.smoke.cjs
 node tests/neon-survivor-balance.smoke.cjs
 node tests/neon-survivor-touch.smoke.cjs
+node tests/neon-survivor-endless.smoke.cjs
+node tests/neon-survivor-ui.smoke.cjs
 git diff --check
 ```
 

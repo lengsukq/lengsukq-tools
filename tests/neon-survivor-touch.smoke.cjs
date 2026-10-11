@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const html = fs.readFileSync('public/Game/neon_survivor.html', 'utf8');
+const html = fs.readFileSync('public/Game/neon-survivor/index.html', 'utf8');
 const listeners = {};
 const window = {
   ontouchstart: null,
@@ -35,9 +35,7 @@ const sandbox = {
   setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
-  if (match[1].trim()) vm.runInContext(match[1], sandbox);
-}
+vm.runInContext(fs.readFileSync('public/Game/neon-survivor/js/core.js', 'utf8'), sandbox);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const game = Object.create(proto);
 game.state = 'playing';

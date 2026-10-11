@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>霓虹幸存者：深空裂变 (Neon Survivor: Cyber Void)</title>
+  <link rel="stylesheet" href="/Game/neon-survivor/css/game.css">
+
+</head>
+<body>
+
+  <!-- Game Canvas -->
+  <div id="canvas-container">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <!-- CRT scanline overlay -->
+  <div class="crt-overlay" id="crtOverlay"></div>
+
+  <!-- Top XP Bar -->
+  <div id="xp-container">
+    <div id="xp-bar"></div>
+  </div>
+
+  <!-- Top In-Game HUD -->
+  <div id="hud">
+    <div class="hud-left">
+      <div id="level-badge">LV 1</div>
+      <div class="status-bars">
+        <div class="bar-wrap" title="生命值"><div id="hp-fill"></div></div>
+        <div class="dash-segments" id="dash-segments" title="折跃冲刺充能 (冲刺路径造成高额伤害)">
+          <div class="dash-segment"><div class="dash-segment-fill" id="dash-seg-0"></div></div>
+          <div class="dash-segment"><div class="dash-segment-fill" id="dash-seg-1"></div></div>
+          <div class="dash-segment"><div class="dash-segment-fill" id="dash-seg-2"></div></div>
+        </div>
+        <div class="dash-stats-bar" id="dash-stats-bar">
+          <span id="dash-stat-text">⚡ 3段 | ⚔️ 95 | ⏱️ 2.2s</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-center">
+      <div class="stat-pill timer-pill">
+        <span class="icon">⏱️</span>
+        <span class="value" id="hud-timer">00:00</span>
+      </div>
+      <div class="stat-pill">
+        <span class="icon">💀</span>
+        <span class="value" id="hud-kills">0</span>
+      </div>
+      <div class="stat-pill">
+        <span class="icon">💎</span>
+        <span class="value" id="hud-crystals">0</span>
+      </div>
+    </div>
+
+    <div class="hud-right">
+      <div id="gamepad-badge" class="stat-pill gamepad-pill" style="display:none;" title="手柄连接状态">🎮 <span id="gamepad-name">手柄已就绪</span></div>
+      <button class="hud-btn" id="btn-fullscreen" title="全屏模式 (快捷键: F)">⛶</button>
+      <button class="hud-btn" id="btn-vibrate" title="手柄震动：开/关">📳</button>
+      <button class="hud-btn" id="btn-test-vibrate" title="主动测试手柄震动（需要浏览器与手柄支持）" style="display:none;">震动测试</button>
+      <button class="hud-btn" id="btn-help" title="游戏说明 / 战术指南">📖</button>
+      <button class="hud-btn" id="btn-aim" title="瞄准模式：自动/手动">🎯</button>
+      <button class="hud-btn" id="btn-sound" title="音效开关">🔊</button>
+      <button class="hud-btn" id="btn-crt" title="扫描线效果">📺</button>
+      <button class="hud-btn" id="btn-pause" title="暂停游戏">⏸️</button>
+    </div>
+  </div>
+
+  <!-- Boss HUD -->
+  <div id="boss-hud">
+    <div class="boss-name" id="boss-name">歼灭者·欧米茄核心 (OMEGA CORE)</div>
+    <div class="boss-bar-wrap">
+      <div id="boss-hp-fill"></div>
+    </div>
+  </div>
+
+  <!-- Active Weapons Bar -->
+  <div id="weapons-bar">
+    <!-- Populated via JS -->
+  </div>
+
+  <!-- Touch Controls -->
+  <div id="touch-controls">
+    <div class="joystick-base" id="joystickBase">
+      <div class="joystick-thumb" id="joystickThumb"></div>
+    </div>
+    <div id="touch-dash-btn">DASH</div>
+  </div>
+
+  <!-- START GAME MODAL -->
+  <div class="modal-overlay active" id="modal-start">
+    <div class="modal-card">
+      <div class="modal-title">霓虹幸存者：深空裂变</div>
+      <div class="modal-sub">NEON SURVIVOR: CYBER RESISTANCE</div>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #b8c8e2; margin-bottom: 16px;">
+        在赛博虚空中迎击汹涌的异星机甲集群！<br>
+        消灭敌人收集能量核心，合成升级强力武器与模块，撑过狂暴潮水，击败终极机械领主！
+      </p>
+
+      <div class="start-features">
+        <span><span class="keyboard-hint">🎮 手柄</span> 即插即用 (双摇杆+A/RB折跃)</span>
+        <span><span class="keyboard-hint">WASD / 方向键</span> 键盘移动</span>
+        <span><span class="keyboard-hint">空格 / 右键</span> 折跃冲刺</span>
+        <span><span class="keyboard-hint">F</span> 一键全屏</span>
+      </div>
+
+      <div style="font-size: 12px; color: #7383a0; margin-bottom: 20px;">
+        全面支持 Xbox / PS / Switch / PC 手柄 + 键鼠 + 触控双摇杆；支持自动/手动瞄准！
+      </div>
+      <div id="neon-difficulty-selector" style="margin:0 auto 20px;max-width:550px;text-align:left;"></div>
+
+      <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
+        <button class="cyber-btn" id="btn-start-game">立即出击 (START MISSION)</button>
+        <button class="cyber-btn" id="btn-start-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明 (MANUAL)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEVEL UP MODAL -->
+  <div class="modal-overlay" id="modal-levelup">
+    <div class="modal-card">
+      <div class="modal-title">⚡ 战术模组升级 ⚡</div>
+      <div class="modal-sub">选择一个战斗升级以强化战机系统</div>
+
+      <div class="upgrade-grid" id="upgrade-options">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE MODAL -->
+  <div class="modal-overlay" id="modal-pause">
+    <div class="modal-card">
+      <div class="modal-title">系统暂停 (SYSTEM PAUSED)</div>
+      <div class="modal-sub">战机进入悬停巡航状态</div>
+
+      <div class="stats-table" id="pause-stats">
+        <!-- Dynamic -->
+      </div>
+
+      <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+        <button class="cyber-btn" id="btn-resume">继续战斗 (RESUME)</button>
+        <button class="cyber-btn" id="btn-pause-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明</button>
+        <button class="cyber-btn danger" id="btn-restart-pause">重新开始</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME MANUAL / HELP MODAL -->
+  <div class="modal-overlay" id="modal-help">
+    <div class="modal-card modal-help-card">
+      <div class="help-header">
+        <div class="modal-title" style="background: linear-gradient(135deg, #00f3ff, #ff00ea); -webkit-background-clip: text;">📖 深空战术指挥手册 (GAME MANUAL)</div>
+        <div class="modal-sub">霓虹幸存者：深空裂变 全平台操作指南与作战机制说明</div>
+      </div>
+
+      <div class="help-tabs">
+        <button class="help-tab-btn active" data-tab="help-controls">🕹️ 全平台操控</button>
+        <button class="help-tab-btn" data-tab="help-mechanics">🚀 核心机体机制</button>
+        <button class="help-tab-btn" data-tab="help-weapons">💥 对群爆炸与控制</button>
+        <button class="help-tab-btn" data-tab="help-bosses">👾 敌机与首领</button>
+        <button class="help-tab-btn" data-tab="help-ascension">⚔️ 六阶进阶</button>
+        <button class="help-tab-btn" data-tab="help-endless">♾️ 无尽肉鸽</button>
+      </div>
+
+      <div class="help-content-scroll">
+        <!-- TAB 1: CONTROLS -->
+        <div class="help-section active" id="help-controls">
+          <div class="help-card-grid">
+            <div class="help-box">
+              <div class="help-box-title">🎮 游戏手柄控制 (GAMEPAD)</div>
+              <p>兼容浏览器 Gamepad API 的 Xbox / PlayStation / Switch / PC 手柄；震动能力取决于浏览器、操作系统和连接方式：</p>
+              <ul>
+                <li><b>左摇杆 / 十字键</b>：360° 模拟飞行移动与八向平移</li>
+                <li><b>右摇杆</b>：360° 双摇杆独立瞄准射击</li>
+                <li><b>A 键 / B 键 / RB / RT / LB / LT</b>：消耗一段折跃充能；从3段最多成长至9段</li>
+                <li><b>开始界面</b>：十字键左右切换已解锁的进阶难度，A 确认开局</li>
+                <li><b>Start / Options 键</b>：暂停游戏 / 呼出菜单</li>
+                <li><b>Select / Y 键</b>：一键切换 🎯 自动/手动瞄准模式</li>
+                <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键确认装配</li>
+                <li><b>震动反馈与测试</b>：顶部 📳 是开关；点击已连接手柄徽章或「震动测试」按钮可主动检测</li>
+                <li><b>震动无效？</b>：先操作手柄并点击测试。若提示不支持，可换支持震动的浏览器或尝试 USB 连接。浏览器接受震动请求并不代表硬件一定执行</li>
+              </ul>
+            </div>
+
+            <div class="help-box">
+              <div class="help-box-title">⌨️ 键盘与鼠标 (KEYBOARD & MOUSE)</div>
+              <ul>
+                <li><b>W / A / S / D</b> 或 <b>方向键</b>：战机飞行移动</li>
+                <li><b>空格键</b> 或 <b>鼠标右键</b>：消耗 1 格能量折跃瞬移斩</li>
+                <li><b>鼠标移动</b>：指示武器瞄准发射方位</li>
+                <li><b>鼠标左键</b>：开火射击（自动瞄准模式下战机会智能索敌）</li>
+                <li><b>F 键</b>：一键进入 / 退出全屏模式</li>
+                <li><b>P 键 / ESC 键</b>：快速暂停游戏</li>
+              </ul>
+            </div>
+
+            <div class="help-box">
+              <div class="help-box-title">📱 触屏移动端 (TOUCH CONTROLS)</div>
+              <ul>
+                <li><b>左侧区域</b>：按住滑动呼出动态虚拟摇杆，控制机体自由飞行</li>
+                <li><b>右下角 DASH 按钮</b>：轻触释放折跃瞬移斩（实时展示可用充能）</li>
+                <li><b>双指联动</b>：左手持续按住摇杆移动，右手点击或松开 DASH 均不会打断左手方向控制；仅松开左手摇杆时停止控制</li>
+                <li><b>顶部状态栏</b>：轻触右上角对应按钮可快速切换瞄准、音效与暂停</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: MECHANICS -->
+        <div class="help-section" id="help-mechanics">
+          <div class="help-card-grid">
+            <div class="help-box">
+              <div class="help-box-title">💚 战机原生缓慢自愈 (NATIVE REGEN)</div>
+              <p>机体核心内置微型纳米自愈协议：<b>无需学习任何模组，战机出厂常驻 0.8 HP/s 恒定自愈</b>！走位拉扯 20 秒即可自然恢复 16 点生命。配合被动模组「纳米修复装甲」，自愈速度最高可飙升至 <b>9.8 HP/s</b> 并附带一次免死重启重构！</p>
+            </div>
+
+            <div class="help-box">
+              <div class="help-box-title">⚡ 独立九段折跃专精 (WARP MASTERY)</div>
+              <p>折跃冲刺<b>独立于武器与模组槽</b>，可由初始3段逐步升级至9段。精准穿越敌人可累积连击奖励，瞬移路径造成切割伤害：</p>
+              <ul>
+                <li><b>时空无敌光环</b>：六级精细成长 0.15/0.20/0.25/0.30/0.35/0.40 秒；与折跃无敌保护重叠，不累加；六级终结释放8向激光</li>
+                <li><b>精准折跃连击</b>：贴近敌人核心完成斩击，可连续积累至5层精准奖励，每层精准伤害+8%，超时或空斩中断；不会返还无敌或折跃次数</li>
+                <li><b>落点爆轰</b>：折跃目的地引发超新星核爆与引力坍缩聚怪</li>
+                <li><b>等离子火墙</b>：身后留下持续蒸发敌人的离子隔离带</li>
+                <li><b>极光冰霜</b>：闪烁穿刺附带大范围强力深度冻结</li>
+              </ul>
+            </div>
+
+            <div class="help-box">
+              <div class="help-box-title">📦 4武器 + 4模组与超频破限</div>
+              <p>标准难度最多同时装备 <b>4 款主动武器</b> 与 <b>4 款被动模组</b>；进阶V及以上只有3个模组槽位，折跃升级独立。满级后的<b>超频破限 (Limit Break)</b>继续强化伤害与范围，但无敌光环时长不再无限提升。</p>
+              <p style="margin-top:6px;">📈 <b>等级成长</b>：每升 1 级，全武器基础攻击 <b>+3%</b>（Lv10约+27%，Lv20约+57%，武器强化仍是大头）；移速 <b>+6</b>（最多+120），与推进器叠加但全局不超过 <b>385</b>。自爆蜂靠近会先亮红圈引信 0.55 秒，拉开可空爆！</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: WEAPONS & CC -->
+        <div class="help-section" id="help-weapons">
+          <div class="help-box" style="margin-bottom: 12px;">
+            <div class="help-box-title">💥 渐进式对群爆炸体系 (AOE EXPLOSIONS)</div>
+            <p>遵循“前中后期阶梯式解锁”设计，避免开局超模，中后期成倍强化对群：</p>
+            <ul>
+              <li><b>自寻迹飞弹</b>：Lv.1 紧凑对单点杀 ➔ Lv.2 破片溅射 ➔ Lv.4 集束子母弹二次空爆 ➔ <b>Lv.5 24发超新星裂变大轰炸</b>！</li>
+              <li><b>脉冲离子炮</b>：Lv.1~3 线性射击 ➔ Lv.4 贯穿穿透 ➔ <b>Lv.5 超载等离子爆轰（命中引发范围冲击波）</b></li>
+              <li><b>超新星冲击环</b>：向外扩散能量光环，<b>Lv.5 事件视界附带先聚怪后超新星暴击</b></li>
+              <li><b>时空引力黑洞</b>：持续吸扯敌群聚集，<b>终结引发宇宙奇点湮灭核爆</b></li>
+            </ul>
+          </div>
+
+          <div class="help-box">
+            <div class="help-box-title">🌀 战术控制链 (CROWD CONTROL MATRIX)</div>
+            <ul>
+              <li><b>强引力聚怪</b>：时空黑洞、飞弹 Lv.5 坍缩涡流、超新星内吸（把怪群强行压缩聚拢，创造暴击环境）</li>
+              <li><b>电磁减速与麻痹</b>：特斯拉闪电链 Lv.3 减速 50%，<b>Lv.5 附带 1.2 秒电磁麻痹瘫痪</b></li>
+              <li><b>绝对零度冻结</b>：极光冰爆地雷（3.0~4.5秒绝对零度冻结，碎冰风暴二次杀伤）</li>
+              <li><b>力场排斥击退</b>：离子炮震退、超新星击退、无敌光环脉冲震飞贴身敌人</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- TAB 4: ENEMIES & BOSSES -->
+        <div class="help-section" id="help-bosses">
+          <div class="help-card-grid">
+            <div class="help-box">
+              <div class="help-box-title">👾 100 只小怪上限与 ★ELITE 重装精英</div>
+              <p>普通小怪同屏限制在 100 只以内；<b>精英与首领独立计算</b>。精英击破掉落额外经验，修复道具的掉落机会随进阶等级下降。</p>
+            </div>
+
+            <div class="help-box">
+              <div class="help-box-title">⚡ 03:00 雷暴行者·极性核心 (STORM NEXUS)</div>
+              <p>首位领主，释放高压雷暴与电极信标。<b>优先集火摧毁周围旋转的极性信标，信标过载会向首领反噬高达 700 点致命真伤</b>！</p>
+            </div>
+
+            <div class="help-box">
+              <div class="help-box-title">🛡️ 06:00 母舰要塞·欧米茄核心 (OMEGA CARRIER)</div>
+              <p>拥有 85% 伤害减免的超能偏转护盾。<b>必须击破与母舰链接的 3 架护盾无人机，破盾瞬间母舰将过载瘫痪 4 秒并受到暴击伤害</b>！</p>
+            </div>
+          </div>
+        </div>
+        <!-- TAB 5: ASCENSIONS -->
+        <div class="help-section" id="help-ascension">
+          <div class="help-card-grid">
+            <div class="help-box">
+              <div class="help-box-title">⚔️ 基础模式 + 六阶进阶</div>
+              <p>击败首领通关后依次解锁更高阶。每阶继承前面全部挑战，死亡或通关后可从开始界面重新选择。</p>
+              <ul>
+                <li><b>I · 敌潮：</b>敌人更密集，全局毁灭掉率80%</li>
+                <li><b>II · 重击：</b>敌人伤害+15%，全局毁灭65%</li>
+                <li><b>III · 精英：</b>精英入侵更频繁，全局毁灭50%</li>
+                <li><b>IV · 匮乏：</b>物资更少，全局毁灭35%</li>
+                <li><b>V · 取舍：</b>只有3个模组槽位，全局毁灭20%</li>
+                <li><b>VI · 噩梦：</b>首领低于60%生命后追加预警连射，全局毁灭10%</li>
+              </ul>
+            </div>
+            <div class="help-box">
+              <div class="help-box-title">💣 全局毁灭与掉落</div>
+              <p>普通敌人基础概率：治疗1.5%、磁铁1.1%、全局毁灭0.9%。各阶分别乘对应倍率，进阶VI全局毁灭约0.09%。清屏击杀不会再产生新的清屏道具，正常击杀经验仍保留。</p>
+            </div>
+            <div class="help-box">
+              <div class="help-box-title">📈 战绩与保护规则</div>
+              <p>各阶战绩独立保存，原有最长生存与击杀记录保留。折跃防护和光环保护重叠计算，每次释放的新增防护最多0.40秒；正常受击仍提供独立短暂保护。</p>
+            </div>
+          </div>
+        </div>
+        <div class="help-section" id="help-endless">
+          <div class="help-card-grid">
+            <div class="help-box">
+              <div class="help-box-title">♾️ V3 无尽战区</div>
+              <p>首次击败 Boss 后点击「进入无尽炼狱」，先从三张遗物/融合奖励中选一，再选下一战区路线。每轮 Boss 战后重复。</p>
+              <ul>
+                <li><b>猎杀战区</b>：精英更密集、敌人更坚韧</li>
+                <li><b>补给战区</b>：治疗与磁铁掉率提高</li>
+                <li><b>裂隙战区</b>：敌人生命提高，Boss 击破后获得额外晶体</li>
+              </ul>
+            </div>
+            <div class="help-box">
+              <div class="help-box-title">✨ 遗物、武器融合与词缀</div>
+              <p>首批16种战术遗物与5种双武器/折跃融合。融合需满足等级条件，不额外占装备槽。无尽 Boss 每轮随机拥有1–2个词缀，九段折跃与无敌圈0.40秒上限不变。</p>
+            </div>
+            <div class="help-box">
+              <div class="help-box-title">🎯 随机任务与升级选择</div>
+              <p>8种限时任务包含击杀、精英、精准折跃和无伤试炼。无尽升级卡按稀有度加权抽取，每局可重随2次、禁用2次，也可跳过获取12晶体。</p>
+              <p>奖励菜单：键盘左右键 / Enter，或手柄十字键/左摇杆 / A；升级卡 Y 重随、X 禁用，触屏直接点击。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: center;">
+        <button class="cyber-btn" id="btn-close-help">确认并返回战场 (CONFIRM & CLOSE)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div class="modal-overlay" id="modal-gameover">
+    <div class="modal-card">
+      <div class="modal-title" style="background: linear-gradient(135deg, #ff0055, #ffaa00); -webkit-background-clip: text;">战机坠毁 (MISSION FAILED)</div>
+      <div class="modal-sub">你的能源核心已被撕裂，但数据已被记录...</div>
+
+      <div class="stats-table" id="gameover-stats"></div>
+
+      <button class="cyber-btn" id="btn-restart-over">重新部署 (REDEPLOY)</button>
+    </div>
+  </div>
+
+  <!-- VICTORY MODAL -->
+  <div class="modal-overlay" id="modal-victory">
+    <div class="modal-card">
+      <div class="modal-title" style="background: linear-gradient(135deg, #00ffaa, #00f3ff); -webkit-background-clip: text;">🌟 欧米茄核心已被歼灭 🌟</div>
+      <div class="modal-sub">恭喜指挥官！深空防线已成功固守！</div>
+
+      <div class="stats-table" id="victory-stats"></div>
+
+      <div style="display: flex; justify-content: center; gap: 16px;">
+        <button class="cyber-btn" id="btn-endless">进入无尽炼狱 (ENDLESS)</button>
+        <button class="cyber-btn danger" id="btn-restart-vic">重开新局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT GAME LOGIC -->
+  <script src="/Game/gamepad_haptics.js"></script>
+
+  <script src="/Game/neon-survivor/js/relics.js"></script>
+  <script src="/Game/neon-survivor/js/fusions.js"></script>
+  <script src="/Game/neon-survivor/js/events.js"></script>
+  <script src="/Game/neon-survivor/js/endless.js"></script>
+  <script src="/Game/neon-survivor/js/ui.js"></script>
+  <script src="/Game/neon-survivor/js/core.js"></script>
+</body>
+</html>
