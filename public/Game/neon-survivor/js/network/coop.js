@@ -51,7 +51,7 @@
       dx: len > 1 ? data.dx / len : clamp(data.dx, -1, 1),
       dy: len > 1 ? data.dy / len : clamp(data.dy, -1, 1),
       aim: clamp(data.aim, -Math.PI * 2, Math.PI * 2),
-      autoAim: data.autoAim !== false,
+      autoAim: true,
       dash: Boolean(data.dash)
     };
   }
@@ -578,7 +578,7 @@
         const distance = Math.hypot(enemy.x - ally.x, enemy.y - ally.y);
         return distance < (best?.distance || 650) ? { enemy, distance } : best;
       }, null);
-      if (nearest && ally.input?.autoAim !== false) {
+      if (nearest) {
         ally.aimAngle = Math.atan2(nearest.enemy.y - ally.y, nearest.enemy.x - ally.x);
       }
       // The existing SOLO weapon functions are reused on a host-owned player
@@ -725,14 +725,7 @@
       }
       const length = Math.hypot(dx, dy);
       if (length > 1) { dx /= length; dy /= length; }
-      const twinStick = pad && Math.hypot(pad.axes?.[2] || 0, pad.axes?.[3] || 0) > 0.2;
-      const autoAim = game.player?.autoAim !== false;
-      const aim = twinStick
-        ? Math.atan2(pad.axes[3], pad.axes[2])
-        : (!autoAim
-          ? Math.atan2((game.mouse?.y || game.height / 2) - game.height / 2,
-            (game.mouse?.x || game.width / 2) - game.width / 2)
-          : (length > 0.1 ? Math.atan2(dy, dx) : (this.latest?.guest?.aimAngle || 0)));
+      const aim = this.latest?.guest?.aimAngle || 0;
       const padDash = Boolean(pad?.buttons?.[0]?.pressed);
       const dash = this.dashQueued || (padDash && !this.previousGamepadDash);
       if (consume) {
@@ -740,7 +733,7 @@
         this.dashQueued = false;
       }
       return { type: 'input', seq: consume ? this.seq++ : this.seq,
-        dx, dy, aim, autoAim: !twinStick && autoAim, dash };
+        dx, dy, aim, autoAim: true, dash };
     }
     updateGuest(dt) {
       if (!this.guestMode || !this.rtc.connected) return;

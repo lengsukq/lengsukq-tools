@@ -1062,10 +1062,10 @@
         height: var(--neon-dash-size, 68px);
         font-size: 12px;
       }
-      /* Primary battle controls stay visible; secondary toggles live in Settings. */
-      #hud #btn-fullscreen, #hud #btn-vibrate, #hud #btn-test-vibrate,
-      #hud #btn-aim, #hud #btn-sound, #hud #btn-crt { display: none !important; }
-      #hud #btn-settings, #hud #btn-pause, #hud #btn-help {
+      /* Keep fullscreen visible on phones; hide nonessential toggles. */
+      #hud #btn-vibrate, #hud #btn-test-vibrate,
+      #hud #btn-sound, #hud #btn-crt { display: none !important; }
+      #hud #btn-fullscreen, #hud #btn-settings, #hud #btn-pause, #hud #btn-help {
         width: 36px; height: 36px; font-size: 15px; flex: 0 0 36px;
       }
       .neon-settings-card { padding: 14px; max-height: 94dvh; }
@@ -1305,8 +1305,9 @@
       .status-bars { min-width: 0; width: clamp(92px, 30vw, 175px); }
       .bar-wrap, .dash-segments { width: 100%; }
       .hud-btn { width: 36px; height: 36px; flex: 0 0 36px; }
-      #hud #btn-fullscreen, #hud #btn-vibrate, #hud #btn-test-vibrate,
-      #hud #btn-aim, #hud #btn-sound, #hud #btn-crt { display: none !important; }
+      #hud #btn-vibrate, #hud #btn-test-vibrate,
+      #hud #btn-sound, #hud #btn-crt { display: none !important; }
+      #hud #btn-fullscreen { flex: 0 0 36px; }
       .stat-pill { padding: 4px clamp(6px, 2vw, 13px); }
       #boss-hud {
         top: calc(var(--neon-safe-top) + 100px);
@@ -1363,9 +1364,9 @@
       .dash-stats-bar { font-size: 9px; }
       .stat-pill { padding: 3px 6px; gap: 3px; font-size: 10px; }
       .stat-pill .icon, .stat-pill .value { font-size: 11px; }
-      #hud #btn-fullscreen, #hud #btn-vibrate, #hud #btn-test-vibrate,
-      #hud #btn-aim, #hud #btn-sound, #hud #btn-crt { display: none !important; }
-      .hud-btn, #hud #btn-settings, #hud #btn-help, #hud #btn-pause {
+      #hud #btn-vibrate, #hud #btn-test-vibrate,
+      #hud #btn-sound, #hud #btn-crt { display: none !important; }
+      .hud-btn, #hud #btn-fullscreen, #hud #btn-settings, #hud #btn-help, #hud #btn-pause {
         width: 34px; height: 34px; flex: 0 0 34px; font-size: 14px;
       }
       #boss-hud {

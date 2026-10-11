@@ -16,6 +16,14 @@ assert.match(css, /\.neon-settings-card/);
 assert.match(css, /max-height: calc\(100dvh/);
 assert.match(css, /--neon-dash-size/);
 assert.match(css, /#boss-hud/);
+assert.match(html, /id="btn-fullscreen"/, 'Fullscreen button is always in the shared HUD');
+assert.doesNotMatch(css, /#hud\s+#btn-fullscreen[^{}]*\{\s*display:\s*none\s*!important/,
+  'No mobile breakpoint may hide fullscreen');
+assert.match(css, /#hud #btn-fullscreen, #hud #btn-settings, #hud #btn-pause/,
+  'Portrait fullscreen uses the same accessible HUD button size');
+assert.match(css, /\.hud-btn, #hud #btn-fullscreen, #hud #btn-settings/,
+  'Landscape fullscreen uses the same accessible HUD button size');
+assert.doesNotMatch(html, /id="btn-aim"/, 'Obsolete aim toggle should not take HUD space');
 const legacyPos = css.indexOf('@media (max-width: 640px)');
 const adaptivePos = css.indexOf('/* Fluid layout for narrow devices');
 assert.ok(adaptivePos > legacyPos, 'Adaptive media rules must override legacy phone rules');

@@ -45,7 +45,7 @@ const doc = {
   },
   addEventListener(type, callback) { documentEvents.set(type, callback); }
 };
-for (const id of ['btn-settings','btn-start-settings','btn-pause-settings','btn-aim','btn-vibrate','btn-sound','crtOverlay']) {
+for (const id of ['btn-settings','btn-start-settings','btn-pause-settings','btn-vibrate','btn-sound','crtOverlay']) {
   const el = new El('button'); el.id = id; els.set(id, el);
 }
 const game = {
@@ -56,6 +56,8 @@ const game = {
   releaseJoystickTouch() { this.released = true; }
 };
 const window = { game, devicePixelRatio: 2 };
+// Legacy device preferences may have autoAim=false. Ignore that setting.
+saved.set('neon_game_settings_v1', JSON.stringify({ autoAim: false }));
 const sandbox = {
   document: doc, window, localStorage: {
     getItem(key) { return saved.get(key) ?? null; },
@@ -74,9 +76,12 @@ assert.equal(game.settingsOpen, true);
 assert.equal(game.released, true);
 const overlay = doc.getElementById('neon-settings-modal');
 assert.ok(overlay && !overlay.hidden);
-for (const id of ['sound','autoAim','vibration','crt','lowEffects','dashSize','dashOpacity','joystickDeadzone','cameraZoom','playerName']) {
+for (const id of ['sound','vibration','crt','lowEffects','dashSize','dashOpacity','joystickDeadzone','cameraZoom','playerName']) {
   assert.ok(doc.getElementById('neon-setting-' + id), 'Missing control ' + id);
 }
+assert.equal(doc.getElementById('neon-setting-autoAim'), null,
+  'Auto-aim must not expose a disable toggle');
+assert.equal(game.player.autoAim, true, 'Old saved autoAim=false is ignored');
 for (const color of ['auto','cyan','amber','violet','mint','pink','gold']) {
   assert.ok(doc.getElementById('neon-setting-color-' + color), 'Missing paint color ' + color);
 }
@@ -84,7 +89,8 @@ settings.set('sound', false, game);
 assert.equal(game.sound.enabled, false);
 assert.equal(game.sound.masterGain.gain.value, 0);
 settings.set('autoAim', false, game);
-assert.equal(game.player.autoAim, false);
+assert.equal(game.player.autoAim, true, 'Legacy callers cannot disable auto-aim');
+assert.equal(settings.get('autoAim'), true);
 settings.set('lowEffects', true, game);
 assert.equal(game.fxLow, true);
 assert.equal(game.dpr, 1.25);
@@ -126,7 +132,7 @@ game.player = { autoAim: true };
 game.cameraZoom = 1;
 settings.apply(game);
 assert.equal(game.cameraZoom, 1.35);
-assert.equal(game.player.autoAim, false);
+assert.equal(game.player.autoAim, true);
 // A new page's settings initializer must deserialize the persisted zoom too.
 const nextDocumentEvents = new Map();
 const nextDoc = {
@@ -143,4 +149,5 @@ assert.equal(nextGame.cameraZoom, 1.35, 'Zoom restores after reload');
 assert.equal(nextWindow.NeonGameSettings.get('cameraZoom'), 135);
 assert.equal(nextWindow.NeonGameSettings.get('shipColor'), 'mint');
 assert.equal(nextWindow.NeonGameSettings.get('playerName'), '星海舰长');
+assert.equal(nextGame.player.autoAim, true, 'Reload retains mandatory auto-aim');
 console.log('Neon Survivor settings passed: mobile controls, persistent prefs, low graphics, guest isolation and pause/resume.');

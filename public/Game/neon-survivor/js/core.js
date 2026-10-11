@@ -1031,6 +1031,7 @@
       setupEvents() {
         window.addEventListener('resize', () => this.resize());
         document.addEventListener('fullscreenchange', () => this.updateFullscreenButton());
+        document.addEventListener('webkitfullscreenchange', () => this.updateFullscreenButton());
 
         // Keyboard
         window.addEventListener('keydown', (e) => {
@@ -1082,28 +1083,6 @@
         this.setupTouchControls();
 
         // UI Buttons
-        const btnAim = document.getElementById('btn-aim');
-        const updateAimBtnStyle = () => {
-          btnAim.style.borderColor = this.player.autoAim ? 'var(--neon-cyan)' : 'rgba(255, 255, 255, 0.2)';
-          btnAim.style.boxShadow = this.player.autoAim ? '0 0 10px var(--neon-cyan)' : 'none';
-          btnAim.title = this.player.autoAim ? '瞄准模式：【自动瞄准】点击切换为鼠标手动' : '瞄准模式：【鼠标手动】点击切换为自动瞄准';
-        };
-        btnAim.onclick = () => {
-          this.player.autoAim = !this.player.autoAim;
-          updateAimBtnStyle();
-          window.NeonGameSettings?.set('autoAim', this.player.autoAim, this);
-        };
-        updateAimBtnStyle();
-
-        // Keyboard 'T' toggles aim
-        window.addEventListener('keydown', (e) => {
-          if (this.settingsOpen) return;
-          if (e.key === 't' || e.key === 'T') {
-            this.player.autoAim = !this.player.autoAim;
-            updateAimBtnStyle();
-          }
-        });
-
         // Gamepad Vibration Toggle Button
         const btnVibrate = document.getElementById('btn-vibrate');
         const updateVibrateBtnStyle = () => {
@@ -1239,7 +1218,7 @@
       updateFullscreenButton() {
         const button = document.getElementById('btn-fullscreen');
         if (!button) return;
-        const active = Boolean(document.fullscreenElement);
+        const active = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
         button.textContent = active ? '⤢' : '⛶';
         button.title = active ? '退出全屏 (F)' : '进入全屏 (F)';
         button.setAttribute('aria-label', button.title);
@@ -1247,12 +1226,15 @@
 
       async toggleFullscreen() {
         try {
-          if (document.fullscreenElement) {
-            if (!document.exitFullscreen) throw new Error('unsupported');
-            await document.exitFullscreen();
+          if (document.fullscreenElement || document.webkitFullscreenElement) {
+            const exit = document.exitFullscreen || document.webkitExitFullscreen;
+            if (!exit) throw new Error('unsupported');
+            await exit.call(document);
           } else {
-            if (!document.documentElement.requestFullscreen) throw new Error('unsupported');
-            await document.documentElement.requestFullscreen();
+            const root = document.documentElement;
+            const request = root.requestFullscreen || root.webkitRequestFullscreen;
+            if (!request) throw new Error('unsupported');
+            await request.call(root);
           }
         } catch (err) {
           this.showGamepadFeedback('浏览器不支持或阻止了全屏模式', '#ffba8a');
@@ -1570,17 +1552,6 @@
             return;
           }
 
-          // Aim mode toggle: Select button (8) or Y button (3)
-          if (justPressed(8) || justPressed(3)) {
-            this.player.autoAim = !this.player.autoAim;
-            const btnAim = document.getElementById('btn-aim');
-            if (btnAim) {
-              btnAim.style.borderColor = this.player.autoAim ? 'var(--neon-cyan)' : 'rgba(255, 255, 255, 0.2)';
-              btnAim.style.boxShadow = this.player.autoAim ? '0 0 10px var(--neon-cyan)' : 'none';
-            }
-            this.vibrateGamepad(80, 0.3, 0.2);
-          }
-
           // Dash Trigger: A (0), B (1), RB (5), RT (7), LB (4), LT (6)
           if (justPressed(0) || justPressed(1) || justPressed(5) || justPressed(7) || justPressed(4) || justPressed(6)) {
             this.triggerDash();
@@ -1602,19 +1573,7 @@
 
           this.gamepadMove = { x: mx, y: my };
 
-          // Right Stick: 360° twin-stick aiming
-          const rx = gp.axes[2] || 0;
-          const ry = gp.axes[3] || 0;
-          const rMag = Math.hypot(rx, ry);
-          if (rMag > 0.25) {
-            this.player.aimAngle = Math.atan2(ry, rx);
-            this.player.autoAim = false;
-            const btnAim = document.getElementById('btn-aim');
-            if (btnAim) {
-              btnAim.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-              btnAim.style.boxShadow = 'none';
-            }
-          }
+          // Weapon targeting is always automatic, even when the right stick moves.
         }
 
         // Record buttons for edge detection
@@ -4059,18 +4018,16 @@
           }
         }
 
-        // Aim Direction Calculation
+        // Always lock onto the nearest enemy. No keyboard, mouse, or gamepad
+        // action can disable automatic targeting.
+        this.player.autoAim = true;
         if (this.player.downed && this.lanCoop?.ally?.hp > 0) {
           this.player.aimAngle = this.player.aimAngle || 0;
-        } else if (this.player.autoAim) {
+        } else {
           const nearest = this.findNearestEnemy(650);
           if (nearest) {
             this.player.aimAngle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
           }
-        } else {
-          const screenCenterX = this.width / 2;
-          const screenCenterY = this.height / 2;
-          this.player.aimAngle = Math.atan2(this.mouse.y - screenCenterY, this.mouse.x - screenCenterX);
         }
 
         // Camera smoothly follows player

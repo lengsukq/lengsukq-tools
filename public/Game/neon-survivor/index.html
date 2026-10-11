@@ -61,7 +61,6 @@
       <button class="hud-btn" id="btn-test-vibrate" title="主动测试手柄震动（需要浏览器与手柄支持）" style="display:none;">震动测试</button>
       <button class="hud-btn" id="btn-help" title="游戏说明 / 战术指南">📖</button>
       <button class="hud-btn" id="btn-settings" title="游戏设置">⚙️</button>
-      <button class="hud-btn" id="btn-aim" title="瞄准模式：自动/手动">🎯</button>
       <button class="hud-btn" id="btn-sound" title="音效开关">🔊</button>
       <button class="hud-btn" id="btn-crt" title="扫描线效果">📺</button>
       <button class="hud-btn" id="btn-pause" title="暂停游戏">⏸️</button>
@@ -101,7 +100,7 @@
       </p>
 
       <div class="start-features">
-        <span><span class="keyboard-hint">🎮 手柄</span> 即插即用 (双摇杆+A/RB折跃)</span>
+        <span><span class="keyboard-hint">🎮 手柄</span> 即插即用 (左摇杆移动+A/RB折跃，自动锁敌)</span>
         <span><span class="keyboard-hint">WASD / 方向键</span> 键盘移动</span>
         <span><span class="keyboard-hint">空格 / 右键</span> 折跃冲刺</span>
         <span><span class="keyboard-hint">F</span> 一键全屏</span>
@@ -178,11 +177,10 @@
               <p>兼容浏览器 Gamepad API 的 Xbox / PlayStation / Switch / PC 手柄；震动能力取决于浏览器、操作系统和连接方式：</p>
               <ul>
                 <li><b>左摇杆 / 十字键</b>：360° 模拟飞行移动与八向平移</li>
-                <li><b>右摇杆</b>：360° 双摇杆独立瞄准射击</li>
+                <li><b>自动瞄准</b>：始终开启，无需操作右摇杆</li>
                 <li><b>A 键 / B 键 / RB / RT / LB / LT</b>：消耗一段折跃充能；从3段最多成长至9段</li>
                 <li><b>开始界面</b>：十字键左右切换已解锁的进阶难度，A 确认开局</li>
                 <li><b>Start / Options 键</b>：暂停游戏 / 呼出菜单</li>
-                <li><b>Select / Y 键</b>：一键切换 🎯 自动/手动瞄准模式</li>
                 <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键确认装配</li>
                 <li><b>震动反馈与测试</b>：顶部 📳 是开关；点击已连接手柄徽章或「震动测试」按钮可主动检测</li>
                 <li><b>震动无效？</b>：先操作手柄并点击测试。若提示不支持，可换支持震动的浏览器或尝试 USB 连接。浏览器接受震动请求并不代表硬件一定执行</li>
@@ -194,8 +192,8 @@
               <ul>
                 <li><b>W / A / S / D</b> 或 <b>方向键</b>：战机飞行移动</li>
                 <li><b>空格键</b> 或 <b>鼠标右键</b>：消耗 1 格能量折跃瞬移斩</li>
-                <li><b>鼠标移动</b>：指示武器瞄准发射方位</li>
-                <li><b>鼠标左键</b>：开火射击（自动瞄准模式下战机会智能索敌）</li>
+                <li><b>自动瞄准</b>：始终开启，战机会自动锁定附近敌人</li>
+                <li><b>鼠标左键</b>：开火射击（武器也会自动攻击）</li>
                 <li><b>F 键</b>：一键进入 / 退出全屏模式</li>
                 <li><b>P 键 / ESC 键</b>：快速暂停游戏</li>
               </ul>
@@ -207,7 +205,7 @@
                 <li><b>左侧区域</b>：按住滑动呼出动态虚拟摇杆，控制机体自由飞行</li>
                 <li><b>右下角 DASH 按钮</b>：轻触释放折跃瞬移斩（实时展示可用充能）</li>
                 <li><b>双指联动</b>：左手持续按住摇杆移动，右手点击或松开 DASH 均不会打断左手方向控制；仅松开左手摇杆时停止控制</li>
-                <li><b>顶部状态栏</b>：轻触右上角对应按钮可快速切换瞄准、音效与暂停</li>
+                <li><b>顶部状态栏</b>：轻触右上角全屏、设置与说明按钮；房主可暂停游戏</li>
               </ul>
             </div>
           </div>

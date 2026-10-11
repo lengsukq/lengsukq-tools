@@ -25,7 +25,8 @@
   function readPrefs() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEY) || '{}');
-      for (const key of ['sound','autoAim','vibration','crt','lowEffects']) {
+      // Ignore previously persisted autoAim=false: targeting is now mandatory.
+      for (const key of ['sound','vibration','crt','lowEffects']) {
         if (typeof raw[key] === 'boolean') state[key] = raw[key];
       }
       for (const [key, low, high] of [
@@ -49,7 +50,7 @@
     const crt = document.getElementById('crtOverlay');
     if (crt) crt.style.opacity = state.crt ? '1' : '0';
     if (!game) return;
-    game.player.autoAim = state.autoAim;
+    game.player.autoAim = true;
     const profile = window.NeonLanTeammates?.ownProfile(game.lanRTC?.role === 'guest' ? 'guest' : 'host');
     if (profile) game.shipColor = profile.color;
     // Percentage maps to the camera transform, not HUD or touch hit areas.
@@ -69,15 +70,11 @@
       ['btn-sound', state.sound ? '🔊' : '🔇'],
       ['btn-vibrate', state.vibration ? '📳' : '🔕']
     ]) { const btn = document.getElementById(id); if (btn) btn.textContent = value; }
-    const aim = document.getElementById('btn-aim');
-    if (aim) {
-      aim.title = state.autoAim ? '瞄准模式：自动' : '瞄准模式：手动';
-      aim.style.borderColor = state.autoAim ? 'var(--neon-cyan)' : 'rgba(255,255,255,.2)';
-    }
   }
   function set(key, value, game) {
     if (!(key in defaults)) return;
-    if (typeof defaults[key] === 'boolean') state[key] = Boolean(value);
+    if (key === 'autoAim') state.autoAim = true; // Legacy callers cannot disable it.
+    else if (typeof defaults[key] === 'boolean') state[key] = Boolean(value);
     else if (key === 'playerName') state[key] = String(value || '').replace(/<[^>]*>/g, '')
       .replace(/[\x00-\x1f\x7f<>]/g, '').trim().slice(0, 12);
     else if (key === 'shipColor') state[key] = colorKeys.has(value) ? value : 'auto';
@@ -163,7 +160,6 @@
     }
     const audio = section('音效和战斗');
     toggle(audio, 'sound', '游戏音效', '开关背景音乐、攻击音效');
-    toggle(audio, 'autoAim', '自动瞄准', '建议手机使用自动锁敌');
     toggle(audio, 'vibration', '手柄震动', '仅支持提供震动功能的设备');
     const profileGroup = section('联机身份 · 战机外观');
     const nameRow = document.createElement('label');

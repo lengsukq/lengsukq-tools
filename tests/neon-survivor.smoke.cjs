@@ -68,6 +68,27 @@ Object.assign(game, {
   await game.toggleFullscreen();
   assert.equal(document.fullscreenElement, null);
   assert.equal(node('btn-fullscreen').title, '进入全屏 (F)');
+  // Older tablet browsers may only expose prefixed fullscreen APIs.
+  const standardRequest = document.documentElement.requestFullscreen;
+  const standardExit = document.exitFullscreen;
+  document.documentElement.requestFullscreen = undefined;
+  document.exitFullscreen = undefined;
+  document.documentElement.webkitRequestFullscreen = async function () {
+    document.webkitFullscreenElement = this;
+    listeners['document.webkitfullscreenchange']?.();
+  };
+  document.webkitExitFullscreen = async function () {
+    this.webkitFullscreenElement = null;
+    listeners['document.webkitfullscreenchange']?.();
+  };
+  await game.toggleFullscreen();
+  assert.ok(document.webkitFullscreenElement);
+  assert.equal(node('btn-fullscreen').title, '退出全屏 (F)');
+  await game.toggleFullscreen();
+  assert.equal(document.webkitFullscreenElement, null);
+  assert.equal(node('btn-fullscreen').title, '进入全屏 (F)');
+  document.documentElement.requestFullscreen = standardRequest;
+  document.exitFullscreen = standardExit;
   listeners.gamepaddisconnected({gamepad:gp});
   assert.equal(node('btn-test-vibrate').style.display, 'none');
   connected.length = 0;
@@ -101,6 +122,14 @@ Object.assign(game, {
   gp.buttons[0].pressed = true;
   game.pollGamepad(0.016);
   assert.equal(dashCount, 1, 'A should work for gameplay after a fresh press');
+
+  // Select, Y and the right stick must never disable auto-aim.
+  gp.buttons[0].pressed = false;
+  gp.buttons[8].pressed = true;
+  gp.buttons[3].pressed = true;
+  gp.axes = [0, 0, 1, 0];
+  game.pollGamepad(0.016);
+  assert.equal(game.player.autoAim, true, 'Gamepad cannot disable auto targeting');
 
   console.log('Neon Survivor smoke test passed: rumble, fullscreen, disconnect and upgrade A input isolation.');
 })().catch(e => {console.error(e); process.exitCode = 1;});
