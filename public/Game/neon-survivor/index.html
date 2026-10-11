@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>霓虹幸存者：深空裂变 (Neon Survivor: Cyber Void)</title>
   <link rel="stylesheet" href="/Game/neon-survivor/css/game.css">
 
@@ -60,6 +60,7 @@
       <button class="hud-btn" id="btn-vibrate" title="手柄震动：开/关">📳</button>
       <button class="hud-btn" id="btn-test-vibrate" title="主动测试手柄震动（需要浏览器与手柄支持）" style="display:none;">震动测试</button>
       <button class="hud-btn" id="btn-help" title="游戏说明 / 战术指南">📖</button>
+      <button class="hud-btn" id="btn-settings" title="游戏设置">⚙️</button>
       <button class="hud-btn" id="btn-aim" title="瞄准模式：自动/手动">🎯</button>
       <button class="hud-btn" id="btn-sound" title="音效开关">🔊</button>
       <button class="hud-btn" id="btn-crt" title="扫描线效果">📺</button>
@@ -113,7 +114,9 @@
 
       <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
         <button class="cyber-btn" id="btn-start-game">立即出击 (START MISSION)</button>
+        <button class="cyber-btn" id="btn-lan-coop" style="border-color:#54bc95;color:#9affd5">局域网双人合作</button>
         <button class="cyber-btn" id="btn-start-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明 (MANUAL)</button>
+        <button class="cyber-btn" id="btn-start-settings">⚙ 游戏设置</button>
       </div>
     </div>
   </div>
@@ -143,6 +146,7 @@
       <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
         <button class="cyber-btn" id="btn-resume">继续战斗 (RESUME)</button>
         <button class="cyber-btn" id="btn-pause-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明</button>
+        <button class="cyber-btn" id="btn-pause-settings">⚙ 游戏设置</button>
         <button class="cyber-btn danger" id="btn-restart-pause">重新开始</button>
       </div>
     </div>
@@ -371,6 +375,12 @@
   <script src="/Game/neon-survivor/js/endless.js"></script>
   <script src="/Game/neon-survivor/js/ui.js"></script>
   <script src="/Game/neon-survivor/js/arsenal.js"></script>
+  <script src="/Game/neon-survivor/js/settings.js"></script>
+  <script src="/Game/neon-survivor/js/network/rtc.js"></script>
+  <script src="/Game/neon-survivor/js/network/teammates.js"></script>
+  <script src="/Game/neon-survivor/js/network/resonance.js"></script>
+  <script src="/Game/neon-survivor/js/network/coop.js"></script>
+  <script src="/Game/neon-survivor/js/network/ui.js"></script>
   <script src="/Game/neon-survivor/js/core.js"></script>
 </body>
 </html>

@@ -30,7 +30,7 @@
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         this.ctx = new AudioContext();
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.28;
+        this.masterGain.gain.value = this.enabled ? 0.28 : 0;
         this.masterGain.connect(this.ctx.destination);
         this.startBGM();
       }
@@ -711,6 +711,7 @@
         this.width = window.innerWidth;
         this.height = window.innerHeight;
         this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.cameraZoom = 1;
 
         this.state = 'start'; // 'start', 'playing', 'paused', 'levelup', 'gameover', 'victory'
         this.loopRunning = false;
@@ -726,6 +727,8 @@
         this.kills = 0;
         this.totalDamageDealt = 0;
         this.endlessMode = false;
+        this.lanRTC = null;
+        this.lanCoop = null;
 
         // Player
         this.player = {
@@ -844,6 +847,7 @@
 
         this.initDOM();
         this.setupEvents();
+        window.NeonGameSettings?.apply(this);
         this.renderDifficultySelector();
         this.resize();
         this.renderWeaponsHUD();
@@ -971,9 +975,9 @@
 
         // Only one specific finger owns the joystick. Dash touches are independent.
         window.addEventListener('touchstart', (e) => {
-          if (this.state !== 'playing' || this.touch.active) return;
+          if (!['playing', 'lan-client'].includes(this.state) || this.touch.active) return;
           if (e.target && typeof e.target.closest === 'function' &&
-              e.target.closest('#hud, .modal-overlay, #touch-dash-btn')) return;
+              e.target.closest('#hud, .modal-overlay, #touch-dash-btn, #neon-settings-modal, #neon-lan-lobby')) return;
           const rect = dashBtn.getBoundingClientRect();
           for (const t of e.changedTouches || []) {
             if (t.clientX >= rect.left && t.clientX <= rect.right &&
@@ -1030,6 +1034,8 @@
 
         // Keyboard
         window.addEventListener('keydown', (e) => {
+          if (this.settingsOpen) return;
+          if (['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) return;
           this.keys[e.key.toLowerCase()] = true;
           this.keys[e.code] = true;
           if (e.code === 'Space') {
@@ -1085,11 +1091,13 @@
         btnAim.onclick = () => {
           this.player.autoAim = !this.player.autoAim;
           updateAimBtnStyle();
+          window.NeonGameSettings?.set('autoAim', this.player.autoAim, this);
         };
         updateAimBtnStyle();
 
         // Keyboard 'T' toggles aim
         window.addEventListener('keydown', (e) => {
+          if (this.settingsOpen) return;
           if (e.key === 't' || e.key === 'T') {
             this.player.autoAim = !this.player.autoAim;
             updateAimBtnStyle();
@@ -1131,16 +1139,20 @@
           this.sound.init();
           this.startNewGame();
         };
+        const lanButton = document.getElementById('btn-lan-coop');
+        if (lanButton) lanButton.onclick = () => window.NeonLanLobby?.open(this);
 
         document.getElementById('btn-sound').onclick = (e) => {
           const on = this.sound.toggle();
           e.currentTarget.textContent = on ? '🔊' : '🔇';
+          window.NeonGameSettings?.set('sound', on, this);
         };
 
         let crtOn = true;
         document.getElementById('btn-crt').onclick = () => {
           crtOn = !crtOn;
           this.crtOverlay.style.opacity = crtOn ? '1' : '0';
+          window.NeonGameSettings?.set('crt', crtOn, this);
         };
 
         document.getElementById('btn-pause').onclick = () => {
@@ -1340,6 +1352,7 @@
       toggleGamepadVibration() {
         this.gamepadVibrationEnabled = !this.gamepadVibrationEnabled;
         SafeStorage.set('neon_vibration', this.gamepadVibrationEnabled ? 'true' : 'false');
+        window.NeonGameSettings?.set('vibration', this.gamepadVibrationEnabled, this);
         if (this.gamepadVibrationEnabled) {
           // Called from a direct click: test immediately while user activation
           // is still available for browsers with haptic gesture restrictions.
@@ -1611,6 +1624,7 @@
       startNewGame() {
         this.state = 'playing';
         this.releaseJoystickTouch();
+        if (this.lanCoop?.rtc.connected && this.lanCoop.ally) this.lanCoop.startHost();
         this.difficulty = this.selectedDifficulty;
         this.combatTelemetry = { invulnerableSeconds: 0, nukeDrops: 0, damageTaken: 0, preciseDashes: 0 };
         this.survivalTime = 0;
@@ -1683,6 +1697,7 @@
         this.player.limitBreaks = {};
         this.player.totalLimitBreaks = 0;
         this.recalculateDashStats();
+        window.NeonGameSettings?.apply(this); // Restore per-device preferences on every restart.
 
         this.bullets = [];
         this.enemies = [];
@@ -1829,7 +1844,12 @@
       }
 
       triggerDash() {
+        if (this.state === 'lan-client' && this.lanCoop?.guestMode) {
+          this.lanCoop.dashQueued = true;
+          return;
+        }
         if (this.player.dashCharges <= 0 || this.player.isDashing || this.state !== 'playing') return;
+        this.lanCoop?.onHostDash();
         window.NeonRogueEndless?.onDash(this);
         if (this.survivalTime > (this.player.dashComboUntil || 0)) this.player.dashCombo = 0;
         this.player.dashPreciseHit = false;
@@ -2891,6 +2911,9 @@
       }
 
       dealDamage(target, rawDamage, source = 'combat', forceCrit = false) {
+        if (this.lanCoop?.ally && !['lan-ally', 'lan-resonance'].includes(source)) {
+          rawDamage *= 1 + this.lanCoop.getLinkBonus();
+        }
         if (this.endlessMode) {
           rawDamage = window.NeonRogueRelics?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
           rawDamage = window.NeonRogueFusions?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
@@ -2940,7 +2963,7 @@
         }
 
         // Hit spark particles with strict budget
-        if (this.particles.length < 45) {
+        if (this.particles.length < (this.fxLow ? 15 : 45)) {
           const sparkCount = isCrit ? 2 : 1;
           for (let i = 0; i < sparkCount; i++) {
             this.particles.push({
@@ -3032,7 +3055,7 @@
         }
 
         // Spawn death particles with strict cap
-        if (this.particles.length < 60) {
+        if (this.particles.length < (this.fxLow ? 20 : 60)) {
           const count = enemy.isBoss ? 18 : 4;
           for (let i = 0; i < count; i++) {
             const spd = Math.random() * 140 + 30;
@@ -3890,7 +3913,7 @@
             const dx = this.touch.currentX - this.touch.startX;
             const dy = this.touch.currentY - this.touch.startY;
             const dist = Math.hypot(dx, dy);
-            if (dist > 10) {
+            if (dist > (window.NeonGameSettings?.get('joystickDeadzone') || 10)) {
               moveX = dx / dist;
               moveY = dy / dist;
             }
@@ -4482,8 +4505,13 @@
             continue;
           }
 
-          const distToPlayer = Vec.dist(e.x, e.y, this.player.x, this.player.y);
-          const angleToPlayer = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+          // In LAN co-op, ordinary enemies may target either live ship.
+          const ally = this.lanCoop?.rtc?.connected ? this.lanCoop.ally : null;
+          const aimPlayer = ally && ally.hp > 0 &&
+            Vec.dist(e.x, e.y, ally.x, ally.y) < Vec.dist(e.x, e.y, this.player.x, this.player.y)
+            ? ally : this.player;
+          const distToPlayer = Vec.dist(e.x, e.y, aimPlayer.x, aimPlayer.y);
+          const angleToPlayer = Math.atan2(aimPlayer.y - e.y, aimPlayer.x - e.x);
 
           // Separation from nearby enemies
           let sepX = 0, sepY = 0;
@@ -5074,6 +5102,7 @@
           const camX = Number.isFinite(this.camera.x) ? this.camera.x : (this.player ? this.player.x : 0);
           const camY = Number.isFinite(this.camera.y) ? this.camera.y : (this.player ? this.player.y : 0);
           ctx.translate(this.width / 2 + shakeX, this.height / 2 + shakeY);
+          ctx.scale(Math.max(0.65, Math.min(1.5, this.cameraZoom || 1)), Math.max(0.65, Math.min(1.5, this.cameraZoom || 1)));
           ctx.translate(-camX, -camY);
 
         // 1. Draw Cyberpunk Grid
@@ -5622,6 +5651,8 @@
         }
 
         // 14. Draw Player Fighter Craft
+        const localProfile = window.NeonLanTeammates?.ownProfile('host') ||
+          { name: '房主', color: this.shipColor || '#00f3ff' };
         ctx.save();
         ctx.translate(this.player.x, this.player.y);
         ctx.rotate(this.player.aimAngle);
@@ -5632,11 +5663,11 @@
         }
 
         ctx.shadowBlur = 20;
-        ctx.shadowColor = '#00f3ff';
+        ctx.shadowColor = localProfile.color;
 
         // Wings
         ctx.fillStyle = '#0a1628';
-        ctx.strokeStyle = '#00f3ff';
+        ctx.strokeStyle = localProfile.color;
         ctx.lineWidth = 2.5;
 
         ctx.beginPath();
@@ -5651,7 +5682,7 @@
         ctx.stroke();
 
         // Cockpit glass core
-        ctx.fillStyle = '#00f3ff';
+        ctx.fillStyle = localProfile.color;
         ctx.beginPath();
         ctx.arc(0, 0, 6, 0, Math.PI * 2);
         ctx.fill();
@@ -5668,6 +5699,18 @@
         ctx.fill();
 
         ctx.restore();
+
+        if (this.lanCoop?.ally && this.lanCoop.rtc.connected) {
+          ctx.save();
+          ctx.fillStyle = localProfile.color;
+          ctx.font = 'bold 13px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(localProfile.name + ' · 我', this.player.x, this.player.y - 35);
+          ctx.restore();
+        }
+
+        // The remote co-op fighter is drawn in the same world coordinates.
+        this.lanCoop?.renderHost(ctx);
 
         // 10. Draw Floating Combat Text (High-speed batch render)
         this.texts.forEach((txt) => {
@@ -5687,10 +5730,11 @@
 
       renderCyberGrid(ctx) {
         const gridSize = 70;
-        const left = this.camera.x - this.width / 2 - gridSize;
-        const right = this.camera.x + this.width / 2 + gridSize;
-        const top = this.camera.y - this.height / 2 - gridSize;
-        const bottom = this.camera.y + this.height / 2 + gridSize;
+        const zoom = Math.max(0.65, Math.min(1.5, this.cameraZoom || 1));
+        const left = this.camera.x - this.width / (2 * zoom) - gridSize;
+        const right = this.camera.x + this.width / (2 * zoom) + gridSize;
+        const top = this.camera.y - this.height / (2 * zoom) - gridSize;
+        const bottom = this.camera.y + this.height / (2 * zoom) + gridSize;
 
         const startX = Math.floor(left / gridSize) * gridSize;
         const startY = Math.floor(top / gridSize) * gridSize;
@@ -5728,8 +5772,14 @@
           const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
           this.lastTime = timestamp;
 
-          this.pollGamepad(dt);
+          if (this.state === 'lan-client' && this.lanCoop?.guestMode) {
+            this.lanCoop.updateGuest(dt);
+            this.lanCoop.renderGuest();
+            return;
+          }
+          if (this.state !== 'lan-lobby' && !this.settingsOpen) this.pollGamepad(dt);
           this.update(dt);
+          this.lanCoop?.updateHost(dt);
           this.render();
         } catch (err) {
           console.error("Game loop non-fatal error caught:", err);
