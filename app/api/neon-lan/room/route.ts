@@ -18,7 +18,10 @@ type Signal = {
   room: string;
   description: { type: 'offer' | 'answer'; sdp: string };
 };
-type Room = { offer: Signal; hostToken: string };
+type SeatId = 'guest' | 'guest-2' | 'guest-3';
+const SEATS: SeatId[] = ['guest', 'guest-2', 'guest-3'];
+type Room = { offer: Signal; offers?: Partial<Record<SeatId, Signal>>;
+  capacity?: 2 | 3 | 4; hostToken: string };
 
 function response(body: object, status = 200) {
   return Response.json(body, { status, headers: noCache });
@@ -58,8 +61,8 @@ async function redis(cmd: Array<string | number>, config: NonNullable<ReturnType
   return data.result;
 }
 const roomKey = (room: string) => ROOM_PREFIX + room;
-const guestKey = (room: string) => ROOM_PREFIX + room + ':guest';
-const answerKey = (room: string) => ROOM_PREFIX + room + ':answer';
+const guestKey = (room: string, id: SeatId = 'guest') => ROOM_PREFIX + room + ':guest:' + id;
+const answerKey = (room: string, id: SeatId = 'guest') => ROOM_PREFIX + room + ':answer:' + id;
 
 export async function POST(request: Request) {
   const config = redisCredentials();
@@ -72,7 +75,8 @@ export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
     const text = await request.text();
-    if (text.length > 26000) return response({ error: 'invalid_request' }, 413);
+    // Three independent ICE-complete offers may occupy up to ~36 KB.
+    if (text.length > 44000) return response({ error: 'invalid_request' }, 413);
     body = JSON.parse(text);
     if (!body || typeof body !== 'object') return response({ error: 'invalid_request' }, 400);
   } catch {
@@ -90,12 +94,21 @@ export async function POST(request: Request) {
     if (count === 1) await redis(['EXPIRE', limiter, 60], config);
     if (count > 120) return response({ error: 'rate_limited', message: '操作太频繁，请稍后重试' }, 429);
     if (action === 'create') {
-      if (!checkSignal(body.offer, 'offer', code)) return response({ error: 'invalid_offer' }, 400);
+      const primary = (body.offers as Record<string, unknown> | undefined)?.guest || body.offer;
+      if (!checkSignal(primary, 'offer', code)) return response({ error: 'invalid_offer' }, 400);
+      const capacity = [2, 3, 4].includes(Number(body.capacity)) ? Number(body.capacity) as 2 | 3 | 4 : 2;
+      const offers: Partial<Record<SeatId, Signal>> = {};
+      for (const id of SEATS.slice(0, capacity - 1)) {
+        const offered = (body.offers as Record<string, unknown> | undefined)?.[id] ||
+          (id === 'guest' ? primary : null);
+        if (!checkSignal(offered, 'offer', code)) return response({ error: 'invalid_offer', message: '每个座位都需要独立连接信息' }, 400);
+        offers[id] = offered;
+      }
       const hostToken = issueToken();
-      const stored: Room = { offer: body.offer, hostToken };
+      const stored: Room = { offer: primary, offers, capacity, hostToken };
       const ok = await redis(['SET', roomKey(code), JSON.stringify(stored), 'EX', ROOM_TTL, 'NX'], config);
       if (ok !== 'OK') return response({ error: 'room_exists', message: '房间码重复，请重新创建' }, 409);
-      return response({ room: code, hostToken, expiresIn: ROOM_TTL });
+      return response({ room: code, hostToken, capacity, expiresIn: ROOM_TTL });
     }
     const rawRoom = await redis(['GET', roomKey(code)], config);
     if (typeof rawRoom !== 'string') {
@@ -103,18 +116,24 @@ export async function POST(request: Request) {
     }
     const stored = JSON.parse(rawRoom) as Room;
     if (action === 'join') {
-      const guestToken = issueToken();
-      const ok = await redis(['SET', guestKey(code), guestToken, 'EX', ROOM_TTL, 'NX'], config);
-      if (ok !== 'OK') return response({ error: 'room_full', message: '房间已有玩家正在加入，请创建新房间' }, 409);
-      return response({ room: code, guestToken, offer: stored.offer });
+      for (const id of SEATS.slice(0, (stored.capacity || 2) - 1)) {
+        const guestToken = issueToken();
+        // NX guarantees concurrent room joins cannot claim the same seat.
+        const ok = await redis(['SET', guestKey(code, id), guestToken, 'EX', ROOM_TTL, 'NX'], config);
+        if (ok === 'OK') return response({ room: code, guestToken, playerId: id,
+          capacity: stored.capacity || 2, offer: stored.offers?.[id] || stored.offer });
+      }
+      return response({ error: 'room_full', message: '房间人数已满' }, 409);
     }
     if (action === 'answer') {
       if (!isToken(body.guestToken) || !checkSignal(body.answer, 'answer', code)) {
         return response({ error: 'invalid_answer' }, 400);
       }
-      const current = await redis(['GET', guestKey(code)], config);
+      const id = SEATS.includes(body.playerId as SeatId) ? body.playerId as SeatId : 'guest';
+      if (SEATS.indexOf(id) >= (stored.capacity || 2) - 1) return response({ error: 'guest_invalid' }, 403);
+      const current = await redis(['GET', guestKey(code, id)], config);
       if (current !== body.guestToken) return response({ error: 'guest_invalid', message: '房间连接已过期或被其他玩家占用' }, 403);
-      const ok = await redis(['SET', answerKey(code), JSON.stringify(body.answer), 'EX', ROOM_TTL, 'NX'], config);
+      const ok = await redis(['SET', answerKey(code, id), JSON.stringify(body.answer), 'EX', ROOM_TTL, 'NX'], config);
       if (ok !== 'OK') return response({ error: 'answered', message: '应答已提交，等待房主连接' }, 409);
       return response({ accepted: true });
     }
@@ -122,14 +141,19 @@ export async function POST(request: Request) {
       if (!isToken(body.hostToken) || body.hostToken !== stored.hostToken) {
         return response({ error: 'host_invalid' }, 403);
       }
-      const answer = await redis(['GET', answerKey(code)], config);
-      return response({ answer: typeof answer === 'string' ? JSON.parse(answer) : null });
+      const answers: Partial<Record<SeatId, Signal>> = {};
+      for (const id of SEATS.slice(0, (stored.capacity || 2) - 1)) {
+        const answer = await redis(['GET', answerKey(code, id)], config);
+        if (typeof answer === 'string') answers[id] = JSON.parse(answer);
+      }
+      return response({ answer: answers.guest || null, answers, capacity: stored.capacity || 2 });
     }
     if (action === 'close') {
       if (!isToken(body.hostToken) || body.hostToken !== stored.hostToken) {
         return response({ error: 'host_invalid' }, 403);
       }
-      await redis(['DEL', roomKey(code), guestKey(code), answerKey(code)], config);
+      await redis(['DEL', roomKey(code), ...SEATS.flatMap(id =>
+        [guestKey(code, id), answerKey(code, id)])], config);
       return response({ closed: true });
     }
     return response({ error: 'unknown_action' }, 400);

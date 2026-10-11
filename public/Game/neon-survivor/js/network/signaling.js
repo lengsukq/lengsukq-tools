@@ -13,6 +13,8 @@
       this.hostToken = null;
       this.pollTimer = null;
       this.polling = false;
+      this.capacity = 2;
+      this.accepted = new Set();
     }
     async request(action, details = {}) {
       // AbortSignal.timeout() is unavailable in some tablet browsers/WebViews.
@@ -40,14 +42,24 @@
         clearTimeout(timer);
       }
     }
-    async create(rtc, onReady) {
+    async create(rtc, capacity = 2, onReady) {
       this.cancel();
       this.closed = false;
-      rtc.host();
+      this.capacity = [2, 3, 4].includes(capacity) ? capacity : 2;
+      this.accepted = new Set();
+      rtc.host(this.capacity);
       this.onStatus('正在生成局域网连接信息…');
-      const offer = JSON.parse(await rtc.makeOffer());
+      const offers = {};
+      for (const id of ['guest', 'guest-2', 'guest-3'].slice(0, this.capacity - 1)) {
+        offers[id] = JSON.parse(await rtc.makeOffer(id));
+      }
+      const offer = offers.guest;
       const room = rtc.room;
-      const { hostToken } = await this.request('create', { room, offer });
+      // Do not repeat the first SDP in large 3/4-player requests.
+      const details = this.capacity === 2
+        ? { room, offer, capacity: 2 }
+        : { room, offers, capacity: this.capacity };
+      const { hostToken } = await this.request('create', details);
       this.room = room;
       this.hostToken = hostToken;
       this.onStatus('房间 ' + room + ' 已创建，等待队友输入房间码');
@@ -60,10 +72,11 @@
       const room = String(code || '').toUpperCase().trim();
       if (!CODE.test(room)) throw Error('请输入6位有效房间码');
       this.onStatus('正在查找房间 ' + room + '…');
-      const { offer, guestToken } = await this.request('join', { room });
+      const { offer, guestToken, playerId, capacity } = await this.request('join', { room });
       this.onStatus('已找到房间，正在建立 WebRTC 连接…');
+      rtc.capacity = [2, 3, 4].includes(capacity) ? capacity : 2;
       const answer = JSON.parse(await rtc.acceptOffer(JSON.stringify(offer)));
-      await this.request('answer', { room, guestToken, answer });
+      await this.request('answer', { room, guestToken, playerId: playerId || 'guest', answer });
       this.room = room;
       this.onStatus('应答已发送，等待局域网连接建立…');
       return room;
@@ -73,18 +86,25 @@
       this.polling = true;
       let checks = 0;
       const poll = async () => {
-        if (this.closed || !this.polling || !this.room || !this.hostToken || rtc.connected) return;
+        if (this.closed || !this.polling || !this.room || !this.hostToken) return;
         try {
-          const { answer } = await this.request('poll', { room: this.room, hostToken: this.hostToken });
+          const { answer, answers } = await this.request('poll', {
+            room: this.room, hostToken: this.hostToken
+          });
           if (this.closed || !this.polling) return;
-          if (answer) {
+          const entries = Object.entries(answers || { guest: answer }).filter(([, value]) => value);
+          for (const [id, signal] of entries) {
+            if (this.accepted.has(id)) continue;
+            await rtc.acceptAnswer(JSON.stringify(signal), id);
+            this.accepted.add(id);
+            this.onStatus('已连接座位 ' + id + '，继续等待其他队员…');
+            onReady?.(id);
+          }
+          if (this.accepted.size >= this.capacity - 1) {
             this.polling = false;
-            await rtc.acceptAnswer(JSON.stringify(answer));
-            this.onStatus('已收到应答，正在建立局域网直连…');
-            onReady?.();
             return;
           }
-          if (++checks >= 74) {
+          if (++checks >= 74 && this.accepted.size === 0) {
             this.polling = false;
             this.onStatus('房间已超时，请重新创建');
             this.onExpired?.();

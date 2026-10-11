@@ -117,7 +117,8 @@
   function overlay(ctx, game, state) {
     const rescue = state?.rescue;
     if (!rescue?.deaths) return;
-    const localRole = game.lanCoop?.guestMode ? 'guest' : 'host';
+    const localRole = game.lanCoop?.guestMode
+      ? (game.lanCoop?.rtc?.localPlayerId || 'guest') : 'host';
     const ownDown = rescue.fallen === localRole;
     const width = game.width || 360;
     if (!rescue.fallen || !rescue.remaining) {

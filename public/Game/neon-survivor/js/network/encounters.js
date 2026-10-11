@@ -15,12 +15,21 @@
     return Boolean(game?.lanCoop?.ally && game.lanCoop.rtc?.connected &&
       game.lanCoop.rtc.role === 'host');
   }
+  function pilots(game) {
+    return [game.player, ...((game.lanCoop?.allies?.values?.() ||
+      [game.lanCoop?.ally]))].filter(p => p && p.hp > 0 && !p.downed && !p.disconnected);
+  }
+  function scaleByParty(game) {
+    const joined = game.lanCoop?.allies
+      ? [...game.lanCoop.allies.values()].filter(p => !p.disconnected).length : 1;
+    return 1 + Math.max(0, joined - 1) * .27;
+  }
   function scaleNewEnemies(game) {
     if (!active(game)) return;
     for (const enemy of game.enemies || []) {
       if (enemy.coopScaled) continue;
-      const multiplier = enemy.isBoss ? TUNING.bossHp :
-        enemy.isElite ? TUNING.eliteHp : TUNING.normalHp;
+      const multiplier = (enemy.isBoss ? TUNING.bossHp :
+        enemy.isElite ? TUNING.eliteHp : TUNING.normalHp) * scaleByParty(game);
       enemy.hp = Math.round(enemy.hp * multiplier);
       enemy.maxHp = Math.round(enemy.maxHp * multiplier);
       enemy.coopScaled = true;
@@ -44,24 +53,23 @@
     ];
   }
   function captureStatus(game, boss) {
-    const ally = game.lanCoop?.ally;
-    const host = game.player;
-    if (!active(game) || host.hp <= 0 || !ally || ally.hp <= 0) {
+    const team = pilots(game);
+    if (!active(game) || team.length < 2) {
       return { left: false, right: false, both: false };
     }
     const [left, right] = capturePoints(boss);
     const inside = (player, point) =>
       Math.hypot(player.x - point.x, player.y - point.y) <= TUNING.captureRadius;
-    const leftHost = inside(host, left), rightHost = inside(host, right);
-    const leftGuest = inside(ally, left), rightGuest = inside(ally, right);
+    const leftPlayers = team.filter(p => inside(p, left));
+    const rightPlayers = team.filter(p => inside(p, right));
     return {
-      left: leftHost || leftGuest, right: rightHost || rightGuest,
-      both: leftHost && rightGuest || leftGuest && rightHost
+      left: leftPlayers.length > 0, right: rightPlayers.length > 0,
+      both: leftPlayers.some(p => rightPlayers.some(other => other !== p))
     };
   }
   function shoot(game, boss) {
     if (game.enemyBullets.length >= TUNING.maxEnemyBullets - 8) return;
-    const players = [game.player, game.lanCoop.ally];
+    const players = pilots(game).slice(0, 4);
     for (const player of players) {
       if (!player || player.hp <= 0) continue;
       const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
@@ -114,7 +122,7 @@
           size: 16, life: 0.75, maxLife: 0.75 });
       }
     }
-    const targets = [game.player, ally].filter(p => p && p.hp > 0);
+    const targets = pilots(game);
     const nearest = targets.sort((a, b) =>
       Math.hypot(a.x - boss.x, a.y - boss.y) -
       Math.hypot(b.x - boss.x, b.y - boss.y))[0];

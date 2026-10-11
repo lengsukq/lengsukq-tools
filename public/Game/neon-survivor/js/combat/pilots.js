@@ -70,6 +70,11 @@
       pilot.maxCharges = Math.min(4, 2 + (pilot.astra.warpUpgrades?.star_gate || 0));
       pilot.charges = pilot.astra.blinkCharges;
       pilot.recharge = pilot.astra.blinkRecharge || 0;
+      pilot.invuln = Math.max(pilot.invuln, pilot.invulnTimer || 0);
+    } else if (pilot.shipId === 'phantom' && pilot.phantom) {
+      pilot.maxCharges = Math.min(3, 2 + (pilot.phantom.warpUpgrades?.charge_overflow || 0));
+      pilot.charges = pilot.phantom.dashCharges;
+      pilot.recharge = pilot.phantom.dashRecharge;
     } else if (pilot.charges < pilot.maxCharges) {
       pilot.recharge += dt;
       const thruster = pilot.passives?.thruster || 0;
@@ -81,8 +86,12 @@
       (1 + .15 * (pilot.passives?.thruster || 0)));
     const dx = Number.isFinite(input.dx) ? input.dx : 0;
     const dy = Number.isFinite(input.dy) ? input.dy : 0;
-    pilot.x += dx * speed * dt;
-    pilot.y += dy * speed * dt;
+    if (!pilot.phantom?.docked) {
+      const shiftSpeed = pilot.phantom?.shiftActive ?
+        window.NeonPhantom?.BASE?.shiftSpeedMultiplier || 1.4 : 1;
+      pilot.x += dx * speed * shiftSpeed * dt;
+      pilot.y += dy * speed * shiftSpeed * dt;
+    }
     if (pilot.hp > 0 && !pilot.downed) pilot.hp = Math.min(pilot.maxHp,
       pilot.hp + dt * ((pilot.regen ?? .8) + (pilot.passives?.armor || 0) * 1.8));
     if (!pilot.downed && pilot.shipId === 'phantom' && pilot.phantom?.shiftActive) {
@@ -113,7 +122,8 @@
     return true;
   }
   function resolveRemoteHits(game,pilot) {
-    if (!game || !pilot || pilot.hp <= 0 || pilot.downed) return false;
+    if (!game || !pilot || pilot.hp <= 0 || pilot.downed ||
+        pilot.phantom?.shiftActive || pilot.phantom?.docked) return false;
     const multiplier=window.NeonLanEncounters?.active(game) ? window.NeonLanEncounters.TUNING.enemyDamage : 1;
     const protect = raw => {
       if (pilot?.shipId === 'phantom' && pilot.phantom?.shiftActive) return 0;
@@ -146,7 +156,9 @@
         }
       }
     }
-    if (pilot.hp <= 0 && (pilot.passives?.armor || 0) >= 5 && !pilot.cheatDeathUsed) {
+    if (pilot.hp <= 0 && ((pilot.passives?.armor || 0) >= 5 ||
+        (pilot.shipId === 'phantom' && (pilot.passives?.death_reversal || 0) > 0)) &&
+        !pilot.cheatDeathUsed) {
       pilot.hp=Math.min(pilot.maxHp,35);
       pilot.invuln=1.2;
       pilot.cheatDeathUsed=true;

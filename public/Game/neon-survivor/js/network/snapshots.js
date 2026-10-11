@@ -34,7 +34,14 @@
       game?.lanCoop?.ally && { id: 'guest', state: game.lanCoop.ally }
     ].filter(Boolean);
     return Object.freeze(existing.slice(0, MAX_PLAYERS)
-      .map(({ id, state }) => serializePilot(id, state)).filter(Boolean));
+      .map(({ id, state }) => {
+        const pilot = serializePilot(id, state);
+        if (!pilot) return null;
+        return Object.freeze({ ...pilot,
+          name: String(state?.profile?.name || (id === 'host' ? '房主' : id)).slice(0, 24),
+          color: typeof state?.profile?.color === 'string' ?
+            state.profile.color.slice(0, 24) : '#90d6ff' });
+      }).filter(Boolean));
   }
   function decorate(frame, game, receiverId = 'guest') {
     if (!frame || typeof frame !== 'object' || !window.NeonPlayers?.validId?.(receiverId)) {

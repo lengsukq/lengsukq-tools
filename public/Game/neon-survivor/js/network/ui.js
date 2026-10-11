@@ -39,7 +39,7 @@
     ui.appendChild(card);
     document.body.appendChild(ui);
     const title = document.createElement('h2');
-    title.textContent = '局域网双人合作 · WebRTC';
+    title.textContent = '局域网多人合作 · WebRTC（2–4人）';
     title.style.cssText = 'color:#00f3ff;margin:0 0 12px;font-size:23px;';
     card.appendChild(title);
     const note = document.createElement('p');
@@ -103,6 +103,20 @@
     const roomLabel = document.createElement('strong');
     roomLabel.style.cssText = 'display:block;color:#90f6dd;margin:10px 0;';
     card.appendChild(roomLabel);
+    const capacityRow = document.createElement('label');
+    capacityRow.style.cssText = 'display:flex;align-items:center;gap:12px;margin:12px 0;color:#c3e8ff;font-weight:700;';
+    capacityRow.textContent = '房间人数';
+    const capacitySelect = document.createElement('select');
+    capacitySelect.id = 'neon-lan-capacity';
+    capacitySelect.style.cssText = 'min-height:44px;background:#15324c;color:#effaff;border:1px solid #66bedb;border-radius:9px;padding:7px 15px;';
+    for (const size of [2, 3, 4]) {
+      const option = document.createElement('option');
+      option.value = String(size);
+      option.textContent = size + ' 人';
+      capacitySelect.appendChild(option);
+    }
+    capacityRow.appendChild(capacitySelect);
+    card.appendChild(capacityRow);
     const invitePanel = document.createElement('section');
     invitePanel.className = 'neon-lan-qr-panel';
     invitePanel.hidden = true;
@@ -114,7 +128,7 @@
     const inviteTitle = document.createElement('strong');
     inviteTitle.textContent = '手机扫码 · 自动加入';
     const inviteCaption = document.createElement('p');
-    inviteCaption.textContent = '让队友用手机相机扫描，打开链接即可自动填写房间码并建立连接。二维码约5分钟内有效，两台设备必须能局域网直连。';
+    inviteCaption.textContent = '让最多三位队友扫码加入房间。二维码约5分钟内有效，所有设备都必须能通过局域网直连房主。';
     const inviteLink = document.createElement('a');
     inviteLink.className = 'neon-lan-invite-url';
     inviteLink.target = '_blank';
@@ -172,10 +186,10 @@
     advanced.appendChild(manualSteps);
     rtc.onStatus = message => { status.textContent = message; };
     rtc.onData = (message, remotePlayerId) => coop.onMessage(message, remotePlayerId);
-    rtc.onConnection = connected => {
+    rtc.onConnection = (connected, playerId = 'guest') => {
       if (connected && !started) {
         started = true;
-        void signaling?.close();
+        if (rtc.role !== 'host') void signaling?.close();
         ui.remove();
         game.sound.init();
         if (rtc.role === 'host') {
@@ -189,7 +203,14 @@
         leaveButton.style.cssText = 'position:fixed;top:70px;right:12px;z-index:90;border:1px solid #f77;border-radius:8px;background:#211525dd;color:#ffc8c8;padding:7px;font-size:11px;';
         leaveButton.onclick = () => coop.onReadyLeave();
         document.body.appendChild(leaveButton);
+      } else if (connected && started && rtc.role === 'host') {
+        coop.onPeerConnected?.(playerId);
       } else if (!connected && started) {
+        if (rtc.role === 'host') {
+          coop.onPeerDisconnected?.(playerId);
+          if (!rtc.connected && game.state === 'playing') game.state = 'paused';
+          return;
+        }
         started = false;
         leaveButton?.remove(); leaveButton = null;
         coop.stop();
@@ -212,7 +233,7 @@
     button('创建房间', async () => {
       if (!signaling) throw Error('浏览器不支持房间码信令，请使用高级手动配对');
       invitePanel.hidden = true;
-      const room = await signaling.create(rtc);
+      const room = await signaling.create(rtc, Number(capacitySelect.value || 2));
       refreshIdentity();
       roomLabel.textContent = '房间码：' + room + ' · 等待队友';
       joinCode.value = room;
@@ -241,7 +262,7 @@
     control('手动创建房间', () => {
       void signaling?.close();
       invitePanel.hidden = true;
-      const room = rtc.host();
+      const room = rtc.host(Number(capacitySelect.value || 2));
       refreshIdentity();
       roomLabel.textContent = '手动配对房间：' + room;
     });
@@ -250,7 +271,9 @@
       rtc.discover();
     });
     control('生成房主邀请', async () => {
-      field.value = await rtc.makeOffer();
+      const nextId = ['guest','guest-2','guest-3'].find(id => !rtc.peerLinks?.has(id));
+      if (!nextId) throw Error('当前房间的邀请数量已满');
+      field.value = await rtc.makeOffer(nextId);
       field.select();
     });
     control('接受邀请并生成应答', async () => {
@@ -260,7 +283,10 @@
       roomLabel.textContent = '房间：' + rtc.room + ' · 等待房主确认应答';
       field.select();
     });
-    control('房主确认应答', () => rtc.acceptAnswer(field.value));
+    control('房主确认应答', () => {
+      const answer = JSON.parse(field.value);
+      return rtc.acceptAnswer(field.value, answer.playerId || 'guest');
+    });
     control('复制连接信息', async () => {
       if (!field.value) throw Error('请先生成连接信息');
       if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(field.value);

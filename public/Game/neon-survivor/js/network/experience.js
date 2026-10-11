@@ -14,6 +14,13 @@
   function collector(game, gem) {
     const host = game.player;
     if (!active(game)) return host;
+    if ((game.lanCoop?.allies?.size || 0) > 1) {
+      const pilots = [host, ...game.lanCoop.allies.values()]
+        .filter(p => p.hp > 0 && !p.downed && !p.disconnected);
+      return pilots.reduce((best, p) => !best ||
+        Math.hypot(p.x - gem.x, p.y - gem.y) <
+        Math.hypot(best.x - gem.x, best.y - gem.y) ? p : best, null) || host;
+    }
     const ally = game.lanCoop.ally;
     if (!ally || ally.hp <= 0) return host;
     if (host.hp <= 0) return ally;
@@ -38,15 +45,17 @@
   }
   function synchronizeLevel(game) {
     if (!active(game)) return;
-    const ally = game.lanCoop.ally;
-    // Each team level-up grants BOTH pilots one independent upgrade card.
-    if (game.player.level > ally.level) {
-      ally.pendingUpgrades = (ally.pendingUpgrades || 0) +
-        (game.player.level - ally.level);
+    // All 2–4 pilots share the same XP but each gets independent card credits.
+    for (const ally of game.lanCoop.allies?.values?.() || [game.lanCoop.ally]) {
+      if (!ally) continue;
+      if (game.player.level > ally.level) {
+        ally.pendingUpgrades = (ally.pendingUpgrades || 0) +
+          (game.player.level - ally.level);
+      }
+      ally.level = game.player.level;
+      ally.xp = game.player.xp;
+      ally.xpNeeded = game.player.xpNeeded;
     }
-    ally.level = game.player.level;
-    ally.xp = game.player.xp;
-    ally.xpNeeded = game.player.xpNeeded;
   }
   function progress(game) {
     return {

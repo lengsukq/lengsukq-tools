@@ -95,6 +95,17 @@
     view.camera.y = focus.y;
     const player = view.player ||= {};
     player.shipId = state.guest.shipId || 'riftblade';
+    player.spectral = state.guest.spectral || null;
+    player.phantom = player.shipId === 'phantom' && player.spectral ? {
+      ectoplasm: player.spectral.ectoplasm,
+      maxEctoplasm: player.spectral.maxEctoplasm,
+      shiftActive: player.spectral.shiftActive,
+      shiftRemaining: player.spectral.shiftRemaining,
+      dashCharges: player.spectral.charges,
+      dashRecharge: player.spectral.recharge,
+      docked: player.spectral.docked,
+      dockCooldownRemaining: player.spectral.dockCooldown
+    } : null;
     if (player.shipId === 'astra' && state.guest.arcane) {
       const aura = state.guest.arcane;
       player.astra = {

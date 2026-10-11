@@ -115,11 +115,16 @@
     const ready = document.createElement('button');
     ready.type = 'button';
     ready.className = 'neon-ready-toggle';
+    const readyText = document.createElement('span');
+    readyText.textContent = '准备就绪';
+    ready.appendChild(readyText);
+    if (window.NeonGamepadHints) ready.appendChild(window.NeonGamepadHints.keyBadge('a'));
     ready.onclick = () => coop.setReady(!coop.localReady);
     const start = document.createElement('button');
     start.type = 'button';
     start.className = 'neon-ready-start';
     start.textContent = '全员准备 · 开始战斗';
+    if (window.NeonGamepadHints) start.appendChild(window.NeonGamepadHints.keyBadge('start'));
     start.onclick = () => coop.beginHostMatch();
     const leave = document.createElement('button');
     leave.type = 'button';
@@ -130,13 +135,22 @@
     info.className = 'neon-ready-hint';
     buttons.append(ready, start, leave);
     content.append(buttons, info);
+    const hints = document.createElement('div');
+    hints.className = 'neon-gamepad-hint-row';
+    const prompt = window.NeonGamepadHints?.prompt;
+    if (prompt) hints.append(
+      prompt('切换战舰', 'lb'),
+      prompt('准备/取消准备', 'a'),
+      prompt('房主开始', 'start')
+    );
+    content.appendChild(hints);
     selector.onchange = () => coop.selectReadyShip(selector.value);
     document.body.appendChild(shell);
     coop.guestShipWaitPanel = shell; // Existing teardown target.
     coop.refreshReadyView = () => {
       const status = coop.readyRoom?.snapshot() || coop.remoteReady;
       if (!status) return;
-      const mine = coop.rtc.role === 'host' ? 'host' : 'guest';
+      const mine = coop.rtc.role === 'host' ? 'host' : (coop.rtc.localPlayerId || 'guest');
       const current = status.members.find(m => m.id === mine);
       // On a guest, show their newly selected ship immediately; the host's
       // authoritative roster can arrive slightly later on the reliable link.
@@ -164,7 +178,7 @@
         card.append(identity, ship, state);
         roster.appendChild(card);
       }
-      ready.textContent = coop.localReady ? '取消准备' : '准备就绪';
+      readyText.textContent = coop.localReady ? '取消准备' : '准备就绪';
       ready.disabled = !coop.rtc.connected || !current?.connected;
       start.hidden = coop.rtc.role !== 'host';
       start.disabled = !status.canStart;
@@ -175,5 +189,23 @@
     };
     coop.refreshReadyView();
   }
-  window.NeonLanReady = Object.freeze({ ReadyRoom, validSnapshot, mount });
+  function pollGamepad(coop, justPressed) {
+    if (!coop || coop.game.state !== 'lan-waiting') return false;
+    if (justPressed(4) || justPressed(5) || justPressed(14) || justPressed(15)) {
+      if (!coop.localReady) {
+        const choices = (window.NeonShips?.list(false) || []).filter(ship => ship.playable);
+        if (choices.length > 1) {
+          const at = Math.max(0, choices.findIndex(ship => ship.id === coop.game.selectedShipId));
+          const move = justPressed(4) || justPressed(14) ? -1 : 1;
+          coop.selectReadyShip(choices[(at + move + choices.length) % choices.length].id);
+          coop.refreshReadyView?.();
+        }
+      }
+    }
+    if (justPressed(0)) coop.setReady(!coop.localReady);
+    if (justPressed(1) && coop.localReady) coop.setReady(false);
+    if (justPressed(9) && coop.rtc.role === 'host') coop.beginHostMatch();
+    return true;
+  }
+  window.NeonLanReady = Object.freeze({ ReadyRoom, validSnapshot, mount, pollGamepad });
 })();
