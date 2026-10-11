@@ -10,7 +10,8 @@ assert.match(html, /network\/teammates\.js/);
 assert.ok(html.indexOf('network/teammates.js') < html.indexOf('network/coop.js'));
 assert.match(css, /\.neon-teammate-indicator/);
 assert.match(css, /\.neon-color-swatch/);
-assert.match(core, /ctx\.strokeStyle = localProfile\.color/);
+assert.match(core, /this\.renderFighter\(ctx, this\.player, localProfile/);
+assert.match(core, /ctx\.strokeStyle = fighter\.downed \? '#ff617e' : profile\.color/);
 
 const store = new Map();
 const elements = [];

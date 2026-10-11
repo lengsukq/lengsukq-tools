@@ -35,16 +35,25 @@ const sandbox = {
   document: { getElementById: () => null }, performance: { now: () => 0 }
 };
 vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync(root + 'js/network/world-view.js', 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/network/coop.js', 'utf8'), sandbox);
 const coop = new sandbox.window.NeonLanCoop.Coop({
-  width: 390, height: 844, dpr: 1, cameraZoom: 1.35, ctx
+  width: 390, height: 844, dpr: 1, cameraZoom: 1.35, ctx,
+  render() {
+    ctx.translate(this.width / 2, this.height / 2);
+    ctx.scale(this.cameraZoom, this.cameraZoom);
+    ctx.translate(-this.camera.x, -this.camera.y);
+  },
+  updateHUD() {},
+  renderWeaponsHUD() {},
+  modalLevelup: { classList: { add() {}, remove() {} } }
 }, { connected: true, role: 'guest' });
 coop.guestMode = true;
 coop.latest = {
   type: 'snapshot', time: 5, kills: 2, phase: 'playing',
   host: { x: 100, y: 100, hp: 100, maxHp: 100 },
   guest: { x: 30, y: 40, hp: 70, maxHp: 100, charges: 3 },
-  enemies: [], bullets: [], enemyBullets: [], gems: []
+  enemies: [], bullets: [], enemyBullets: [], gems: [], teamXP: { level: 1, xp: 0, xpNeeded: 10 }
 };
 coop.renderGuest();
 assert.ok(ctxOps.some(op => op[0] === 'scale' && op[1] === 1.35 && op[2] === 1.35),
