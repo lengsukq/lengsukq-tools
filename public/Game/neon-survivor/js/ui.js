@@ -34,8 +34,17 @@
     body.appendChild(title);
     const hint = document.createElement('p');
     hint.style.cssText = 'font-size:13px;text-align:center;color:#a6b9d0;margin:0 0 16px;';
-    hint.textContent = '选择一项继续。手柄十字键或摇杆选择，A 键确认。键盘 ← → / Enter。';
+    hint.textContent = '选择一项继续。键盘 ← → / Enter。';
     body.appendChild(hint);
+    if (window.NeonGamepadHints) {
+      const controls = document.createElement('div');
+      controls.className = 'neon-gamepad-hint-row';
+      controls.append(
+        window.NeonGamepadHints.prompt('切换卡片', 'lb'),
+        window.NeonGamepadHints.prompt('确认选择', 'a')
+      );
+      body.appendChild(controls);
+    }
     const cards = document.createElement('div');
     cards.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(min(215px,100%),1fr));gap:12px;';
     selection.options.forEach((opt, i) => {

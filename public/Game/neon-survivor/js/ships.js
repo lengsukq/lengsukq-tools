@@ -1,6 +1,6 @@
 /* V6 ship registry: data and rendering plugins, separate from world combat.
  * V5's ASTRA can later register its own abilities/warp tree without adding
- * character branches throughout core.js. Only RIFTBLADE is playable today.
+ * character branches throughout core.js. Playable ships are supplied by plugins.
  */
 (() => {
   'use strict';

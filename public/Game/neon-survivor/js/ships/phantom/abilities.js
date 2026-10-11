@@ -38,6 +38,33 @@
     ejectDamage: 45
   });
 
+  const CARD_HELP = Object.freeze({
+    phantom_scythe: '双镰往返切割；升级增加伤害、飞行距离、镰刀数量和回收爆发',
+    spectral_dart: '自动锁定多名敌人连续发射虚界毒刺；提高目标数与伤害',
+    soul_reap_orb: '法球贯穿附近目标并回收灵质；提高连击目标数',
+    void_rift_mine: '敌人脚下留下0.55秒后引爆的裂隙雷；提高爆炸半径与伤害',
+    symbiote_beam: '灵质光束命中多个目标；共生时为载体恢复少量生命',
+    haunt_clones: '生成多个延迟追击的残影区域打击',
+    curse_totem: '在敌群召唤延时幽冥图腾，潜行时附带灵魂烙印',
+    apocalypse_scythe: '周期性大范围终焉镰刀斩击，最多影响16个敌人',
+    abyssal_possession: '向最近敌人释放有单次上限的高伤侵蚀，普通敌人还会减速',
+    phantom_core: '提高灵质上限并增加幽灵暴击概率',
+    spiritual_flow: '提高所有正向灵质收集的倍率',
+    stealth_armor: '低生命时提高基础再生速度',
+    execute_master: '敌人生命低于35%时提高幽灵专属武器伤害',
+    symbiosis_link: '增加共生挂载期间的灵质恢复速度',
+    soul_gatherer: '幽灵专属武器每次命中额外回收灵质',
+    death_reversal: '本局首次致命伤害触发一次紧急重构（已消耗则不再触发）',
+    dual_mind: '提高灵质系统提供的暴击概率',
+    spectral_extend: '每级延长潜行持续时间0.5秒',
+    soul_detonation: '提高烙印引爆范围与伤害',
+    charge_overflow: '提升可用潜行次数，最多3段',
+    ghost_trail: '潜行期间每0.36秒产生近距离冥火伤害与特效',
+    terror_shriek: '斩魂引爆后短暂恐吓周围敌群',
+    dimension_door: '潜行结束时减速周围敌人',
+    symbiote_slingshot: '共生弹射后3秒提高暴击概率'
+  });
+
   const UNIQUE = Object.freeze({
     weapon: Object.freeze([
       ['phantom_scythe', '幽魂之镰', 'rare', 5],
@@ -74,6 +101,10 @@
   const catalog = Object.freeze(Object.values(UNIQUE).flatMap((entries, typeIndex) =>
     entries.map(([id, name, rarity, levels]) => Object.freeze({
       id, name, rarity, type: ['weapon', 'passive', 'dash'][typeIndex],
+      icon: ['☄','✧','◈'][typeIndex],
+      desc: CARD_HELP[id],
+      statText: Array.from({length:levels||5},(_,i)=>
+        `Lv.${i+1}/${levels||5} · ${CARD_HELP[id]}`),
       maxLvl: levels || 5, shipId: 'phantom'
     }))));
 
@@ -122,6 +153,7 @@
     if (coreLevel > 0) {
       bonus += [0, 0.10, 0.18, 0.26, 0.34, 0.45][Math.min(5, coreLevel)];
     }
+    bonus += (s.passiveUpgrades.dual_mind || 0) * .035;
     // Natural soft-cap at 75% to prevent infinite critical creep
     bonus = Math.min(0.75, bonus);
     if (s.slingshotBuffUntil > now) {
@@ -294,14 +326,45 @@
         game?.state !== 'playing') return;
 
     const now = game.survivalTime || 0;
+    // Passing through an enemy while shifted leaves a bounded soul mark.
+    // Subsequent reap can always affect a target even in solo play.
+    if (s.shiftActive) {
+      let marked = 0;
+      for (const enemy of game.enemies || []) {
+        if (enemy.dead || enemy.hp <= 0 || s.marks.has(enemy) ||
+            !within(enemy, pilot, (enemy.radius || 14) + (pilot.radius || 16) + 16)) continue;
+        markEnemy(pilot, enemy, now);
+        if (++marked >= 12) break;
+      }
+    }
 
     // Handle shift duration
     if (s.shiftActive) {
+      if ((s.warpUpgrades.ghost_trail || 0) > 0) {
+        s.ghostTrailCooldown = Math.max(0, (s.ghostTrailCooldown || 0) - dt);
+        if (s.ghostTrailCooldown === 0 && (game.shockwaves?.length || 0) < 35) {
+          s.ghostTrailCooldown = .36;
+          const level = Math.min(2, s.warpUpgrades.ghost_trail);
+          for (const enemy of game.enemies || []) {
+            if (enemy.dead || enemy.hp <= 0 || !within(enemy,pilot,45+level*12)) continue;
+            game.dealDamage(enemy,13+level*9,'phantom_ghost_trail',false,pilot);
+          }
+          game.shockwaves.push({x:pilot.x,y:pilot.y,radius:10,maxRadius:55+level*12,
+            color:'#7439b5',alpha:.48});
+        }
+      }
       s.shiftRemaining -= dt;
       if (s.shiftRemaining <= 0) {
         s.shiftActive = false;
         s.shiftRemaining = 0;
         reap(pilot, game, false);
+        if ((s.warpUpgrades.dimension_door || 0) > 0) {
+          const power = Math.min(2,s.warpUpgrades.dimension_door);
+          for (const enemy of game.enemies || []) {
+            if (enemy.dead || enemy.hp<=0 || !within(enemy,pilot,90+power*15)) continue;
+            enemy.freezeTimer=Math.max(enemy.freezeTimer || 0, .4+power*.2);
+          }
+        }
       }
     }
 
@@ -319,7 +382,7 @@
       s.dashRecharge = 0;
     }
 
-    // Handle clean up of expired marks
+    // Handle clean up of expired marks belonging to this pilot only.
     for (const [enemy, expireAt] of s.marks.entries()) {
       if (enemy.dead || enemy.hp <= 0 || expireAt < now) {
         s.marks.delete(enemy);
@@ -336,7 +399,8 @@
       } else {
         pilot.x = s.carrier.x;
         pilot.y = s.carrier.y;
-        addEctoplasm(pilot, BASE.dockEctoplasmPerSec * dt);
+        addEctoplasm(pilot, BASE.dockEctoplasmPerSec * dt *
+          (1+(s.passiveUpgrades.symbiosis_link || 0)*.12));
       }
     } else {
       s.dockCooldownRemaining = Math.max(0, s.dockCooldownRemaining - dt);
@@ -344,9 +408,9 @@
   }
 
   function renderMarks(ctx, game) {
-    const pilot = game?.player;
-    const s = pilot?.phantom;
-    if (!s?.marks?.size || !ctx) return;
+    const pilots = game?.players?.list?.().map(entry=>entry.state) ||
+      [game?.player,game?.lanCoop?.ally].filter(Boolean);
+    if (!ctx || !pilots.some(pilot=>pilot?.phantom?.marks?.size)) return;
     const now = game.survivalTime || 0;
     ctx.save();
     ctx.shadowBlur = 10;
@@ -355,7 +419,7 @@
     ctx.strokeStyle = '#00f0ff';
     ctx.lineWidth = 1.4;
 
-    for (const [enemy, expireAt] of s.marks.entries()) {
+    for (const pilot of pilots) for (const [enemy, expireAt] of (pilot?.phantom?.marks || new Map()).entries()) {
       if (!enemy || enemy.dead || enemy.hp <= 0 || expireAt < now) continue;
       const x = enemy.x;
       const y = enemy.y - (enemy.radius || 14) - 10;
@@ -395,6 +459,7 @@
           onTick(pilot, game, dt) {
             tick(pilot, game, dt);
             window.NeonPhantomScythe?.tick(pilot, game, dt);
+            window.NeonPhantomArsenal?.tick(pilot, game, dt);
           },
           onAction(pilot, game, action) {
             if (action === 'shift') return enterShift(pilot, game);
@@ -405,10 +470,15 @@
           },
           onUpgrade(pilot, game, card) {
             const s = state(pilot);
-            if (!s || !card) return false;
-            if (card.type === 'dash') s.warpUpgrades[card.id] = (s.warpUpgrades[card.id] || 0) + 1;
-            else if (card.type === 'passive') s.passiveUpgrades[card.id] = (s.passiveUpgrades[card.id] || 0) + 1;
-            else if (card.type === 'weapon') pilot.weapons[card.id] = (pilot.weapons[card.id] || 0) + 1;
+            const def = catalog.find(item => item.id === card?.id && item.type === card?.type);
+            if (!s || !def) return false;
+            const bag = def.type === 'weapon' ? (pilot.weapons ||= {}) :
+              def.type === 'passive' ? (pilot.passives ||= {}) : (pilot.dashUpgrades ||= {});
+            const next = bag[def.id] || 0;
+            if (next >= def.maxLvl) return false;
+            bag[def.id] = next + 1;
+            if (def.type === 'dash') s.warpUpgrades[def.id] = bag[def.id];
+            else if (def.type === 'passive') s.passiveUpgrades[def.id] = bag[def.id];
             return true;
           }
         });

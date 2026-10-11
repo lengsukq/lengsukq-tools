@@ -4,5 +4,12 @@ window.NeonShips.registerEffects('phantom', {
   },
   world(ctx, game) {
     window.NeonPhantom?.renderMarks(ctx, game);
+  },
+  network(ctx, snapshot) {
+    if (snapshot.spectral?.scythes?.length) {
+      window.NeonPhantomScythe?.render(ctx, {
+        phantomScythe: {scythes:snapshot.spectral.scythes}
+      });
+    }
   }
 });

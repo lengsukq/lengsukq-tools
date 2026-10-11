@@ -8,6 +8,20 @@
       --card-bg: rgba(14, 20, 36, 0.88);
       --border-glow: rgba(0, 243, 255, 0.4);
     }
+    .neon-gamepad-connected .cyber-btn[data-gamepad-key]::after {
+      display: inline-flex !important;
+      content: attr(data-gamepad-key);
+      min-width: 22px;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 5px;
+      margin-left: 7px;
+      border-radius: 7px;
+      border: 1px solid #72b9e8;
+      background: #152f4c;
+      color: #e6f7ff;
+      font: 800 11px system-ui;
+    }
     #modal-levelup .upgrade-card.selected-pending,
     #modal-levelup .upgrade-card.selected-pending:hover {
       outline: 3px solid #54ffbe;
@@ -1817,9 +1831,58 @@
       .neon-ready-actions button { transition: none; }
     }
 
+    /* Never show controller hints to keyboard/touch-only players. */
+    .neon-gamepad-key,
+    .neon-gamepad-hint-row,
+    [data-gamepad-key]::after { display: none !important; }
+    .neon-gamepad-connected .neon-gamepad-hint-row {
+      display: flex !important;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 15px;
+      margin: 12px 0 4px;
+      padding: 8px 11px;
+      border: 1px solid rgba(98, 177, 210, .3);
+      border-radius: 10px;
+      background: rgba(9, 26, 47, .55);
+    }
+    .neon-gamepad-connected .neon-gamepad-prompt {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #b8dcf2;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .neon-gamepad-connected .neon-gamepad-key {
+      display: inline-grid !important;
+      place-items: center;
+      min-width: 24px;
+      min-height: 23px;
+      margin-inline-start: 5px;
+      padding: 2px 5px;
+      border: 1px solid #72b9e8;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #2c4667, #101d36);
+      color: #e8f9ff;
+      box-shadow: inset 0 0 8px #9adfff22;
+      font: 800 11px system-ui;
+      vertical-align: middle;
+    }
+    .neon-gamepad-hint-row .neon-gamepad-key { margin-inline-start: 0; }
+    .neon-gamepad-connected .neon-ready-panel .neon-gamepad-hint-row {
+      margin-top: 17px;
+    }
+
     /* ASTRA arcane command keys use a separate surface and never replace
        Riftblade's familiar dash control or capture the movement touch. */
     #astra-touch-actions[hidden], #astra-mana-hud[hidden] { display: none !important; }
+    #phantom-touch-actions[hidden], #phantom-ecto-hud[hidden] { display: none !important; }
+    #phantom-ecto-hud { display:flex;align-items:center;gap:6px;font-size:10px;color:#d9b3ff;font-weight:700;white-space:nowrap; }
+    #phantom-ecto-fill { display:block;height:100%;width:0;background:linear-gradient(90deg,#7736c7,#df91ff);border-radius:6px; }
+    #phantom-touch-actions { position:absolute;right:calc(var(--neon-safe-right, 0px) + 12px);bottom:calc(var(--neon-safe-bottom, 0px) + clamp(112px, 21vh, 165px));pointer-events:none; }
+    #phantom-touch-actions button { pointer-events:auto;min-height:46px;padding:10px 14px;border:1px solid #ad79fd;border-radius:12px;background:rgba(35,17,58,.92);color:#efcaff;font-weight:800; }
     #astra-touch-actions {
       position: absolute;
       right: calc(var(--neon-safe-right, 0px) + 12px);

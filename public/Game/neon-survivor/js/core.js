@@ -25,6 +25,49 @@
         this.scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00]; // Pentatonic
       }
 
+      togglePhantomDock() {
+        if (this.settingsOpen) return false;
+        if (this.state === 'lan-client') {
+          if (this.lanCoop?.latest?.guest?.shipId !== 'phantom') return false;
+          return this.lanCoop.requestGuestShipAction('dock_toggle') === true;
+        }
+        const ectoPanel = document.getElementById('phantom-ecto-hud');
+        const isPhantom = this.player?.shipId === 'phantom';
+        if (ectoPanel) {
+          ectoPanel.hidden = !isPhantom;
+          const s = this.player.phantom;
+          if (isPhantom && s) {
+            const text = document.getElementById('phantom-ecto-text');
+            const fill = document.getElementById('phantom-ecto-fill');
+            if (text) text.textContent = `灵质 ${Math.floor(s.ectoplasm || 0)}/${s.maxEctoplasm || 100}` +
+              (s.shiftActive ? ' · 潜行' : '') + (s.docked ? ' · 共生' : '');
+            if (fill) fill.style.width = Math.round(100 * Math.min(1,
+              (s.ectoplasm || 0) / Math.max(1,s.maxEctoplasm || 100))) + '%';
+          }
+        }
+        const dockPanel = document.getElementById('phantom-touch-actions');
+        if (dockPanel) {
+          dockPanel.hidden = !isPhantom ||
+            (this.state !== 'playing' && this.state !== 'lan-client');
+          const control = document.getElementById('phantom-dock-action');
+          if (control) {
+            control.textContent = this.player.phantom?.docked ? '脱离共生 Q' : '共生合体 Q';
+            control.disabled = this.state === 'playing' ?
+              !this.lanCoop?.ally : !this.lanCoop?.latest?.host;
+          }
+        }
+        if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
+            this.player.downed || this.player.hp <= 0) return false;
+        if (this.player.phantom?.docked) {
+          return window.NeonShips?.runAbility?.(this.player,'onAction',this,
+            {kind:'undock',eject:true}) === true;
+        }
+        const carrier = this.lanCoop?.ally;
+        if (!carrier || !this.lanCoop?.rtc.connected) return false;
+        return window.NeonShips?.runAbility?.(this.player,'onAction',this,
+          {kind:'dock',carrier}) === true;
+      }
+
       init() {
         if (this.ctx) return;
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -39,6 +82,22 @@
         this.enabled = !this.enabled;
         if (this.masterGain) {
           this.masterGain.gain.value = this.enabled ? 0.28 : 0.0;
+        }
+        if (this.player?.shipId === 'phantom') {
+          const ghost = window.NeonPhantom?.state(this.player);
+          if (ghost) {
+            this.player.maxDashCharges = Math.min(3,
+              2 + (ghost.warpUpgrades.charge_overflow || 0));
+            this.player.dashCharges = ghost.dashCharges;
+            this.player.dashRechargeTimer = ghost.dashRecharge;
+          }
+          if (!e.repeat && e.key.toLowerCase() === 'q' &&
+              (this.state === 'playing' || this.state === 'lan-client') &&
+              (this.state === 'playing' ? this.player?.shipId :
+                this.lanCoop?.latest?.guest?.shipId) === 'phantom') {
+            this.togglePhantomDock();
+            e.preventDefault();
+          }
         }
         return this.enabled;
       }
@@ -798,6 +857,14 @@
           aimAngle: 0,
           autoAim: true
         };
+        // Gamepad badges on ordinary menu actions are created only while a
+        // connected controller is present. Buttons remain fully clickable.
+        for (const [id, key] of [
+          ['btn-start-game', 'a'], ['btn-start-help', 'x'],
+          ['btn-resume', 'a'], ['btn-pause-help', 'x']
+        ]) {
+          document.getElementById(id)?.setAttribute?.('data-gamepad-action', key);
+        }
         this.selectedShipId = window.NeonShips?.DEFAULT_SHIP_ID || 'riftblade';
         this.player.shipId = this.selectedShipId;
         // Authoritative player container; legacy game.player remains the exact
@@ -1057,6 +1124,15 @@
           control.addEventListener('click', event => {
             event.stopPropagation();
             action();
+          });
+        }
+        const phantomDock = document.getElementById('phantom-dock-action');
+        if (phantomDock) {
+          phantomDock.addEventListener('touchstart', event => {
+            event.preventDefault(); event.stopPropagation(); this.togglePhantomDock();
+          }, { passive: false });
+          phantomDock.addEventListener('click', event => {
+            event.stopPropagation(); this.togglePhantomDock();
           });
         }
       }
@@ -1350,6 +1426,7 @@
         this.gamepadCombatInputLocked = false;
 
         this.syncGamepadBadge = (gp) => {
+          window.NeonGamepadHints?.sync(gp);
           const badge = document.getElementById('gamepad-badge');
           const testButton = document.getElementById('btn-test-vibrate');
           if (badge) badge.style.display = gp ? 'inline-flex' : 'none';
@@ -1452,6 +1529,7 @@
           }
         }
         if (!gp) {
+          window.NeonGamepadHints?.sync(null);
           if (this.gamepadIndex !== -1) {
             this.gamepadIndex = -1;
             this.gamepadMove = { x: 0, y: 0 };
@@ -1462,6 +1540,7 @@
         }
 
         const badge = document.getElementById('gamepad-badge');
+        window.NeonGamepadHints?.sync(gp);
         if (badge && badge.style.display === 'none') this.syncGamepadBadge(gp);
 
         const isPressed = (btnIdx) => {
@@ -1475,6 +1554,12 @@
           const wasPressed = !!this.gamepadPrevButtons[btnIdx];
           return pressed && !wasPressed;
         };
+
+        if (this.state === 'lan-waiting') {
+          window.NeonLanReady?.pollGamepad(this.lanCoop, justPressed);
+          this.finishGamepadMenuFrame(gp, true);
+          return;
+        }
 
         if (this.state === 'endless-choice') {
           window.NeonRogueUI?.pollGamepad(this, justPressed, gp);
@@ -1517,13 +1602,19 @@
               }
             });
 
-            // A/RT/RB: first press previews, second press on the same card
-            // explicitly confirms. Releasing the button is mandatory because
-            // these are justPressed edges, preventing an accidental double buy.
-            if (justPressed(0) || justPressed(7) || justPressed(5)) {
+            // A previews (A twice also confirms), while X/RT instantly
+            // accepts the highlighted eligible card. Neither action reaches
+            // the combat dash handler while the upgrade modal owns focus.
+            const fastConfirm = justPressed(7) || (!this.endlessMode && justPressed(2));
+            const preview = justPressed(0);
+            if (fastConfirm || preview) {
               const targetCard = cards[this.gamepadSelectedUpgradeIdx] || cards[0];
-              if (targetCard) {
-                if (this.pendingUpgradeId && this.pendingUpgradeId === targetCard.upgradeId) {
+              if (targetCard && !targetCard.classList?.contains('picked')) {
+                if (fastConfirm) {
+                  if (this.pendingUpgradeId !== targetCard.upgradeId) targetCard.click();
+                  this.confirmUpgradePreview();
+                } else if (this.pendingUpgradeId &&
+                    this.pendingUpgradeId === targetCard.upgradeId) {
                   this.confirmUpgradePreview();
                 } else {
                   targetCard.click();
@@ -1537,8 +1628,11 @@
               if (chosen) this.banishEndlessUpgrade(chosen.id);
             }
             if (justPressed(1)) {
-              if (!this.cancelUpgradePreview()) this.finishUpgradeSelection();
-            } // B cancels the preview; B with nothing selected banks chances.
+              this.cancelUpgradePreview();
+            } // B only cancels. Never accidentally bank leftover credits.
+            if (!this.endlessMode && justPressed(3) && !this.pendingUpgradeId) {
+              this.finishUpgradeSelection();
+            }
           } else {
             // 安全退出避免弹窗死锁
             this.finishUpgradeSelection();
@@ -1629,6 +1723,7 @@
             if (justPressed(2)) this.cycleAstraSpell();
             if (justPressed(3)) this.castAstraSpell();
           }
+          if (this.player?.shipId === 'phantom' && justPressed(2)) this.togglePhantomDock();
 
           // Dash Trigger: A (0), B (1), RB (5), RT (7), LB (4), LT (6)
           if (justPressed(0) || justPressed(1) || justPressed(5) || justPressed(7) || justPressed(4) || justPressed(6)) {
@@ -2421,6 +2516,9 @@
         confirm.textContent = '确定升级';
         confirm.disabled = !pending;
         confirm.onclick = () => this.confirmUpgradePreview();
+        confirm.setAttribute?.('data-gamepad-action', 'rt');
+        const confirmHint = window.NeonGamepadHints?.keyBadge('rt');
+        if (confirmHint) confirm.appendChild(confirmHint);
         controls.appendChild(confirm);
         const cancel = document.createElement('button');
         cancel.type = 'button';
@@ -2428,6 +2526,9 @@
         cancel.textContent = '取消选择';
         cancel.disabled = !pending;
         cancel.onclick = () => this.cancelUpgradePreview();
+        cancel.setAttribute?.('data-gamepad-action', 'b');
+        const cancelHint = window.NeonGamepadHints?.keyBadge('b');
+        if (cancelHint) cancel.appendChild(cancelHint);
         controls.appendChild(cancel);
         const button = document.createElement('button');
         button.type = 'button';
@@ -2437,7 +2538,23 @@
           if (this.pendingUpgradeId) return false;
           return this.onUpgradeFinish ? this.onUpgradeFinish() : this.finishUpgradeSelection();
         };
+        button.setAttribute?.('data-gamepad-action', 'y');
+        const bankHint = window.NeonGamepadHints?.keyBadge('y');
+        if (bankHint) button.appendChild(bankHint);
         controls.appendChild(button);
+        const hints = document.createElement('div');
+        hints.className = 'neon-gamepad-hint-row';
+        const hint = window.NeonGamepadHints;
+        if (hint) {
+          hints.append(
+            hint.prompt('左右切换', 'lb'), hint.prompt('预选', 'a'),
+            hint.prompt(this.endlessMode ? '放逐' : '快速确认', 'x'),
+            hint.prompt('快速确认', 'rt'),
+            hint.prompt('取消预选', 'b'),
+            hint.prompt(this.endlessMode ? '重掷' : '保留机会', 'y')
+          );
+          controls.appendChild(hints);
+        }
       }
 
       renderUpgradeChoices(choices) {
@@ -2686,7 +2803,8 @@
         const du = this.player.dashUpgrades || {};
 
         // 1. Max charges: 3 base + dash_charge
-        this.player.maxDashCharges = Math.min(9, 3 + (du.dash_charge || 0));
+        const baseCharges = window.NeonShips?.get(this.player.shipId)?.baseStats.dashCharges || 3;
+        this.player.maxDashCharges = Math.min(9, baseCharges + (du.dash_charge || 0));
         this.player.dashCharges = Math.min(this.player.maxDashCharges, this.player.dashCharges);
 
         // 2. Recharge cooldown: reduced by haste and dash_charge
@@ -2881,7 +2999,7 @@
         const maxCharges = this.player.maxDashCharges || 3;
         const charges = this.player.dashCharges;
         const rechargeProgress = charges < maxCharges
-          ? (this.player.dashRechargeTimer / (isAstra ? 5 : this.getEffectiveDashRecharge())) * 100
+          ? (this.player.dashRechargeTimer / (isAstra ? 5 : isPhantom ? 5.5 : this.getEffectiveDashRecharge())) * 100
           : 0;
 
         if (dashContainer) {
@@ -3272,7 +3390,7 @@
 
       dealDamage(target, rawDamage, source = 'combat', forceCrit = false, attacker = this.player) {
         if (this.lanCoop?.ally && source !== 'lan-resonance') {
-          rawDamage *= 1 + this.lanCoop.getLinkBonus();
+          rawDamage *= 1 + this.lanCoop.getLinkBonus(attacker);
         }
         if (this.endlessMode) {
           rawDamage = window.NeonRogueRelics?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
@@ -3639,6 +3757,11 @@
       getActiveSpawnPilot() {
         // While the host is down, enemies must keep spawning around the
         // surviving guest. Otherwise the last-stand challenge becomes empty.
+        if (this.player.downed && (this.lanCoop?.allies?.size || 0) > 1) {
+          const survivor = [...this.lanCoop.allies.values()].find(p =>
+            !p.disconnected && p.hp > 0 && !p.downed);
+          if (survivor) return survivor;
+        }
         if (this.player.downed && this.lanCoop?.ally?.hp > 0 &&
             !this.lanCoop.ally.downed) return this.lanCoop.ally;
         return this.player;
@@ -4163,7 +4286,15 @@
         }
 
         // Dash 3-Charge Recharge System
-        if (this.player.dashCharges < this.player.maxDashCharges) {
+        if (this.player.shipId === 'phantom') {
+          const ghost = window.NeonPhantom?.state(this.player);
+          if (ghost) {
+            this.player.maxDashCharges = Math.min(3, 2 + (ghost.warpUpgrades.charge_overflow || 0));
+            this.player.dashCharges = ghost.dashCharges;
+            this.player.dashRechargeTimer = ghost.dashRecharge;
+          }
+        }
+        if (this.player.shipId === 'riftblade' && this.player.dashCharges < this.player.maxDashCharges) {
           this.player.dashRechargeTimer += dt;
           const targetRecharge = this.getEffectiveDashRecharge();
           if (this.player.dashRechargeTimer >= targetRecharge) {
@@ -4405,8 +4536,12 @@
         }
 
         // Camera smoothly follows player
-        const cameraTarget = this.player.downed && this.lanCoop?.ally?.hp > 0
-          ? this.lanCoop.ally : this.player;
+        const livingAlly = (this.lanCoop?.allies?.size || 0) > 1
+          ? [...this.lanCoop.allies.values()].find(p =>
+            !p.disconnected && p.hp > 0 && !p.downed)
+          : this.lanCoop?.ally;
+        const cameraTarget = this.player.downed && livingAlly?.hp > 0
+          ? livingAlly : this.player;
         this.camera.x += (cameraTarget.x - this.camera.x) * 0.12;
         this.camera.y += (cameraTarget.y - this.camera.y) * 0.12;
         if (!Number.isFinite(this.camera.x) || !Number.isFinite(this.camera.y)) {
@@ -4777,7 +4912,9 @@
                 break;
               } else {
                 this.dealDamage(e, b.damage, b.type === 'blaster' ? 'blaster' : 'combat',
-                  false, b.owner === 'guest' && this.lanCoop?.ally ? this.lanCoop.ally : this.player);
+                  false, this.lanCoop?.allies?.get?.(b.ownerId || b.owner) ||
+                    (this.lanCoop?.allies?.get(b.owner) ||
+                      (b.owner === 'guest' && this.lanCoop?.ally ? this.lanCoop.ally : this.player)));
                 if (b.isPlasmaExplosion) {
                   this.shockwaves.push({
                     x: b.x,
@@ -4842,12 +4979,15 @@
             continue;
           }
 
-          // In LAN co-op, ordinary enemies may target either live ship.
-          const ally = this.lanCoop?.rtc?.connected ? this.lanCoop.ally : null;
-          const aimPlayer = ally && ally.hp > 0 &&
-            (this.player.downed ||
-              Vec.dist(e.x, e.y, ally.x, ally.y) < Vec.dist(e.x, e.y, this.player.x, this.player.y))
-            ? ally : this.player;
+          // Enemies choose the nearest living ship across the whole party,
+          // never hard-code only host and the first guest.
+          const targets = [this.player,
+            ...((this.lanCoop?.rtc?.connected && this.lanCoop?.allies?.size)
+              ? this.lanCoop.allies.values() : (this.lanCoop?.ally ? [this.lanCoop.ally] : []))]
+            .filter(p => p && p.hp > 0 && !p.downed && !p.disconnected);
+          const aimPlayer = targets.reduce((nearest, p) => !nearest ||
+            Vec.dist(e.x, e.y, p.x, p.y) < Vec.dist(e.x, e.y, nearest.x, nearest.y)
+              ? p : nearest, null) || this.player;
           const distToPlayer = Vec.dist(e.x, e.y, aimPlayer.x, aimPlayer.y);
           const angleToPlayer = Math.atan2(aimPlayer.y - e.y, aimPlayer.x - e.x);
 
@@ -5435,6 +5575,10 @@
               life: 1.5,
               maxLife: 1.5
             });
+          } else if ((this.lanCoop?.allies?.size || 0) > 1) {
+            // 3/4 person rooms use the generic multi-pilot rescue clock.
+            this.player.hp = 0;
+            window.NeonLanMultiRules?.tick(this, [...this.lanCoop.allies.values()], 0.001);
           } else if (!window.NeonLanRevive?.knockDown(this, 'host')) {
             this.gameOver();
           }

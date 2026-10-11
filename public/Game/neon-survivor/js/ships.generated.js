@@ -4,11 +4,11 @@ window.NeonShipsManifest = Object.freeze(["astra","phantom","riftblade"]);
 // Source: ships/astra/ship.js
 /* Auto-registered ship plugin */
 // V5's mage archetype is registered for tooling, tests and forthcoming
-  // character selection, but remains LOCKED until all 9/8/7 unique cards,
-  // active controls and authoritative co-op ability hooks are implemented.
+  // character selection; all class weapons, active controls and host-authoritative
+  // guest spell requests now load from the ship's own plugin directory.
   window.NeonShips.register({
     id: 'astra', code: 'ASTRA', name: '星织·织界术师',
-    description: '星能法术、局部结界与攻守混合相位闪现', playable: false,
+    description: '星能法术、局部结界与攻守混合相位闪现', playable: true,
     baseStats: { hp: 95, speed: 235, regen: 0.8, dashCharges: 2 },
     startingWeapon: 'star_weave', passiveId: null,
     activeSkillIds: ['meteor', 'ward'],
@@ -986,7 +986,7 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
 /* Auto-registered ship plugin */
 window.NeonShips.register({
     id: 'phantom', code: 'PHANTOM', name: '幽灵·共生拟态',
-    description: '虚无潜行、灵魂烙印引爆与联机共生挂载战舰', playable: false,
+    description: '虚无潜行、灵魂烙印引爆与联机共生挂载战舰', playable: true,
     baseStats: { hp: 85, speed: 260, regen: 0.5, dashCharges: 2 },
     startingWeapon: 'phantom_scythe', passiveId: null,
     activeSkillIds: ['spectral_shift', 'dock_link'],
@@ -1150,6 +1150,33 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     ejectDamage: 45
   });
 
+  const CARD_HELP = Object.freeze({
+    phantom_scythe: '双镰往返切割；升级增加伤害、飞行距离、镰刀数量和回收爆发',
+    spectral_dart: '自动锁定多名敌人连续发射虚界毒刺；提高目标数与伤害',
+    soul_reap_orb: '法球贯穿附近目标并回收灵质；提高连击目标数',
+    void_rift_mine: '敌人脚下留下0.55秒后引爆的裂隙雷；提高爆炸半径与伤害',
+    symbiote_beam: '灵质光束命中多个目标；共生时为载体恢复少量生命',
+    haunt_clones: '生成多个延迟追击的残影区域打击',
+    curse_totem: '在敌群召唤延时幽冥图腾，潜行时附带灵魂烙印',
+    apocalypse_scythe: '周期性大范围终焉镰刀斩击，最多影响16个敌人',
+    abyssal_possession: '向最近敌人释放有单次上限的高伤侵蚀，普通敌人还会减速',
+    phantom_core: '提高灵质上限并增加幽灵暴击概率',
+    spiritual_flow: '提高所有正向灵质收集的倍率',
+    stealth_armor: '低生命时提高基础再生速度',
+    execute_master: '敌人生命低于35%时提高幽灵专属武器伤害',
+    symbiosis_link: '增加共生挂载期间的灵质恢复速度',
+    soul_gatherer: '幽灵专属武器每次命中额外回收灵质',
+    death_reversal: '本局首次致命伤害触发一次紧急重构（已消耗则不再触发）',
+    dual_mind: '提高灵质系统提供的暴击概率',
+    spectral_extend: '每级延长潜行持续时间0.5秒',
+    soul_detonation: '提高烙印引爆范围与伤害',
+    charge_overflow: '提升可用潜行次数，最多3段',
+    ghost_trail: '潜行期间每0.36秒产生近距离冥火伤害与特效',
+    terror_shriek: '斩魂引爆后短暂恐吓周围敌群',
+    dimension_door: '潜行结束时减速周围敌人',
+    symbiote_slingshot: '共生弹射后3秒提高暴击概率'
+  });
+
   const UNIQUE = Object.freeze({
     weapon: Object.freeze([
       ['phantom_scythe', '幽魂之镰', 'rare', 5],
@@ -1186,6 +1213,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   const catalog = Object.freeze(Object.values(UNIQUE).flatMap((entries, typeIndex) =>
     entries.map(([id, name, rarity, levels]) => Object.freeze({
       id, name, rarity, type: ['weapon', 'passive', 'dash'][typeIndex],
+      icon: ['☄','✧','◈'][typeIndex],
+      desc: CARD_HELP[id],
+      statText: Array.from({length:levels||5},(_,i)=>
+        `Lv.${i+1}/${levels||5} · ${CARD_HELP[id]}`),
       maxLvl: levels || 5, shipId: 'phantom'
     }))));
 
@@ -1234,6 +1265,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (coreLevel > 0) {
       bonus += [0, 0.10, 0.18, 0.26, 0.34, 0.45][Math.min(5, coreLevel)];
     }
+    bonus += (s.passiveUpgrades.dual_mind || 0) * .035;
     // Natural soft-cap at 75% to prevent infinite critical creep
     bonus = Math.min(0.75, bonus);
     if (s.slingshotBuffUntil > now) {
@@ -1406,14 +1438,45 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
         game?.state !== 'playing') return;
 
     const now = game.survivalTime || 0;
+    // Passing through an enemy while shifted leaves a bounded soul mark.
+    // Subsequent reap can always affect a target even in solo play.
+    if (s.shiftActive) {
+      let marked = 0;
+      for (const enemy of game.enemies || []) {
+        if (enemy.dead || enemy.hp <= 0 || s.marks.has(enemy) ||
+            !within(enemy, pilot, (enemy.radius || 14) + (pilot.radius || 16) + 16)) continue;
+        markEnemy(pilot, enemy, now);
+        if (++marked >= 12) break;
+      }
+    }
 
     // Handle shift duration
     if (s.shiftActive) {
+      if ((s.warpUpgrades.ghost_trail || 0) > 0) {
+        s.ghostTrailCooldown = Math.max(0, (s.ghostTrailCooldown || 0) - dt);
+        if (s.ghostTrailCooldown === 0 && (game.shockwaves?.length || 0) < 35) {
+          s.ghostTrailCooldown = .36;
+          const level = Math.min(2, s.warpUpgrades.ghost_trail);
+          for (const enemy of game.enemies || []) {
+            if (enemy.dead || enemy.hp <= 0 || !within(enemy,pilot,45+level*12)) continue;
+            game.dealDamage(enemy,13+level*9,'phantom_ghost_trail',false,pilot);
+          }
+          game.shockwaves.push({x:pilot.x,y:pilot.y,radius:10,maxRadius:55+level*12,
+            color:'#7439b5',alpha:.48});
+        }
+      }
       s.shiftRemaining -= dt;
       if (s.shiftRemaining <= 0) {
         s.shiftActive = false;
         s.shiftRemaining = 0;
         reap(pilot, game, false);
+        if ((s.warpUpgrades.dimension_door || 0) > 0) {
+          const power = Math.min(2,s.warpUpgrades.dimension_door);
+          for (const enemy of game.enemies || []) {
+            if (enemy.dead || enemy.hp<=0 || !within(enemy,pilot,90+power*15)) continue;
+            enemy.freezeTimer=Math.max(enemy.freezeTimer || 0, .4+power*.2);
+          }
+        }
       }
     }
 
@@ -1431,7 +1494,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       s.dashRecharge = 0;
     }
 
-    // Handle clean up of expired marks
+    // Handle clean up of expired marks belonging to this pilot only.
     for (const [enemy, expireAt] of s.marks.entries()) {
       if (enemy.dead || enemy.hp <= 0 || expireAt < now) {
         s.marks.delete(enemy);
@@ -1448,7 +1511,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       } else {
         pilot.x = s.carrier.x;
         pilot.y = s.carrier.y;
-        addEctoplasm(pilot, BASE.dockEctoplasmPerSec * dt);
+        addEctoplasm(pilot, BASE.dockEctoplasmPerSec * dt *
+          (1+(s.passiveUpgrades.symbiosis_link || 0)*.12));
       }
     } else {
       s.dockCooldownRemaining = Math.max(0, s.dockCooldownRemaining - dt);
@@ -1456,9 +1520,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   }
 
   function renderMarks(ctx, game) {
-    const pilot = game?.player;
-    const s = pilot?.phantom;
-    if (!s?.marks?.size || !ctx) return;
+    const pilots = game?.players?.list?.().map(entry=>entry.state) ||
+      [game?.player,game?.lanCoop?.ally].filter(Boolean);
+    if (!ctx || !pilots.some(pilot=>pilot?.phantom?.marks?.size)) return;
     const now = game.survivalTime || 0;
     ctx.save();
     ctx.shadowBlur = 10;
@@ -1467,7 +1531,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     ctx.strokeStyle = '#00f0ff';
     ctx.lineWidth = 1.4;
 
-    for (const [enemy, expireAt] of s.marks.entries()) {
+    for (const pilot of pilots) for (const [enemy, expireAt] of (pilot?.phantom?.marks || new Map()).entries()) {
       if (!enemy || enemy.dead || enemy.hp <= 0 || expireAt < now) continue;
       const x = enemy.x;
       const y = enemy.y - (enemy.radius || 14) - 10;
@@ -1507,6 +1571,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
           onTick(pilot, game, dt) {
             tick(pilot, game, dt);
             window.NeonPhantomScythe?.tick(pilot, game, dt);
+            window.NeonPhantomArsenal?.tick(pilot, game, dt);
           },
           onAction(pilot, game, action) {
             if (action === 'shift') return enterShift(pilot, game);
@@ -1517,10 +1582,15 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
           },
           onUpgrade(pilot, game, card) {
             const s = state(pilot);
-            if (!s || !card) return false;
-            if (card.type === 'dash') s.warpUpgrades[card.id] = (s.warpUpgrades[card.id] || 0) + 1;
-            else if (card.type === 'passive') s.passiveUpgrades[card.id] = (s.passiveUpgrades[card.id] || 0) + 1;
-            else if (card.type === 'weapon') pilot.weapons[card.id] = (pilot.weapons[card.id] || 0) + 1;
+            const def = catalog.find(item => item.id === card?.id && item.type === card?.type);
+            if (!s || !def) return false;
+            const bag = def.type === 'weapon' ? (pilot.weapons ||= {}) :
+              def.type === 'passive' ? (pilot.passives ||= {}) : (pilot.dashUpgrades ||= {});
+            const next = bag[def.id] || 0;
+            if (next >= def.maxLvl) return false;
+            bag[def.id] = next + 1;
+            if (def.type === 'dash') s.warpUpgrades[def.id] = bag[def.id];
+            else if (def.type === 'passive') s.passiveUpgrades[def.id] = bag[def.id];
             return true;
           }
         });
@@ -1790,6 +1860,134 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   });
 })();
 
+// Source: ships/phantom/arsenal.js
+/* Phantom's eight extra weapons: deterministic, host-authoritative, per-pilot.
+ * Each weapon has its own cooldown/effect. Caps prevent a dense wave from
+ * generating an unbounded chain of hits, delayed events or visual particles.
+ */
+(() => {
+  'use strict';
+  const RULES = Object.freeze({
+    spectral_dart: [1.2, .5], soul_reap_orb: [2.6, 1.1],
+    void_rift_mine: [3.5, 1.7], symbiote_beam: [2.4, 1.1],
+    haunt_clones: [3.1, 1.4], curse_totem: [4.5, 2.4],
+    apocalypse_scythe: [7.0, 3.6], abyssal_possession: [8.5, 4.5]
+  });
+  const alive = e => e && !e.dead && e.hp > 0;
+  const distance = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
+  const rank = (p,id) => Math.min(5, Math.max(0, p.passives?.[id] || 0));
+  const state = pilot => pilot.phantomArsenal ||= { timers: {}, delayed: [] };
+  function targets(game,pilot,reach=750) {
+    return (game.enemies || []).filter(e => alive(e) && distance(e,pilot) <= reach)
+      .sort((a,b) => distance(a,pilot) - distance(b,pilot)).slice(0,32);
+  }
+  function damage(pilot,game,enemy,base,source) {
+    if (!alive(enemy)) return false;
+    const hpPercent = enemy.hp / Math.max(enemy.maxHp || enemy.hp,1);
+    const execute = (rank(pilot,'execute_master') * (hpPercent < .35 ? .08 : 0));
+    const ecto = window.NeonPhantom?.state(pilot)?.ectoplasm || 0;
+    const bonus = Math.min(.35, ecto / 500) + execute;
+    game.dealDamage(enemy,base * (1 + bonus) * (pilot.dmgMultiplier || 1),source,
+      Math.random() < Math.min(.75, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0),pilot);
+    window.NeonPhantom?.addEctoplasm(pilot,1 + rank(pilot,'soul_gatherer'));
+    return true;
+  }
+  function pulse(pilot,game,center,radius,amount,source,limit=10) {
+    let count=0;
+    for(const enemy of targets(game,pilot,900)) {
+      if(distance(enemy,center)>radius+(enemy.radius || 12)) continue;
+      damage(pilot,game,enemy,amount,source);
+      if(++count>=limit)break;
+    }
+    if ((game.shockwaves?.length || 0)<35)game.shockwaves?.push({
+      x:center.x,y:center.y,radius:8,maxRadius:radius,color:'#a855f7',alpha:.7
+    });
+    return count;
+  }
+  function queue(pilot,event){const s=state(pilot);if(s.delayed.length>=18)s.delayed.shift();s.delayed.push(event);}
+  function fire(pilot,game,id,level) {
+    const enemyList=targets(game,pilot);
+    const first=enemyList[0];
+    if(!first)return false;
+    const levelDamage=1+(level-1)*.25;
+    switch(id) {
+      case 'spectral_dart':
+        enemyList.slice(0,Math.min(5,1+level)).forEach(e=>damage(pilot,game,e,19*levelDamage,'phantom_dart'));
+        break;
+      case 'soul_reap_orb': {
+        for(const e of enemyList.slice(0,Math.min(7,2+level))){
+          damage(pilot,game,e,23*levelDamage,'phantom_orb');
+          window.NeonPhantom?.addEctoplasm(pilot,2);
+        }
+        break;
+      }
+      case 'void_rift_mine':
+        queue(pilot,{x:first.x,y:first.y,delay:.55,radius:75+level*13,
+          amount:45*levelDamage,id:'phantom_mine',limit:10});
+        break;
+      case 'symbiote_beam':
+        enemyList.slice(0,Math.min(5,1+level)).forEach(e=>damage(pilot,game,e,28*levelDamage,'phantom_beam'));
+        if(pilot.phantom?.docked && pilot.phantom.carrier)
+          pilot.phantom.carrier.hp=Math.min(pilot.phantom.carrier.maxHp,pilot.phantom.carrier.hp+1+level*.4);
+        break;
+      case 'haunt_clones':
+        enemyList.slice(0,Math.min(6,1+Math.ceil(level/2))).forEach((e,i)=>queue(pilot,{
+          x:e.x,y:e.y,delay:.18+i*.11,radius:45+level*4,
+          amount:32*levelDamage,id:'phantom_clone',limit:5
+        }));
+        break;
+      case 'curse_totem':
+        queue(pilot,{x:first.x,y:first.y,delay:.45,radius:110+level*15,
+          amount:27*levelDamage,id:'phantom_totem',limit:14,mark:true});
+        break;
+      case 'apocalypse_scythe':
+        pulse(pilot,game,pilot,175+level*25,70*levelDamage,'phantom_apocalypse',16);
+        break;
+      case 'abyssal_possession':
+        damage(pilot,game,first,Math.min(210,90+level*22+Math.min(80,
+          (first.maxHp || first.hp)*.012)),'phantom_possession');
+        if(first.hp > 0 && !first.isBoss)first.freezeTimer=Math.max(first.freezeTimer || 0,.2+level*.1);
+        break;
+      default:return false;
+    }
+    return true;
+  }
+  function tick(pilot,game,dt){
+    if(pilot?.shipId!=='phantom'||pilot.hp<=0||pilot.downed||
+      game?.state!=='playing'||!Number.isFinite(dt)||dt<=0)return 0;
+    const s=state(pilot), p=window.NeonPhantom?.state(pilot);
+    if(p) {
+      // Passive effects apply to the class itself, not global Riftblade slots.
+      p.maxEctoplasm=100+rank(pilot,'phantom_core')*8;
+      if(rank(pilot,'death_reversal')>=1 && !pilot.cheatDeathUsed)pilot.hasCheatDeath=true;
+      if(pilot.hp < pilot.maxHp*.45 && rank(pilot,'stealth_armor'))
+        pilot.regen=Math.max(pilot.regen || .5,.5+rank(pilot,'stealth_armor')*.12);
+    }
+    let fired=0;
+    for(const [id,[period,min]] of Object.entries(RULES)){
+      const level=Math.min(5,Math.max(0,pilot.weapons?.[id] || 0));
+      if(!level)continue;
+      const cooldown=Math.max(min,(period-(level-1)*.12)*(pilot.cdrMultiplier || 1));
+      s.timers[id]=Math.min(cooldown,(s.timers[id] || 0)+dt);
+      if(s.timers[id]>=cooldown && fire(pilot,game,id,level)){
+        s.timers[id]=0;fired++;
+      }
+    }
+    for(let i=s.delayed.length-1;i>=0;i--){
+      const event=s.delayed[i];event.delay-=dt;
+      if(event.delay>0)continue;
+      s.delayed.splice(i,1);
+      pulse(pilot,game,event,event.radius,event.amount,event.id,event.limit);
+      if(event.mark && p?.shiftActive){
+        for(const e of targets(game,pilot,900))
+          if(distance(e,event)<event.radius)window.NeonPhantom?.markEnemy(pilot,e,game.survivalTime || 0);
+      }
+    }
+    return fired;
+  }
+  window.NeonPhantomArsenal=Object.freeze({RULES,state,damage,fire,tick});
+})();
+
 // Source: ships/phantom/effects.js
 window.NeonShips.registerEffects('phantom', {
   pilot(ctx, pilot) {
@@ -1797,7 +1995,38 @@ window.NeonShips.registerEffects('phantom', {
   },
   world(ctx, game) {
     window.NeonPhantom?.renderMarks(ctx, game);
+  },
+  network(ctx, snapshot) {
+    if (snapshot.spectral?.scythes?.length) {
+      window.NeonPhantomScythe?.render(ctx, {
+        phantomScythe: {scythes:snapshot.spectral.scythes}
+      });
+    }
   }
+});
+
+// Source: ships/phantom/network.js
+/* Only bounded primitive, class-specific values enter the public snapshot. */
+window.NeonShips.registerNetworkProjection('phantom', pilot => {
+  const s = pilot.phantom || {};
+  const clamp = (value, min, max) => Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value)) : min;
+  return { spectral: {
+    ectoplasm: clamp(s.ectoplasm, 0, s.maxEctoplasm || 100),
+    maxEctoplasm: clamp(s.maxEctoplasm || 100, 1, 200),
+    shiftActive: Boolean(s.shiftActive),
+    shiftRemaining: clamp(s.shiftRemaining, 0, 10),
+    charges: clamp(s.dashCharges, 0, 3),
+    recharge: clamp(s.dashRecharge, 0, 8),
+    docked: Boolean(s.docked),
+    dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
+    markedTargets: Math.min(64, s.marks?.size || 0),
+    scythes: (pilot.phantomScythe?.scythes || []).slice(0,6).map(sc=>({
+      x:clamp(sc.x,-1e7,1e7), y:clamp(sc.y,-1e7,1e7),
+      angle:clamp(sc.angle,-6.29,6.29),
+      phase:['out','hover','return'].includes(sc.phase)?sc.phase:'out'
+    }))
+  } };
 });
 
 // Source: ships/riftblade/ship.js

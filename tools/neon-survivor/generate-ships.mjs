@@ -16,7 +16,7 @@ const base = join(project, 'public/Game/neon-survivor/js');
 const shipsDir = join(base, 'ships');
 const output = join(base, 'ships.generated.js');
 const ID = /^[a-z][a-z0-9_]{0,31}$/;
-const PRIORITY = ['ship.js', 'renderer.js', 'abilities.js', 'weapons.js', 'upgrades.js', 'warp.js', 'effects.js', 'network.js'];
+const PRIORITY = ['ship.js', 'renderer.js', 'abilities.js', 'weapons.js', 'arsenal.js', 'upgrades.js', 'warp.js', 'effects.js', 'network.js'];
 const limit = 1024 * 1024;
 
 export async function buildShipBundle(sourceDirectory = shipsDir, labelBase = base) {

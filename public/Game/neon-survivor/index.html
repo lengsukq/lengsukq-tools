@@ -40,6 +40,10 @@
           <span id="astra-mana-text">星能 60/100</span>
           <span class="astra-mana-track"><span id="astra-mana-fill"></span></span>
         </div>
+        <div id="phantom-ecto-hud" hidden aria-live="off">
+          <span id="phantom-ecto-text">灵质 0/100</span>
+          <span class="astra-mana-track"><span id="phantom-ecto-fill"></span></span>
+        </div>
       </div>
     </div>
 
@@ -98,6 +102,9 @@
       <button type="button" id="astra-switch-spell" aria-label="切换星织法术（Q）">切换</button>
       <button type="button" id="astra-cast-spell" aria-label="施放星织法术（E）">施法</button>
     </div>
+    <div id="phantom-touch-actions" hidden>
+      <button type="button" id="phantom-dock-action" aria-label="幽灵靠近队友后合体或脱离（Q）">共生合体 Q</button>
+    </div>
   </div>
 
   <!-- START GAME MODAL -->
@@ -126,7 +133,7 @@
 
       <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
         <button class="cyber-btn" id="btn-start-game">立即出击 (START MISSION)</button>
-        <button class="cyber-btn" id="btn-lan-coop" style="border-color:#54bc95;color:#9affd5">局域网双人合作</button>
+        <button class="cyber-btn" id="btn-lan-coop" style="border-color:#54bc95;color:#9affd5">多人联机（2–4人）</button>
         <button class="cyber-btn" id="btn-start-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明 (MANUAL)</button>
         <button class="cyber-btn" id="btn-start-settings">⚙ 游戏设置</button>
       </div>
@@ -194,7 +201,7 @@
                 <li><b>A 键 / B 键 / RB / RT / LB / LT</b>：消耗一段折跃充能；从3段最多成长至9段</li>
                 <li><b>开始界面</b>：十字键左右切换已解锁的进阶难度，A 确认开局</li>
                 <li><b>Start / Options 键</b>：暂停游戏 / 呼出菜单</li>
-                <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键预选，松开再按一次确认；B键取消待确认选择</li>
+                <li><b>升级面板操作</b>：摇杆/十字键左右选卡，A 预选（再次 A 确认），X 或 RT 一键确认，B 取消预选，Y 保留升级机会。无尽模式 X 放逐、Y 重掷、RT 确认；按键提示仅在手柄连接后出现</li>
                 <li><b>震动反馈与测试</b>：顶部 📳 是开关；点击已连接手柄徽章或「震动测试」按钮可主动检测</li>
                 <li><b>震动无效？</b>：先操作手柄并点击测试。若提示不支持，可换支持震动的浏览器或尝试 USB 连接。浏览器接受震动请求并不代表硬件一定执行</li>
               </ul>
@@ -397,6 +404,7 @@
   <script src="/Game/neon-survivor/js/combat/pilots.js"></script>
   <script src="/Game/neon-survivor/js/network/roster.js"></script>
   <script src="/Game/neon-survivor/js/network/ready.js"></script>
+  <script src="/Game/neon-survivor/js/network/multiplayer-rules.js"></script>
   <script src="/Game/neon-survivor/js/network/snapshots.js"></script>
   <script src="/Game/neon-survivor/js/network/peers.js"></script>
   <script src="/Game/neon-survivor/js/network/rtc.js"></script>
@@ -412,6 +420,7 @@
   <script src="/Game/neon-survivor/js/network/perf.js"></script>
   <script src="/Game/neon-survivor/js/network/coop.js"></script>
   <script src="/Game/neon-survivor/js/network/ui.js"></script>
+  <script src="/Game/neon-survivor/js/gamepad-hints.js"></script>
   <script src="/Game/neon-survivor/js/core.js"></script>
 </body>
 </html>
