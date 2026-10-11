@@ -15,19 +15,30 @@
       this.polling = false;
     }
     async request(action, details = {}) {
-      const response = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ...details }),
-        credentials: 'same-origin',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(8000)
-      });
-      let data;
-      try { data = await response.json(); } catch { throw Error('房间服务响应异常'); }
-      if (!response.ok) throw Error(data.message || (data.error === 'signaling_unconfigured'
-        ? '未配置 Upstash Redis，请使用高级手动配对' : '房间服务暂时不可用'));
-      return data;
+      // AbortSignal.timeout() is unavailable in some tablet browsers/WebViews.
+      // AbortController + a cleared timer works on older WebRTC-capable clients.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, ...details }),
+          credentials: 'same-origin',
+          cache: 'no-store',
+          signal: controller.signal
+        });
+        let data;
+        try { data = await response.json(); } catch { throw Error('房间服务响应异常'); }
+        if (!response.ok) throw Error(data.message || (data.error === 'signaling_unconfigured'
+          ? '未配置 Upstash Redis，请使用高级手动配对' : '房间服务暂时不可用'));
+        return data;
+      } catch (error) {
+        if (controller.signal.aborted) throw Error('连接房间服务超时，请检查网络并重试');
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
     }
     async create(rtc, onReady) {
       this.cancel();

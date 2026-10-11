@@ -100,7 +100,9 @@ async function main() {
   assert.ok(calls.includes('SET') && calls.includes('GET') && calls.includes('DEL'));
 
   const clientContext = {
-    window: {}, console, crypto: webcrypto, AbortSignal,
+    // The tablet regression: AbortSignal.timeout() is absent.
+    // The client should only require widely supported AbortController.
+    window: {}, console, crypto: webcrypto, AbortController,
     setTimeout, clearTimeout, URL,
     fetch: async (url, options) => {
       assert.equal(url, '/api/neon-lan/room');
@@ -137,6 +139,32 @@ async function main() {
   assert.ok(statuses.some(s => s.includes('局域网直连')));
   await host.close();
   await guest.close();
+
+  // Verify timeout cancellation and a readable message on a browser without
+  // AbortSignal.timeout, without waiting 8 real seconds in this smoke test.
+  let fireTimeout;
+  let cleared = 0;
+  const oldBrowser = {
+    window: {}, console, AbortController,
+    setTimeout(callback, delay) {
+      assert.equal(delay, 8000);
+      fireTimeout = callback;
+      return 17;
+    },
+    clearTimeout(id) { assert.equal(id, 17); cleared++; },
+    fetch(_url, options) {
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    }
+  };
+  vm.createContext(oldBrowser);
+  vm.runInContext(signalSource, oldBrowser);
+  const oldClient = new oldBrowser.window.NeonLanSignaling.RoomSignaling();
+  const timeoutRequest = oldClient.request('join', { room });
+  fireTimeout();
+  await assert.rejects(timeoutRequest, /连接房间服务超时/);
+  assert.equal(cleared, 1);
 
   delete process.env.UPSTASH_REDIS_REST_URL;
   const unavailable = await request(body('join', room));
