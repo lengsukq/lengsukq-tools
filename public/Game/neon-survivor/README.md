@@ -60,7 +60,7 @@ public/Game/
 ```text
 js/ships/
   comet/
-    ship.js            # 必需：基础属性、起始装备、主动ID、折跃树、可玩状态
+    ship.js            # 必需：基础属性、装备槽位、起始装备、主动ID、折跃树、可玩状态
     renderer.js        # 必需：Canvas战舰外形绘制
     abilities.js       # 可选：onStart / onTick / onAction / onUpgrade / onStop
     upgrades.js        # 可选：本舰独立武器/被动/折跃升级卡池
@@ -71,7 +71,7 @@ js/ships/
     README.md           # 可选：本舰机制说明
 ```
 
-战舰目录名仅允许小写英文字母、数字和下划线，并以字母开头。文件名允许字母、数字、下划线和短横线。目录中的JS按 `ship.js` → `renderer.js` → `abilities.js` → `weapons.js` → `upgrades.js` → `warp.js` → `effects.js` → `network.js` → 其他文件名顺序自动执行；文件是自注册的**普通浏览器JS脚本**，不能直接使用未打包的 `import` / `export`。构建阶段会检查缺失文件、非法目录、JS语法错误和未注册的战舰，并直接报错。
+战舰目录名仅允许小写英文字母、数字和下划线，并以字母开头。文件名允许字母、数字、下划线和短横线。目录中的JS按 `ship.js` → `renderer.js` → `abilities.js` → `weapons.js` → `arsenal.js` → `upgrades.js` → `warp.js` → `effects.js` → `network.js` → 其他文件名顺序自动执行；文件是自注册的**普通浏览器JS脚本**，不能直接使用未打包的 `import` / `export`。构建阶段会检查缺失文件、非法目录、JS语法错误和未注册的战舰，并直接报错。
 
 `ship.js` 最小示例：
 
@@ -80,10 +80,13 @@ window.NeonShips.register({
   id: 'comet', code: 'COMET', name: '彗星·追击者',
   description: '独立可玩战舰示例', playable: true,
   baseStats: { hp: 105, speed: 250, regen: 0.8, dashCharges: 3 },
+  slots: { weapons: 5, passives: 3, warp: 7, activeSkills: 0 },
   startingWeapon: 'blaster', passiveId: null,
   activeSkillIds: [], warpTreeId: 'assault', rendererId: 'comet'
 });
 ```
+
+**槽位及属性约定**：`slots` 是每艘战舰的统一装备容量声明；缺省武器/被动/折跃分别为 `4/4/7`。`activeSkills` 必须等于 `activeSkillIds.length`，不能只提高数字就自动获得技能。`weapons` 是**同时装备的武器类型数量**（含初始武器），`passives` 是模组类型数量，`warp` 是最多能选择的**不同折跃强化类型**，不是折跃充能次数；每张升级卡的 `maxLvl` 决定可强化的等级。进阶 V–VI 在本舰配置基础上扣除一个被动槽（最少 0），不会改变武器或折跃槽。全部容量通过 `window.NeonShips.slotLimitsFor(pilot, difficulty)` 统一计算，`canEquipUpgrade(pilot, card, difficulty)` 统一供单人抽卡和房主验证房客升级。已装备技能升级不需要新槽；槽位满后不可再装入该类新技能。装备栏按战舰武器/被动容量动态绘制，高难度额外锁定的一格仍会标明。修改舰种生命/移速/回复后，等级和被动重算从注册表的 `baseStats` 出发，不会退回裂锋的默认 `100 HP / 240 速度 / 0.8 回血`。新增自定义舰可参考 `node tests/neon-survivor-ship-slots.smoke.cjs`。
 
 `renderer.js` 最小示例（Canvas坐标已由游戏转换到战舰本地）：
 
