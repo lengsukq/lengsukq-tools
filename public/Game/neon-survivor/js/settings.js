@@ -233,7 +233,16 @@
     priorState = game.state;
     game.settingsOpen = true;
     game.releaseJoystickTouch?.();
-    if (game.state === 'playing') game.state = 'paused';
+    if (game.state === 'playing') {
+      game.state = 'paused';
+      // Opening settings on the host pauses the same authoritative world.
+      if (game.lanCoop?.ally) {
+        game.lanCoop.ally.input = {
+          dx: 0, dy: 0, aim: game.lanCoop.ally.aimAngle, dash: false
+        };
+        game.lanCoop.ally.lastInputAt = 0;
+      }
+    }
     overlay.hidden = false;
     for (const key of Object.keys(defaults)) {
       const field = document.getElementById('neon-setting-' + key);

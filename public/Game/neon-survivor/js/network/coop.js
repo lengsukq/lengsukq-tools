@@ -43,6 +43,7 @@
     return {
       id: 'guest', x: game.player.x + 60, y: game.player.y,
       vx: 0, vy: 0, hp: 100, maxHp: 100, level: 1, radius: 16,
+      xp: 0, xpNeeded: game.player.xpNeeded || 1,
       aimAngle: 0, invuln: 0, dash: 0, charges: 3, recharge: 0,
       shotTime: 0, lastSeq: -1, lastInputAt: 0,
       input: { dx: 0, dy: 0, aim: 0, dash: false },
@@ -54,6 +55,10 @@
     return {
       type: 'snapshot', seq, time: round(game.survivalTime),
       level: game.player.level, kills: game.kills, mode: game.endlessMode ? 'endless' : 'normal',
+      teamXP: window.NeonLanExperience?.progress(game) || {
+        xp: game.player.xp || 0, xpNeeded: game.player.xpNeeded || 1,
+        level: game.player.level
+      },
       phase: game.state,
       resonance: resonance ? {
         tier: resonance.link?.tier || 0,
@@ -65,7 +70,8 @@
         name: ownProfile('host').name, color: ownProfile('host').color },
       guest: { ...sample(ally, ['x','y','hp','maxHp','aimAngle','level','charges','radius']),
         name: ally.profile?.name || '队友', color: ally.profile?.color || '#ffbb55' },
-      enemies: limit(game.enemies.filter(e => !e.dead), 130, ['x','y','hp','maxHp','radius','color','type','isBoss']),
+      enemies: limit(game.enemies.filter(e => !e.dead), 130,
+        ['x','y','hp','maxHp','radius','color','type','isBoss','coopCapture','coopExposed']),
       bullets: limit(game.bullets, 140, ['x','y','radius','color','type']),
       enemyBullets: limit(game.enemyBullets, 150, ['x','y','radius','color']),
       gems: limit(game.gems, 90, ['x','y','radius','type','color'])
@@ -153,6 +159,12 @@
       if (this.rtc.role === 'host' && this.ally) {
         const input = normalizeInput(message);
         if (!input || input.seq <= this.ally.lastSeq) return;
+        // A guest cannot advance a dash (or any world action) during host pause.
+        // Fresh input is required after the host resumes.
+        if (this.game.state !== 'playing') {
+          this.ally.lastSeq = input.seq;
+          return;
+        }
         this.ally.input = input;
         this.ally.lastSeq = input.seq;
         this.ally.lastInputAt = performance.now();
@@ -182,6 +194,8 @@
         ? ally.input : { dx: 0, dy: 0, aim: ally.aimAngle };
       ally.aimAngle = input.aim;
       ally.level = game.player.level;
+      ally.xp = game.player.xp;
+      ally.xpNeeded = game.player.xpNeeded;
       ally.invuln = Math.max(0, ally.invuln - dt);
       if (ally.charges < 3) {
         ally.recharge += dt;
@@ -202,6 +216,7 @@
           return d < (best?.distance ?? 620) ? { enemy: e, distance: d } : best;
         }, null);
         if (target) {
+          // Shared team level is already applied exactly once inside dealDamage().
           game.dealDamage(target.enemy, 22 * (1 + this.getLinkBonus()), 'lan-ally');
           if (game.particles && game.particles.length < 65) game.particles.push({
             type: 'lightning', x1: ally.x, y1: ally.y,
@@ -215,7 +230,8 @@
         for (let i = game.enemyBullets.length - 1; i >= 0; i--) {
           const bullet = game.enemyBullets[i];
           if (Math.hypot(bullet.x - ally.x, bullet.y - ally.y) < (bullet.radius || 4) + ally.radius) {
-            ally.hp = Math.max(0, ally.hp - (bullet.damage || 12));
+            ally.hp = Math.max(0, ally.hp - (bullet.damage || 12) *
+              (window.NeonLanEncounters?.active(game) ? window.NeonLanEncounters.TUNING.enemyDamage : 1));
             ally.invuln = 0.6;
             game.enemyBullets.splice(i, 1);
             break;
@@ -226,7 +242,8 @@
         for (const e of game.enemies) {
           if (e.dead) continue;
           if (Math.hypot(e.x - ally.x, e.y - ally.y) < (e.radius || 12) + ally.radius) {
-            ally.hp = Math.max(0, ally.hp - Math.max(4, e.damage || 10));
+            ally.hp = Math.max(0, ally.hp - Math.max(4, e.damage || 10) *
+              (window.NeonLanEncounters?.active(game) ? window.NeonLanEncounters.TUNING.enemyDamage : 1));
             ally.invuln = 0.6;
             break;
           }
@@ -263,6 +280,10 @@
       if (!this.ally || !this.rtc.connected) {
         window.NeonLanTeammates?.hide();
         return;
+      }
+      const boss = this.game.currentBoss;
+      if (boss?.type === 'boss_dual_reactor') {
+        window.NeonLanEncounters?.renderBoss(ctx, this.game, boss);
       }
       window.NeonLanTeammates?.update(
         this.game, this.game.camera, this.ally, this.game.player, this.ally.profile, true
@@ -377,6 +398,24 @@
           ctx.fillStyle = e.color || '#f25'; ctx.beginPath();
           ctx.arc(e.x, e.y, e.radius || 12, 0, Math.PI * 2); ctx.fill();
           if (e.isBoss) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); }
+          if (e.type === 'boss_dual_reactor') {
+            ctx.save();
+            for (const [i, dx] of [-185, 185].entries()) {
+              ctx.beginPath();
+              ctx.arc(e.x + dx, e.y + (i ? 20 : -20), 88, 0, Math.PI * 2);
+              ctx.strokeStyle = '#82ffe9';
+              ctx.lineWidth = 3;
+              ctx.stroke();
+            }
+            ctx.font = 'bold 14px system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#a1ffdc';
+            ctx.fillText(e.coopExposed > 0
+              ? `破盾成功 · ${e.coopExposed.toFixed(1)}秒`
+              : `双人分别进入左右光圈 · 破盾${Math.round((e.coopCapture || 0) / 1.4 * 100)}%`,
+              e.x, e.y - 74);
+            ctx.restore();
+          }
         }
         for (const bullet of [...state.bullets, ...state.enemyBullets]) {
           ctx.fillStyle = bullet.color || '#fff'; ctx.beginPath();
@@ -408,11 +447,26 @@
         ctx.fillStyle = '#e6f7ff'; ctx.font = 'bold 15px system-ui';
         ctx.fillText(`局域网合作 · ${Math.floor(state.time / 60)}:${String(Math.floor(state.time % 60)).padStart(2, '0')} · 击杀 ${state.kills}`, 16, 35);
         ctx.fillText(`我的血量 ${Math.ceil(state.guest.hp)} / ${state.guest.maxHp} · 折跃 ${state.guest.charges}/3`, 16, 59);
+        const xp = state.teamXP || { level: state.level || 1, xp: 0, xpNeeded: 1 };
+        ctx.fillStyle = '#a3efff';
+        ctx.fillText(`队伍等级 Lv.${xp.level} · 共享经验 ${xp.xp}/${xp.xpNeeded}`, 16, 105);
         ctx.fillStyle = state.resonance?.tier ? '#9fffe3' : '#ffcf96';
         ctx.fillText(state.resonance?.tier === 2 ? '近距共振：双方伤害 +20% · 恢复生命' :
           state.resonance?.tier === 1 ? '战机联动：双方伤害 +10%' : '联动中断：靠近房主解锁协同增益',
           16, 84);
-        if (state.phase !== 'playing') ctx.fillText('房主当前阶段：' + state.phase + ' · 等待继续', 16, 107);
+        if (state.phase === 'paused') {
+          ctx.fillStyle = 'rgba(4, 12, 25, .77)';
+          ctx.fillRect(0, 0, game.width, game.height);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#a8f5ff';
+          ctx.font = 'bold 23px system-ui';
+          ctx.fillText('房主已暂停', game.width / 2, game.height / 2 - 12);
+          ctx.font = '14px system-ui';
+          ctx.fillText('请等待房主继续游戏', game.width / 2, game.height / 2 + 20);
+          ctx.textAlign = 'left';
+        } else if (state.phase !== 'playing') {
+          ctx.fillText('房主当前阶段：' + state.phase + ' · 等待继续', 16, 128);
+        }
       } finally { ctx.restore(); }
     }
   }

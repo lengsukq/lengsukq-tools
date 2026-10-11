@@ -1,0 +1,102 @@
+/* Run: node tests/neon-survivor-coop-balance.smoke.cjs */
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const root = 'public/Game/neon-survivor/';
+const html = fs.readFileSync(root + 'index.html', 'utf8');
+const core = fs.readFileSync(root + 'js/core.js', 'utf8');
+const coop = fs.readFileSync(root + 'js/network/coop.js', 'utf8');
+for (const name of ['encounters', 'experience', 'coop'])
+  assert.ok(html.includes('/js/network/' + name + '.js'), 'Missing module ' + name);
+assert.match(core, /NeonLanExperience\?\.collector\(this, g\)/);
+assert.match(core, /NeonLanExperience\?\.synchronizeLevel\(this\)/);
+assert.match(core, /NeonLanEncounters\?\.scaleNewEnemies\(this\)/);
+assert.match(coop, /teamXP: window\.NeonLanExperience\?\.progress\(game\)/);
+
+const bossLabel = { textContent: '' };
+const sandbox = {
+  window: { addEventListener() {} }, console,
+  document: { getElementById(id) { return id === 'boss-name' ? bossLabel : null; } },
+  navigator: { getGamepads() { return []; } },
+  localStorage: { getItem() { return null; }, setItem() {} },
+  performance: { now: () => 1000 }, setTimeout, clearTimeout, setInterval, clearInterval
+};
+vm.createContext(sandbox);
+for (const file of ['network/experience','network/encounters','network/coop','core'])
+  vm.runInContext(fs.readFileSync(root+'js/'+file+'.js','utf8'), sandbox);
+const { NeonLanExperience: xp, NeonLanEncounters: encounters, NeonLanCoop } = sandbox.window;
+const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
+const host = {
+  x:0,y:0,hp:100,maxHp:100,radius:16,level:1,xp:0,xpNeeded:51,
+  magnetRadius:120, passives:{},weapons:{blaster:1},dmgMultiplier:1,critRate:0,critDmg:2,crystals:0
+};
+const ally = { x:250,y:0,hp:100,maxHp:100,radius:16,level:1 };
+const game = Object.create(proto);
+Object.assign(game, {
+  player:host, lanCoop:{ ally,rtc:{connected:true,role:'host'} },
+  enemies:[],gems:[],texts:[],particles:[],shockwaves:[],enemyBullets:[],
+  survivalTime:180,bossCycle:0,difficulty:0,width:1000,height:800,state:'playing',
+  sound:{playBossAlert(){},playGemPickup(){}},
+  getAdaptiveScaling:()=>1,
+  getDifficultyRules:()=>({enemyCount:1,eliteRate:1,normalDrops:1,enemyDamage:1}),
+  recalculateMoveSpeed(){},recalculateDashStats(){},updateHUD(){},
+  triggerLevelUp(){ this.state='levelup'; }
+});
+assert.equal(xp.active(game), true);
+assert.equal(xp.collector(game,{x:230,y:0}),ally,'Guest can collect a team gem');
+assert.equal(xp.collector(game,{x:10,y:0}),host);
+game.gems=[
+  {x:-900,y:0,type:'gem',value:10},
+  {x:900,y:0,type:'gem',value:10},
+  {x:5,y:0,type:'heal'},
+  {x:10,y:0,type:'nuke'}
+];
+assert.equal(xp.activateMapMagnet(game),2);
+assert.deepEqual(game.gems.map(g=>Boolean(g.magnetized)),[true,true,false,false]);
+game.gainXP(70);
+assert.equal(host.level,2);
+assert.equal(ally.level,2);
+assert.equal(host.xp,ally.xp);
+assert.equal(host.xpNeeded,ally.xpNeeded);
+assert.equal(host.crystals,1,'XP pickup gives exactly one crystal');
+const frame=NeonLanCoop.snapshot(game,ally,8);
+assert.equal(frame.teamXP.level,2);
+assert.equal(frame.teamXP.xp,host.xp);
+assert.equal(frame.guest.level,frame.host.level);
+assert.equal(NeonLanCoop.safeSnapshot(frame),true);
+
+game.enemies=[
+  {type:'swarmer',hp:100,maxHp:100},
+  {type:'charger',isElite:true,hp:200,maxHp:200},
+  {type:'boss_nexus',isBoss:true,hp:1000,maxHp:1000}
+];
+encounters.scaleNewEnemies(game);
+assert.deepEqual(game.enemies.map(e=>e.hp),[135,290,1650]);
+encounters.scaleNewEnemies(game);
+assert.deepEqual(game.enemies.map(e=>e.hp),[135,290,1650],'No repeated enemy scaling');
+game.lanCoop.rtc.connected=false;
+game.enemies.push({hp:100,maxHp:100});
+encounters.scaleNewEnemies(game);
+assert.equal(game.enemies[3].hp,100,'Single-player unaffected');
+game.lanCoop.rtc.connected=true;
+
+const boss=encounters.createDualBoss(game,0,0,1,1);
+assert.equal(boss.type,'boss_dual_reactor');
+assert.equal(encounters.modifyBossDamage(game,boss,100),45);
+host.x=-185;host.y=-20;ally.x=185;ally.y=20;
+assert.equal(encounters.captureStatus(game,boss).both,true);
+encounters.updateBoss(game,boss,.7);
+assert.equal(boss.coopExposed,0);
+encounters.updateBoss(game,boss,.8);
+assert.equal(boss.coopExposed,9);
+assert.equal(encounters.modifyBossDamage(game,boss,100),125);
+host.x=500;ally.x=-500;
+encounters.updateBoss(game,boss,9);
+assert.equal(boss.coopExposed,0);
+assert.equal(encounters.modifyBossDamage(game,boss,100),45);
+game.player.crystals=0;
+encounters.bonusOnVictory(game,boss);
+assert.equal(game.player.crystals,35);
+game.lanCoop.rtc.connected=false;
+assert.equal(encounters.modifyBossDamage(game,boss,100),100);
+console.log('Co-op balance passed: shared XP, map magnet, level sync, one-time enemy scaling, dual-reactor cooperative shield.');

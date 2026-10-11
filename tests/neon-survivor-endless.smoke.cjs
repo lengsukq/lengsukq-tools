@@ -125,11 +125,12 @@ game.state = 'playing';
 
 const event = events.begin(game, () => 0);
 assert.equal(event.id, 'hunt');
+const crystalsBeforeEvent = game.player.crystals;
 for (let i = 0; i < 35; i++) events.onKill(game, { isBoss: false, isElite: false });
 events.update(game, 0.016);
 assert.equal(game.endlessState.eventsWon, 1);
 assert.equal(game.endlessState.event, null);
-assert.equal(game.player.crystals, 25);
+assert.equal(game.player.crystals, crystalsBeforeEvent + 25);
 const noDash = game.endlessState.event = { id: 'no_dash', remaining: 25, progress: 0, failed: false };
 endless.onDash(game);
 assert.equal(noDash.failed, true);

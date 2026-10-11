@@ -20,10 +20,13 @@ public/Game/
     js/ui.js                  # 三选一奖励面板与阶段HUD
     js/settings.js            # 手机友好的独立设置、设备本地偏好
     js/network/rtc.js         # WebRTC无服务器连接与手动信令
+    js/network/signaling.js   # Vercel Hobby房间码自动信令客户端
     js/network/coop.js        # 双人输入、房主权威结算和快照
     js/network/ui.js          # 房间创建、发现与配对界面
     js/network/resonance.js   # 距离联动、双星折跃、协同恢复
     js/network/teammates.js   # 队友离屏定位气泡、昵称与战机颜色校验
+    js/network/encounters.js  # 双人专属Boss和合作难度
+    js/network/experience.js  # 共享经验池、全图磁铁规则
     MANUAL.md                 # 玩家指南、机制和开发说明
 ```
 
@@ -35,15 +38,15 @@ public/Game/
 
 ## V4 纯网页双人局域网合作（MVP）
 
-主菜单点击「局域网双人合作」即可创建房间，不需要另外启动Node服务器。
+主菜单点击「局域网双人合作」：房主「创建房间」获得6位房间码，另一设备输入该码自动完成 Offer/Answer 交换。邀请链接可自动填写房间码；无须复制大段连接信息。高级连接仍保留旧手动配对。一个房间最多一名房客。
 
-**本机浏览器标签页**：房主创建房间，另一同源页面点击「查找房间（本机浏览器）」可直接加入。该发现采用BroadcastChannel，只在同源同存储分区的浏览器页面之间工作。
+**Vercel Hobby 部署（无额外游戏服务器）**：在免费的 Upstash Redis 数据库获取 REST URL 和 REST Token，在 Vercel 项目环境变量中配置 `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN`，再重新部署。兼容 `KV_REST_API_URL`、`KV_REST_API_TOKEN`。Next.js 路由 `app/api/neon-lan/room/route.ts` 仅保存5分钟的临时连接信息，使用 Redis TTL，不能把房间持久化到 Vercel Function 内存中。未配置 Redis 时房间码会明确提示不可用，仍能用高级手动配对。API 有临时房间令牌、房间容量与简单限流；免费资源用量取决于实际流量。
 
-**不同电脑/手机**：两人打开游戏；房主创建房间并生成邀请信息，将文本发给房客；房客粘贴邀请、生成应答，将应答发回房主；房主粘贴应答并确认。建立WebRTC DataChannel后两台设备直接通信。配置为空ICE服务器列表，不需要STUN/TURN服务，但局域网设备必须可互相访问。
+**网络边界**：Vercel API/Redis只负责房间码、Offer与Answer；摇杆、折跃、怪物、Boss、经验与战场快照始终通过浏览器间 WebRTC DataChannel 传输。使用 `iceServers: []`，不连接 TURN 中继。纯网页无法进行跨设备局域网广播扫描；房间码是经云端信令发现的房间，不是自动局域网扫描。两台设备必须可以建立局域网直连；如果AP隔离或网络阻止连接，将报错而不会退回云端转发游戏数据。
 
-**重要限制**：浏览器不能使用普通网页监听UDP广播或开放局域网服务，因而本版不能自动扫描同Wi-Fi中其他设备的房间。六位房间号不是发现地址。要实现真正跨设备自动搜房，必须另加局域网信令/发现服务。HTTPS网页和不隔离客户端的Wi-Fi更适合WebRTC直连。
+MVP最多2人：房主浏览器运行唯一战斗世界并结算敌人、Boss、伤害和掉落；房客发送受校验的移动/折跃/瞄准输入，接收10Hz战场快照并显示轻量化战斗画面。联机普通/精英/Boss生命分别×1.35/1.45/1.65，并适度增加伤害和刷怪频率。每逢双人第2、4、6……轮Boss出现专属「双生裁决者」，两位玩家需同时占据左右光圈使核心暴露，破防窗口9秒。房客有独立生命、3段折跃和基础自动射击，但**尚未实现独立升级卡、完整个人武器构筑、九段折跃升级、无尽模式团队投票、四人联机、断线重连**。房主离线则房间结束。
 
-MVP最多2人：房主浏览器运行唯一战斗世界并结算敌人、Boss、伤害和掉落；房客发送受校验的移动/折跃/瞄准输入，接收10Hz战场快照并显示轻量化战斗画面。房客有独立生命、3段折跃和基础自动射击，但**尚未实现独立升级卡、完整个人武器构筑、九段折跃升级、无尽模式团队投票、四人联机、断线重连**。房主离线则房间结束。移动网络或隔离路由可能导致连接失败。
+**经验与暂停**：所有经验晶体统一归房主权威队伍经验池；房主或房客拾取都只计一次，两人共享角色等级与经验条；全图磁铁只吸经验晶体，不会远程触发治疗/核弹；治疗由实际拾取者获得。当前版本升级卡仍由房主选择，房客个人构筑留待后续。只有房主可以暂停/继续整个联机世界；暂停时双方敌人、Boss、经验、战机移动与折跃全部停止，房客屏幕显示「房主已暂停」，房客可打开个人设置而不影响房主。
 
 ### 双机共振与手机设置
 
@@ -73,6 +76,9 @@ node tests/neon-survivor-resonance.smoke.cjs
 node tests/neon-survivor-settings.smoke.cjs
 node tests/neon-survivor-responsive.smoke.cjs
 node tests/neon-survivor-teammates.smoke.cjs
+node tests/neon-survivor-signaling.smoke.cjs
+node tests/neon-survivor-coop-balance.smoke.cjs
+node tests/neon-survivor-host-pause.smoke.cjs
 git diff --check
 ```
 

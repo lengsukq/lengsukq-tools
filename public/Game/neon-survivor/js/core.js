@@ -1746,14 +1746,20 @@
       }
 
       pauseGame() {
+        if (this.lanCoop?.guestMode || this.state === 'lan-client') return;
         if (this.state !== 'playing') return;
         this.state = 'paused';
+        if (this.lanCoop?.ally) {
+          this.lanCoop.ally.input = { dx: 0, dy: 0, aim: this.lanCoop.ally.aimAngle, dash: false };
+          this.lanCoop.ally.lastInputAt = 0;
+        }
         this.releaseJoystickTouch();
         try { this.renderStatsTable('pause-stats'); } catch (e) { console.error(e); }
         if (this.modalPause) this.modalPause.classList.add('active');
       }
 
       resumeGame() {
+        if (this.lanCoop?.guestMode || this.state === 'lan-client') return;
         if (this.state !== 'paused') return;
         if (this.modalPause) this.modalPause.classList.remove('active');
         this.state = 'playing';
@@ -1940,6 +1946,8 @@
           this.pendingLevelUps = (this.pendingLevelUps || 0) + 1;
           shouldLevelUp = true;
         }
+        // One authoritative LAN team level, regardless of which pilot collected XP.
+        window.NeonLanExperience?.synchronizeLevel(this);
         // 裸等级成长：升级即刷新移速（含硬上限）与冲刺斩等级项
         if (shouldLevelUp) {
           this.recalculateMoveSpeed();
@@ -2943,6 +2951,7 @@
           finalDamage *= 0.5;
         }
         if (target.isBoss && target.rogueAffixes?.includes('armored')) finalDamage *= 0.83;
+        finalDamage = window.NeonLanEncounters?.modifyBossDamage(this, target, finalDamage) ?? finalDamage;
 
         target.hp -= finalDamage;
         this.totalDamageDealt += finalDamage;
@@ -3082,6 +3091,7 @@
 
         const dropRoll = Math.random();
         if (enemy.isBoss) {
+          window.NeonLanEncounters?.bonusOnVictory(this, enemy);
           this.currentBoss = null;
           // Boss drops 10 gold gems worth 25 each (total 250 XP: gives 1-2 clean level ups)
           for (let i = 0; i < 10; i++) {
@@ -3229,7 +3239,10 @@
 
         const timeMin = this.survivalTime / 60;
         // As time advances, spawn interval accelerates from 1.25s down to 0.12s
-        const spawnInterval = Math.max(0.12, (1.25 - timeMin * 0.12) / this.getDifficultyRules().enemyCount);
+        const coopSpawnMultiplier = window.NeonLanEncounters?.active(this)
+          ? window.NeonLanEncounters.TUNING.spawnInterval : 1;
+        const spawnInterval = Math.max(0.12, (1.25 - timeMin * 0.12) /
+          this.getDifficultyRules().enemyCount * coopSpawnMultiplier);
 
         // Boss spawn at 3 minutes (180s), and periodically in endless mode
         if (this.survivalTime >= 180 && !this.bossSpawned) {
@@ -3627,7 +3640,10 @@
         let boss = null;
         const bossNameEl = document.getElementById('boss-name');
 
-        if (this.bossCycle % 3 === 1) {
+        if (window.NeonLanEncounters?.active(this) && this.bossCycle % 2 === 0) {
+          boss = window.NeonLanEncounters.createDualBoss(this, bx, by, hpScale, dmgScale);
+          if (bossNameEl) bossNameEl.textContent = '双生裁决者 · 共振要塞 (DUAL REACTOR)';
+        } else if (this.bossCycle % 3 === 1) {
           // BOSS 1: 雷暴行者·极性核心 (STORM NEXUS)
           boss = {
             type: 'boss_nexus',
@@ -3752,6 +3768,7 @@
 
         this.survivalTime += dt;
         this.updateSpawning(dt);
+        window.NeonLanEncounters?.scaleNewEnemies(this);
         if (this.endlessMode) window.NeonRogueEndless?.update(this, dt);
 
         // Player Passive Regen
@@ -4737,7 +4754,9 @@
                 }
               }
             }
-            if (e.type === 'boss_nexus') {
+            if (e.type === 'boss_dual_reactor' && window.NeonLanEncounters?.active(this)) {
+              window.NeonLanEncounters.updateBoss(this, e, dt);
+            } else if (e.type === 'boss_nexus') {
               e.attackTimer += dt;
               e.vx = Math.cos(angleToPlayer) * e.speed;
               e.vy = Math.sin(angleToPlayer) * e.speed;
@@ -4916,24 +4935,26 @@
         for (let i = this.gems.length - 1; i >= 0; i--) {
           const g = this.gems[i];
           if (!g) continue;
-          const dist = Vec.dist(g.x, g.y, this.player.x, this.player.y);
-          const pullDist = g.magnetized ? 9999 : this.player.magnetRadius;
+          const collector = window.NeonLanExperience?.collector(this, g) || this.player;
+          const dist = Vec.dist(g.x, g.y, collector.x, collector.y);
+          const pullDist = g.magnetized ? 9999 :
+            (window.NeonLanExperience?.pickupRadius(this, collector) || this.player.magnetRadius);
 
           if (dist < pullDist) {
             // Accelerate towards player
-            const angle = Math.atan2(this.player.y - g.y, this.player.x - g.x);
+            const angle = Math.atan2(collector.y - g.y, collector.x - g.x);
             const pullSpeed = Math.max(420, 950 - dist * 1.5);
             g.x += Math.cos(angle) * pullSpeed * dt;
             g.y += Math.sin(angle) * pullSpeed * dt;
 
-            if (dist < this.player.radius + g.radius + 8) {
+            if (dist < collector.radius + g.radius + 8) {
               if (g.type === 'heal') {
-                const healAmt = Math.round(this.player.maxHp * 0.35);
-                this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmt);
+                const healAmt = Math.round(collector.maxHp * 0.35);
+                collector.hp = Math.min(collector.maxHp, collector.hp + healAmt);
                 this.sound.playHeal();
                 this.texts.push({
-                  x: this.player.x,
-                  y: this.player.y - 25,
+                  x: collector.x,
+                  y: collector.y - 25,
                   text: `💚 +${healAmt} 纳米修复!`,
                   color: '#00ffaa',
                   size: 18,
@@ -4942,11 +4963,15 @@
                 });
               } else if (g.type === 'magnet') {
                 this.sound.playZap();
-                this.gems.forEach((other) => { other.magnetized = true; });
+                if (window.NeonLanExperience?.active(this)) {
+                  window.NeonLanExperience.activateMapMagnet(this);
+                } else {
+                  this.gems.forEach(other => { if (other.type === 'gem') other.magnetized = true; });
+                }
                 this.texts.push({
-                  x: this.player.x,
-                  y: this.player.y - 25,
-                  text: `🧲 引力全域共鸣!`,
+                  x: collector.x,
+                  y: collector.y - 25,
+                  text: `🧲 全队共享经验 · 全图回收!`,
                   color: '#00f3ff',
                   size: 18,
                   life: 1.0,
@@ -5035,7 +5060,8 @@
       hitPlayer(dmg) {
         if (this.player.invulnTimer > 0) return;
         window.NeonRogueEndless?.onDamageTaken(this);
-        dmg *= this.getDifficultyRules().enemyDamage;
+        dmg *= this.getDifficultyRules().enemyDamage *
+          (window.NeonLanEncounters?.active(this) ? window.NeonLanEncounters.TUNING.enemyDamage : 1);
         this.combatTelemetry.damageTaken += dmg;
         this.player.hp -= dmg;
         this.player.invulnTimer = 0.35; // Invulnerable frame
@@ -5198,7 +5224,31 @@
           ctx.fillStyle = e.color;
 
           if (e.isBoss) {
-            if (e.type === 'boss_nexus') {
+            if (e.type === 'boss_dual_reactor') {
+              // Two rotating reactors visually distinguish the co-op boss.
+              const t = this.survivalTime;
+              ctx.beginPath();
+              for (let i = 0; i < 8; i++) {
+                const a = t * 0.35 + i * Math.PI / 4;
+                const radius = e.radius * (i % 2 ? 0.86 : 1.08);
+                if (i === 0) ctx.moveTo(Math.cos(a) * radius, Math.sin(a) * radius);
+                else ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+              }
+              ctx.closePath();
+              ctx.fill();
+              ctx.strokeStyle = e.coopExposed > 0 ? '#9dfff3' : '#ffbf80';
+              ctx.lineWidth = 4;
+              ctx.stroke();
+              for (const offset of [-19, 19]) {
+                ctx.fillStyle = e.coopExposed > 0 ? '#ffffff' : '#143747';
+                ctx.beginPath();
+                ctx.arc(offset, 0, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#8fffe4';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+              }
+            } else if (e.type === 'boss_nexus') {
               // Storm Nexus: Dual counter-rotating cyan rings + electric core
               ctx.beginPath();
               ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
