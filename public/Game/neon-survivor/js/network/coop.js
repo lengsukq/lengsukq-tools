@@ -202,6 +202,10 @@
       Array.isArray(data.enemyBullets) && data.enemyBullets.length <= 150 &&
       Array.isArray(data.gems) && data.gems.length <= 90;
   }
+  function guestChoosingUpgrade(frame) {
+    return (frame?.phase === 'levelup' || frame?.phase === 'coop-guest-upgrade') &&
+      Array.isArray(frame.guest?.choices) && frame.guest.choices.length > 0;
+  }
   class Coop {
     constructor(game, rtc) {
       this.game = game;
@@ -317,8 +321,8 @@
       if (this.rtc.role === 'host' && message?.type === 'upgrade_pick') {
         // A guest cannot choose arbitrary upgrades, spend someone else's card,
         // or alter state outside the shared upgrade phase.
-        if (this.game.state !== 'coop-guest-upgrade' ||
-          !this.ally || !Number.isSafeInteger(message.seq) ||
+        if ((this.game.state !== 'coop-guest-upgrade' && this.game.state !== 'levelup') ||
+          !this.ally || this.ally.pendingUpgrades <= 0 || !Number.isSafeInteger(message.seq) ||
           message.seq <= (this.ally.lastUpgradeSeq ?? -1) ||
           typeof message.id !== 'string' || !this.ally.choices.includes(message.id)) return;
         const upgrade = this.game.getCoopUpgradeDefinition(message.id);
@@ -333,9 +337,8 @@
         }
         if (!this.ally.pendingUpgrades) {
           this.ally.choices = [];
-          this.game.state = 'playing';
-          this.game.lastTime = performance.now();
         }
+        this.resumeAfterUpgrades();
         return;
       }
       if (this.rtc.role === 'host' && this.ally) {
@@ -396,14 +399,51 @@
         }
       }
     }
+    resumeAfterUpgrades() {
+      if (this.game.state !== 'coop-guest-upgrade' ||
+          (this.game.pendingLevelUps || 0) > 0 ||
+          (this.ally?.pendingUpgrades || 0) > 0) return false;
+      this.game.state = 'playing';
+      this.game.lastTime = performance.now();
+      return true;
+    }
+    prepareGuestUpgrade() {
+      if (this.rtc.role !== 'host' || !this.rtc.connected || !this.ally ||
+          this.ally.pendingUpgrades <= 0 || this.ally.choices.length) return;
+      this.ally.choices = this.game.getCoopUpgradeChoices(this.ally);
+      if (!this.ally.choices.length) this.ally.pendingUpgrades = 0;
+    }
+    waitForGuestUpgrade() {
+      if (this.rtc.role !== 'host' || !this.rtc.connected || !this.ally ||
+          this.ally.pendingUpgrades <= 0) return false;
+      this.prepareGuestUpgrade();
+      if (!this.ally.pendingUpgrades) return false;
+      this.game.state = 'coop-guest-upgrade';
+      return true;
+    }
+    renderHostUpgradeWait(ctx) {
+      if (this.game.state !== 'coop-guest-upgrade' || !this.ally?.pendingUpgrades) return;
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 15, 31, .78)';
+      ctx.fillRect(0, 0, this.game.width, this.game.height);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#a9fcea';
+      ctx.font = 'bold 23px system-ui';
+      ctx.fillText('你的升级已完成', this.game.width / 2, this.game.height / 2 - 20);
+      ctx.fillStyle = '#dceeff';
+      ctx.font = '15px system-ui';
+      ctx.fillText('等待队友选择升级…', this.game.width / 2, this.game.height / 2 + 14);
+      ctx.restore();
+    }
     updateHost(dt) {
       if (!this.ally || !this.rtc.connected) return;
       const ally = this.ally, game = this.game;
-      if (game.state === 'playing' && ally.pendingUpgrades > 0) {
-        ally.choices = game.getCoopUpgradeChoices(ally);
-        if (ally.choices.length) game.state = 'coop-guest-upgrade';
-        else ally.pendingUpgrades = 0;
+      if (['playing', 'levelup', 'coop-guest-upgrade'].includes(game.state) &&
+          ally.pendingUpgrades > 0 && !ally.choices.length) {
+        this.prepareGuestUpgrade();
+        if (ally.choices.length && game.state === 'playing') game.state = 'coop-guest-upgrade';
       }
+      if (this.resumeAfterUpgrades()) return;
       if (game.state !== 'playing') {
         this.sendAccumulator += dt;
         if (this.sendAccumulator >= 0.2) {
@@ -560,19 +600,36 @@
       }
     }
     pickGuestUpgrade(id) {
-      if (this.latest?.phase !== 'coop-guest-upgrade' ||
+      if (!guestChoosingUpgrade(this.latest) ||
         !this.latest.guest?.choices?.includes(id) || this.guestUpgradeSubmitted) return false;
       this.guestUpgradeSubmitted = true;
       const success = this.rtc.send({ type: 'upgrade_pick', id, seq: this.seq++ });
       if (!success) this.guestUpgradeSubmitted = false;
+      else this.showGuestUpgradeWait('升级已提交，等待房主确认…');
       return success;
+    }
+    showGuestUpgradeWait(message) {
+      const grid = this.game.upgradeGrid;
+      if (grid) {
+        grid.innerHTML = '';
+        const label = document.createElement('div');
+        label.className = 'neon-upgrade-wait';
+        label.textContent = message;
+        grid.appendChild(label);
+      }
+      this.game.modalLevelup?.classList.add('active');
     }
     syncGuestUpgrade(frame, view) {
       const game = this.game;
-      if (frame.phase !== 'coop-guest-upgrade' || !frame.guest.choices?.length) {
+      if (!guestChoosingUpgrade(frame)) {
         this.guestUpgradeKey = null;
         this.guestUpgradeSubmitted = false;
-        game.modalLevelup?.classList.remove('active');
+        if (frame.phase === 'levelup') {
+          this.showGuestUpgradeWait(frame.guest?.pendingUpgrades > 0
+            ? '正在同步你的升级选项…' : '你的升级已完成，等待房主选择…');
+        } else {
+          game.modalLevelup?.classList.remove('active');
+        }
         return;
       }
       const key = frame.guest.choices.join('|') + ':' + frame.teamXP.level +
@@ -584,12 +641,9 @@
       const choices = frame.guest.choices.map(id => game.getCoopUpgradeDefinition(id)).filter(Boolean);
       if (!choices.length) return;
       view.endlessMode = false; // choices use the exact existing solo card component
-      // Keep modal visible until authoritative confirmation arrives.
-      view.pendingLevelUps = 2;
-      view.state = 'levelup';
-      view.applyUpgrade = upgrade => this.pickGuestUpgrade(upgrade.id);
-      view.applyLimitBreak = upgrade => this.pickGuestUpgrade(upgrade.id);
-      view.triggerLevelUp = () => {};
+      // Reuse the solo card component without changing the host game state or
+      // closing the modal before the authoritative selection is acknowledged.
+      view.onUpgradePick = upgrade => this.pickGuestUpgrade(upgrade.id);
       game.renderUpgradeChoices.call(view, choices);
       game.modalLevelup?.classList.add('active');
     }
@@ -765,7 +819,7 @@
         this.profileAccumulator = 0;
         this.sendLocalProfile();
       }
-      if (this.latest?.phase === 'coop-guest-upgrade') {
+      if (guestChoosingUpgrade(this.latest)) {
         const options = this.latest.guest?.choices || [];
         const keys = this.game.keys || {};
         const pad = Array.from(navigator.getGamepads?.() || []).find(p => p && p.connected !== false);

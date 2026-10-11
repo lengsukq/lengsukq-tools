@@ -1949,9 +1949,8 @@
         if (eligible.length === 0) {
           choices = this.getLimitBreakChoices();
         } else {
-          choices = this.endlessMode && window.NeonRogueEndless
-            ? window.NeonRogueEndless.pickUpgrades(eligible, 3)
-            : [...eligible].sort(() => Math.random() - 0.5).slice(0, 3);
+          choices = window.NeonUpgradeRarity?.pick(eligible, 3, this.difficulty) ||
+            [...eligible].sort(() => Math.random() - 0.5).slice(0, 3);
           // If fewer than 3 standard options left, fill remainder with Limit Break cards
           if (choices.length < 3) {
             const lbChoices = this.getLimitBreakChoices();
@@ -1963,6 +1962,8 @@
           }
         }
 
+        // Host and guest independently roll cards in the same paused phase.
+        this.lanCoop?.prepareGuestUpgrade?.();
         this.state = 'levelup';
         this.gamepadSelectedUpgradeIdx = 0;
         try { this.sound.playLevelUp(); } catch (e) {}
@@ -2002,7 +2003,9 @@
           if (upgrade.type === 'dash') return (dash[upgrade.id] || 0) < upgrade.maxLvl;
           return false;
         });
-        return [...eligible].sort(() => Math.random() - 0.5).slice(0, 3).map(upgrade => upgrade.id);
+        const choices = window.NeonUpgradeRarity?.pick(eligible, 3, this.difficulty) ||
+          [...eligible].sort(() => Math.random() - 0.5).slice(0, 3);
+        return choices.map(upgrade => upgrade.id);
       }
 
       getLimitBreakChoices() {
@@ -2094,7 +2097,8 @@
         const alternatives = pool.filter(u => !(this.currentUpgradeChoices || []).some(chosen => chosen.id === u.id));
         const candidates = alternatives.length >= 3 ? alternatives : pool;
         if (!candidates.length) return this.getLimitBreakChoices();
-        const result = window.NeonRogueEndless.pickUpgrades(candidates, 3);
+        const result = window.NeonRogueEndless.pickUpgrades(candidates, 3, Math.random,
+          this.difficulty);
         if (result.length < 3) {
           for (const option of this.getLimitBreakChoices()) {
             if (result.length >= 3) break;
@@ -2129,8 +2133,10 @@
         if (this.pendingLevelUps > 0) this.triggerLevelUp();
         else {
           this.modalLevelup?.classList.remove('active');
-          this.state = 'playing';
-          this.lastTime = performance.now();
+          if (!this.lanCoop?.waitForGuestUpgrade?.()) {
+            this.state = 'playing';
+            this.lastTime = performance.now();
+          }
           this.gamepadCombatInputLocked = true;
         }
         return true;
@@ -2139,6 +2145,13 @@
       renderUpgradeChoices(choices) {
         this.upgradeGrid.innerHTML = '';
         this.currentUpgradeChoices = choices;
+        const weights = window.NeonUpgradeRarity?.weights(this.difficulty);
+        const subtitle = this.modalLevelup?.querySelector?.('.modal-sub');
+        if (subtitle && weights) {
+          const total = weights.common + weights.rare + weights.legendary;
+          const pct = tier => (100 * weights[tier] / total).toFixed(1).replace(/\.0$/, '');
+          subtitle.textContent = `各稀有度均可选时：普通 ${pct('common')}% · 稀有 ${pct('rare')}% · 传说 ${pct('legendary')}%（抽空后重分配）`;
+        }
         const weaponCount = Object.keys(this.player.weapons).length;
         const passiveCount = Object.keys(this.player.passives).length;
 
@@ -2180,6 +2193,12 @@
           `;
 
           card.onclick = () => {
+            // Guest selections must stay open until the host acknowledges the
+            // chosen card. Never spend a host-side level-up in the guest view.
+            if (typeof this.onUpgradePick === 'function') {
+              this.onUpgradePick(upg);
+              return;
+            }
             try {
               if (upg.type === 'limit_break') {
                 this.applyLimitBreak(upg);
@@ -2194,8 +2213,10 @@
               this.triggerLevelUp();
             } else {
               if (this.modalLevelup) this.modalLevelup.classList.remove('active');
-              this.state = 'playing';
-              this.lastTime = performance.now();
+              if (!this.lanCoop?.waitForGuestUpgrade?.()) {
+                this.state = 'playing';
+                this.lastTime = performance.now();
+              }
             }
           };
           if (this.endlessMode && this.endlessUpgradeBanishes > 0) {
@@ -5868,6 +5889,7 @@
           this.update(dt);
           this.lanCoop?.updateHost(dt);
           this.render();
+          this.lanCoop?.renderHostUpgradeWait?.(this.ctx);
           if (this.lanCoop?.ally && this.lanCoop.rtc?.connected) {
             window.NeonLanRevive?.overlay(this.ctx, this, {
               rescue: window.NeonLanRevive.summary(this)

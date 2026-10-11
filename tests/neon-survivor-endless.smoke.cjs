@@ -7,7 +7,7 @@ const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 const legacy = fs.readFileSync('public/Game/neon_survivor.html', 'utf8');
 assert.match(legacy, /neon-survivor\/index\.html/);
-for (const file of ['relics', 'fusions', 'events', 'endless', 'ui', 'core']) {
+for (const file of ['relics', 'fusions', 'events', 'rarity', 'endless', 'ui', 'core']) {
   assert.ok(html.includes('/Game/neon-survivor/js/' + file + '.js'), 'Missing module ' + file);
 }
 assert.match(html, /game\.css/);
@@ -37,7 +37,7 @@ const sandbox = {
   setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const name of ['relics', 'fusions', 'events', 'endless', 'core']) {
+for (const name of ['relics', 'fusions', 'events', 'rarity', 'endless', 'core']) {
   vm.runInContext(fs.readFileSync(root + 'js/' + name + '.js', 'utf8'), sandbox);
 }
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);

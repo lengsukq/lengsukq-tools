@@ -14,18 +14,8 @@
     { id: 'summoner', name: '召唤大师', desc: '定时呼叫援军' }
   ]);
   const getState = game => game.endlessState;
-  function pickUpgrades(eligible, count = 3, random = Math.random) {
-    const pool = [...eligible];
-    const result = [];
-    const weights = { common: 60, rare: 28, legendary: 12 };
-    while (pool.length && result.length < count) {
-      const total = pool.reduce((sum, card) => sum + (weights[card.rarity] || 28), 0);
-      let roll = random() * total;
-      let index = pool.findIndex(card => (roll -= (weights[card.rarity] || 28)) < 0);
-      if (index < 0) index = pool.length - 1;
-      result.push(pool.splice(index, 1)[0]);
-    }
-    return result;
+  function pickUpgrades(eligible, count = 3, random = Math.random, difficulty = 0) {
+    return window.NeonUpgradeRarity?.pick(eligible, count, difficulty, random) || [];
   }
   function reset(game) {
     game.endlessState = {

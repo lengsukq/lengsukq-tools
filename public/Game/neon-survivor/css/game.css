@@ -734,6 +734,18 @@
     }
     .neon-lan-qr-code img,
     .neon-lan-qr-code canvas { display: block; max-width: 100%; }
+    .neon-upgrade-wait {
+      width: min(100%, 470px);
+      margin: 14px auto;
+      padding: 28px 18px;
+      border: 1px solid rgba(126, 255, 216, .55);
+      border-radius: 14px;
+      background: rgba(7, 27, 41, .88);
+      color: #b7ffec;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.7;
+    }
     .neon-lan-qr-info {
       flex: 1 1 190px;
       min-width: 0;
