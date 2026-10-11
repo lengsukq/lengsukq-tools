@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "ships:generate": "node tools/neon-survivor/generate-ships.mjs",
+    "ships:check": "node tools/neon-survivor/generate-ships.mjs --check",
+    "predev": "npm run ships:generate",
+    "prebuild": "npm run ships:generate",
     "dev": "next dev --port 8010",
     "build": "next build",
     "start": "next start",
