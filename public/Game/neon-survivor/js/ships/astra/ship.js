@@ -6,6 +6,7 @@
     id: 'astra', code: 'ASTRA', name: '星织·织界术师',
     description: '星能法术、局部结界与攻守混合相位闪现', playable: true,
     baseStats: { hp: 95, speed: 235, regen: 0.8, dashCharges: 2 },
+    slots: { weapons: 4, passives: 4, warp: 7, activeSkills: 2 },
     startingWeapon: 'star_weave', passiveId: null,
     activeSkillIds: ['meteor', 'ward'],
     warpTreeId: 'phase', rendererId: 'astra'

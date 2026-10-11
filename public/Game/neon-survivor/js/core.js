@@ -946,8 +946,15 @@
         return NEON_DIFFICULTIES[this.difficulty || 0];
       }
 
-      getPassiveSlotLimit() {
-        return this.difficulty >= 5 ? 3 : 4;
+      getUpgradeSlotLimits(player = this.player) {
+        return window.NeonShips?.slotLimitsFor?.(player, this.difficulty) || {
+          weapons: 4, passives: this.difficulty >= 5 ? 3 : 4,
+          warp: 7, activeSkills: 0
+        };
+      }
+
+      getPassiveSlotLimit(player = this.player) {
+        return this.getUpgradeSlotLimits(player).passives;
       }
 
       getEffectiveDashRecharge() {
@@ -2181,6 +2188,9 @@
 
       isUpgradeAvailableFor(player, upgrade, banished = null) {
         if (!upgrade || banished?.has(upgrade.id)) return false;
+        if (window.NeonShips?.canEquipUpgrade) {
+          return window.NeonShips.canEquipUpgrade(player, upgrade, this.difficulty);
+        }
         const field = upgrade.type === 'weapon' ? 'weapons' :
           upgrade.type === 'passive' ? 'passives' :
             upgrade.type === 'dash' ? 'dashUpgrades' : null;
@@ -2188,9 +2198,11 @@
         const loadout = player[field] || {};
         const level = loadout[upgrade.id] || 0;
         if (level >= upgrade.maxLvl) return false;
-        if (level > 0 || upgrade.type === 'dash') return true;
+        if (level > 0) return true;
+        const limits = this.getUpgradeSlotLimits(player);
         return Object.keys(loadout).length <
-          (upgrade.type === 'weapon' ? 4 : this.getPassiveSlotLimit());
+          (upgrade.type === 'weapon' ? limits.weapons :
+            upgrade.type === 'passive' ? limits.passives : limits.warp);
       }
 
       triggerLevelUp() {
@@ -2571,6 +2583,7 @@
         }
         const weaponCount = Object.keys(this.player.weapons).length;
         const passiveCount = Object.keys(this.player.passives).length;
+        const slotLimits = this.getUpgradeSlotLimits(this.player);
 
         choices.forEach(upg => {
           const isDash = upg.type === 'dash';
@@ -2592,7 +2605,8 @@
             badgeText = `⚡ 破限 +${upg.lbCount}`;
             badgeColor = '#ffea00';
           } else if (isNew) {
-            badgeText = isWeapon ? `✨ 新武器 (已用 ${weaponCount}/4)` : `🔷 新模组 (已用 ${passiveCount}/${this.getPassiveSlotLimit()})`;
+            badgeText = isWeapon ? `✨ 新武器 (已用 ${weaponCount}/${slotLimits.weapons})` :
+              `🔷 新模组 (已用 ${passiveCount}/${slotLimits.passives})`;
             badgeColor = '#00ffaa';
           } else {
             badgeText = `强化 ➔ Lv.${nextLvl}`;
@@ -2763,11 +2777,14 @@
         const levelBonus = Math.min(LEVEL_SPEED_CAP, (this.player.level - 1) * 6);
         const thrusterMult = 1.0 + (p.thruster || 0) * 0.12;
         const lbBonus = ((this.player.limitBreaks && this.player.limitBreaks.thruster) || 0) * 5;
-        this.player.baseSpeed = Math.min(TOTAL_SPEED_CAP, Math.round(240 * thrusterMult + levelBonus + lbBonus));
+        const shipSpeed = window.NeonShips?.get?.(this.player.shipId)?.baseStats.speed || 240;
+        this.player.baseSpeed = Math.min(TOTAL_SPEED_CAP,
+          Math.round(shipSpeed * thrusterMult + levelBonus + lbBonus));
       }
 
       recalculatePassives() {
         const p = this.player.passives;
+        const stats = window.NeonShips?.get?.(this.player.shipId)?.baseStats;
         // Power
         this.player.dmgMultiplier = 1.0 + (p.power || 0) * 0.18;
         // Haste
@@ -2778,13 +2795,14 @@
         this.player.magnetRadius = 120 * (1.0 + (p.magnet || 0) * 0.5);
         // Armor
         const armorLvl = p.armor || 0;
-        const baseMaxHp = 100 + armorLvl * 35;
+        const baseMaxHp = (stats?.hp || 100) + armorLvl * 35;
         this.player.maxHp = this.endlessMode && window.NeonRogueRelics?.owns(this, 'glass_reactor')
           ? Math.max(30, Math.round(baseMaxHp * 0.75))
           : baseMaxHp;
         this.player.hp = Math.min(this.player.maxHp, this.player.hp);
-        this.player.regen = 0.8 + armorLvl * 1.8; // 原生 0.8 + 装甲加成
-        this.player.hasCheatDeath = armorLvl >= 5;
+        this.player.regen = (stats?.regen ?? 0.8) + armorLvl * 1.8;
+        this.player.hasCheatDeath = armorLvl >= 5 ||
+          (this.player.shipId === 'phantom' && (p.death_reversal || 0) > 0);
         // Crit
         const critLvl = p.crit || 0;
         this.player.critRate = 0.08 + critLvl * 0.12;
@@ -2897,12 +2915,13 @@
       renderWeaponsHUD() {
         this.weaponsBar.innerHTML = '';
         const activeCatalog = this.getUpgradeCatalog(this.player);
+        const slotLimits = this.getUpgradeSlotLimits(this.player);
 
-        // Active weapons row (max 4)
+        // Render the configured number of weapon slots for this ship.
         const rowWeapons = document.createElement('div');
         rowWeapons.className = 'equip-group';
         const weaponEntries = Object.entries(this.player.weapons);
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < slotLimits.weapons; i++) {
           const slot = document.createElement('div');
           if (i < weaponEntries.length) {
             const [id, lvl] = weaponEntries[i];
@@ -2921,11 +2940,12 @@
         }
         this.weaponsBar.appendChild(rowWeapons);
 
-        // Passive modules; the last slot is locked at ascension V+.
+        // Show the full passive layout; ascension V+ locks the final slot.
         const rowPassives = document.createElement('div');
         rowPassives.className = 'equip-group';
         const passiveEntries = Object.entries(this.player.passives);
-        for (let i = 0; i < 4; i++) {
+        const configuredPassives = window.NeonShips?.slotLimitsFor?.(this.player, 0)?.passives ?? 4;
+        for (let i = 0; i < configuredPassives; i++) {
           const slot = document.createElement('div');
           if (i < passiveEntries.length) {
             const [id, lvl] = passiveEntries[i];
@@ -2936,7 +2956,7 @@
             slot.title = `${def ? def.name : id} 等级 ${lvl} ${lb > 0 ? `(超频破限 +${lb})` : ''}`;
             slot.innerHTML = `<span>${def ? def.icon : '🔮'}</span><span class="lvl-text" style="color:${lb > 0 ? '#ffea00' : '#d37aff'}">${lvlText}</span>`;
           } else {
-            const locked = i >= this.getPassiveSlotLimit();
+            const locked = i >= slotLimits.passives;
             slot.className = 'weapon-slot empty';
             slot.title = locked ? '进阶 V：该模组槽已锁定' : '模组空槽位 (通过升级选择新模组)';
             slot.innerHTML = locked ? '<span style="font-size:11px;opacity:0.55">🔒</span>' : '<span style="font-size:11px;opacity:0.3">🔷</span>';

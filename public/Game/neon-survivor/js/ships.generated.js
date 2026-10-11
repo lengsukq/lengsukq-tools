@@ -10,6 +10,7 @@ window.NeonShipsManifest = Object.freeze(["astra","phantom","riftblade"]);
     id: 'astra', code: 'ASTRA', name: '星织·织界术师',
     description: '星能法术、局部结界与攻守混合相位闪现', playable: true,
     baseStats: { hp: 95, speed: 235, regen: 0.8, dashCharges: 2 },
+    slots: { weapons: 4, passives: 4, warp: 7, activeSkills: 2 },
     startingWeapon: 'star_weave', passiveId: null,
     activeSkillIds: ['meteor', 'ward'],
     warpTreeId: 'phase', rendererId: 'astra'
@@ -988,6 +989,7 @@ window.NeonShips.register({
     id: 'phantom', code: 'PHANTOM', name: '幽灵·共生拟态',
     description: '虚无潜行、灵魂烙印引爆与联机共生挂载战舰', playable: true,
     baseStats: { hp: 85, speed: 260, regen: 0.5, dashCharges: 2 },
+    slots: { weapons: 4, passives: 4, warp: 7, activeSkills: 2 },
     startingWeapon: 'phantom_scythe', passiveId: null,
     activeSkillIds: ['spectral_shift', 'dock_link'],
     warpTreeId: 'spectral', rendererId: 'phantom'
@@ -2035,6 +2037,7 @@ window.NeonShips.register({
     id: 'riftblade', code: 'RIFTBLADE', name: '裂锋·虚空突击者',
     description: '进攻型折跃突击战舰', playable: true,
     baseStats: { hp: 100, speed: 240, regen: 0.8, dashCharges: 3 },
+    slots: { weapons: 4, passives: 4, warp: 7, activeSkills: 0 },
     startingWeapon: 'blaster', passiveId: null, activeSkillIds: [],
     warpTreeId: 'assault', rendererId: 'riftblade'
   });

@@ -1,6 +1,5 @@
-/* V6 ship registry: data and rendering plugins, separate from world combat.
- * V5's ASTRA can later register its own abilities/warp tree without adding
- * character branches throughout core.js. Playable ships are supplied by plugins.
+/* V6 ship registry: data, slot limits, class abilities and rendering plugins.
+ * Class-specific mechanics are registered independently of the combat core.
  */
 (() => {
   'use strict';
@@ -15,6 +14,7 @@
   const visualEffects = new Map();
   const networkProjections = new Map();
   const HOOKS = Object.freeze(['onStart', 'onTick', 'onAction', 'onUpgrade', 'onStop']);
+  const DEFAULT_SLOTS = Object.freeze({ weapons: 4, passives: 4, warp: 7 });
 
   function register(definition) {
     if (!definition || !VALID_ID.test(definition.id || '') ||
@@ -34,6 +34,23 @@
         !definition.activeSkillIds.every(id => VALID_ID.test(id))) {
       throw new Error('Invalid active skills');
     }
+    const requestedSlots = definition.slots === undefined ? {} : definition.slots;
+    if (!requestedSlots || typeof requestedSlots !== 'object' || Array.isArray(requestedSlots) ||
+        Object.keys(requestedSlots).some(key =>
+          !['weapons','passives','warp','activeSkills'].includes(key))) {
+      throw new Error('Invalid ship slots');
+    }
+    const slots = { ...DEFAULT_SLOTS, ...requestedSlots };
+    for (const key of ['weapons','passives','warp']) {
+      if (!Number.isSafeInteger(slots[key]) || slots[key] < (key === 'weapons' ? 1 : 0) ||
+          slots[key] > 16) throw new Error('Invalid ship slots');
+    }
+    if (slots.activeSkills !== undefined &&
+        slots.activeSkills !== definition.activeSkillIds.length) {
+      throw new Error('Invalid ship active skill slots');
+    }
+    slots.activeSkills = definition.activeSkillIds.length;
+    if (definition.passiveId && slots.passives < 1) throw new Error('Invalid ship slots');
     const entry = Object.freeze({
       id: definition.id,
       code: definition.code || definition.id.toUpperCase(),
@@ -42,6 +59,7 @@
       playable: definition.playable === true,
       baseStats: Object.freeze({ hp: stats.hp, speed: stats.speed,
         regen: stats.regen, dashCharges: stats.dashCharges }),
+      slots: Object.freeze(slots),
       startingWeapon: definition.startingWeapon,
       passiveId: definition.passiveId || null,
       activeSkillIds: Object.freeze([...definition.activeSkillIds]),
@@ -50,6 +68,34 @@
     });
     ships.set(entry.id, entry);
     return entry;
+  }
+  // Room difficulty modifies effective capacity without modifying a ship
+  // definition. Ascension V+ removes exactly one passive slot, as before.
+  function slotLimitsFor(pilot, difficulty = 0) {
+    const ship = resolve(typeof pilot === 'string' ? pilot : pilot?.shipId);
+    const base = ship.slots;
+    return Object.freeze({
+      weapons: base.weapons,
+      passives: Math.max(0, base.passives -
+        (Number.isFinite(difficulty) && difficulty >= 5 ? 1 : 0)),
+      warp: base.warp,
+      activeSkills: base.activeSkills
+    });
+  }
+  // One authoritative rule for solo drafts, host-side remote validation and
+  // slot-aware UI. Upgrading an equipped item never consumes another slot.
+  function canEquipUpgrade(pilot, card, difficulty = 0) {
+    if (!pilot || !card || !VALID_ID.test(card.id || '') ||
+        !Number.isSafeInteger(card.maxLvl) || card.maxLvl < 1) return false;
+    const field = { weapon: 'weapons', passive: 'passives', dash: 'dashUpgrades' }[card.type];
+    if (!field) return false;
+    const bag = pilot[field] || {};
+    const current = bag[card.id] || 0;
+    if (!Number.isSafeInteger(current) || current < 0 || current >= card.maxLvl) return false;
+    if (current > 0) return true;
+    const limits = slotLimitsFor(pilot, difficulty);
+    const category = card.type === 'dash' ? 'warp' : field;
+    return Object.keys(bag).length < limits[category];
   }
 
   function get(id) { return ships.get(id) || null; }
@@ -178,7 +224,7 @@
 
   window.NeonShips = Object.freeze({
     DEFAULT_SHIP_ID, register, get, list, resolve,
-    startingState, registerRenderer, registerEffects,
+    startingState, slotLimitsFor, canEquipUpgrade, registerRenderer, registerEffects,
     drawPilotEffects, drawNetworkEffects, drawWorldEffects,
     registerNetworkProjection, projectForNetwork, registerAbilities, runAbility,
     registerUpgradeCatalog, upgradeCatalogFor, drawHull
