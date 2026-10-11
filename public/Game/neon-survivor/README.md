@@ -66,6 +66,10 @@ MVP最多2人：房主浏览器运行唯一战斗世界并结算敌人、Boss、
 
 Node模拟测试可验证消息协议与基础双人玩法，但不能替代两台真实设备的ICE配对、触屏/手柄和帧率验收。
 
+**房客 FPS 优化与诊断**：双方仍使用同一套完整渲染器。房客快照插值的实体 ID 映射和临时对象仅在收到约15Hz新快照时生成，绘图帧重用视图和实体对象；HUD 也只随新快照刷新，避免每帧反复写入 DOM。统一渲染器对屏幕外敌人、子弹与粒子进行安全裁剪；离屏队友指示器缓存 HUD 布局读数；房主在裁剪大型网络快照时不再重复 JSON 序列化整个战场。房客移动方向实时本地采样，战斗仍由房主权威结算。
+
+调试时在游戏 HTML URL 后追加 `?perf=1`（如果已有查询参数则追加 `&perf=1`），房客会显示 **实际 FPS、渲染 CPU 平均/峰值毫秒、快照 Hz、最近网络包间隔、画布 DPR**。只有显式启用时才创建调试浮层；它用于识别绘制瓶颈或网络抖动，不等于对所有设备保证60FPS。需要降低图形开销时可使用设置中的「低特效」，画布分辨率和粒子预算会一起降低。
+
 ## 验证
 
 ```sh
@@ -84,6 +88,7 @@ node tests/neon-survivor-signaling.smoke.cjs
 node tests/neon-survivor-coop-balance.smoke.cjs
 node tests/neon-survivor-host-pause.smoke.cjs
 node tests/neon-survivor-shared-render.smoke.cjs
+node tests/neon-survivor-perf.smoke.cjs
 node tests/neon-survivor-guest-upgrade.smoke.cjs
 node tests/neon-survivor-revive.smoke.cjs
 git diff --check

@@ -27,7 +27,7 @@ assert.doesNotMatch(html, /id="btn-aim"/, 'Obsolete aim toggle should not take H
 const legacyPos = css.indexOf('@media (max-width: 640px)');
 const adaptivePos = css.indexOf('/* Fluid layout for narrow devices');
 assert.ok(adaptivePos > legacyPos, 'Adaptive media rules must override legacy phone rules');
-assert.match(core, /ctx\.scale\(Math\.max\(0\.65/);
+assert.match(core, /ctx\.scale\(zoom, zoom\)/);
 assert.match(core, /const zoom = Math\.max\(0\.65, Math\.min\(1\.5, this\.cameraZoom \|\| 1\)\)/);
 assert.match(core, /window\.NeonGameSettings\?\.apply\(this\); \/\/ Restore per-device preferences on every restart/);
 

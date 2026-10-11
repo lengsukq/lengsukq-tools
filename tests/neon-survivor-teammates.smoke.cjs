@@ -15,6 +15,10 @@ assert.match(core, /ctx\.strokeStyle = fighter\.downed \? '#ff617e' : profile\.c
 
 const store = new Map();
 const elements = [];
+let hudLayoutReads = 0;
+let clock = 1000;
+const hudNode = { style: { display: 'block' },
+  getBoundingClientRect() { hudLayoutReads++; return { bottom: 95 }; } };
 class Element {
   constructor(tag) {
     this.tag = tag; this.children = []; this.isConnected = false;
@@ -30,7 +34,7 @@ class Element {
 const document = {
   body: new Element('body'),
   getElementById(id) {
-    if (id === 'hud') return { style: { display: 'none' }, getBoundingClientRect: () => ({ bottom: 95 }) };
+    if (id === 'hud') return hudNode;
     return elements.find(el => el.id === id) || null;
   },
   createElement(tag) {
@@ -47,7 +51,7 @@ document.body.appendChild = child => {
 const settings = new Map([['playerName', '银河领航员'], ['shipColor', 'mint']]);
 const window = { NeonGameSettings: { get(key) { return settings.get(key); } } };
 const sandbox = { window, document, console, navigator: { getGamepads: () => [] },
-  performance: { now: () => 1000 } };
+  performance: { now: () => clock } };
 vm.createContext(sandbox);
 for (const file of ['teammates', 'coop']) {
   vm.runInContext(fs.readFileSync(root + 'js/network/' + file + '.js', 'utf8'), sandbox);
@@ -86,6 +90,18 @@ const game = { width: 390, height: 844, cameraZoom: 1, camera: center };
 const self = { x: 0, y: 0 };
 const teammate = { x: 900, y: 0 };
 team.update(game, center, teammate, self, { name: '远处舰友', color: '#b18aff' }, true);
+for (let i = 0; i < 60; i++) {
+  team.update(game, center, teammate, self, { name: '远处舰友', color: '#b18aff' }, true);
+}
+assert.equal(hudLayoutReads, 1,
+  '60 render frames should not each force a HUD layout read');
+clock += 600;
+team.update(game, center, teammate, self, { name: '远处舰友', color: '#b18aff' }, true);
+assert.equal(hudLayoutReads, 2, 'HUD layout cache refreshes periodically');
+game.width = 415;
+team.update(game, center, teammate, self, { name: '远处舰友', color: '#b18aff' }, true);
+assert.equal(hudLayoutReads, 3, 'Viewport changes invalidate layout measurements');
+game.width = 390;
 const bubble = document.getElementById('neon-teammate-indicator');
 assert.ok(bubble && bubble.hidden === false);
 assert.match(bubble.querySelector('.teammate-label').textContent, /远处舰友 · 距离900/);
