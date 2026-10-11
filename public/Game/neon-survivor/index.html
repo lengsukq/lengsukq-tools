@@ -36,6 +36,10 @@
         <div class="dash-stats-bar" id="dash-stats-bar">
           <span id="dash-stat-text">⚡ 3段 | ⚔️ 95 | ⏱️ 2.2s</span>
         </div>
+        <div id="astra-mana-hud" hidden aria-live="off">
+          <span id="astra-mana-text">星能 60/100</span>
+          <span class="astra-mana-track"><span id="astra-mana-fill"></span></span>
+        </div>
       </div>
     </div>
 
@@ -85,7 +89,15 @@
     <div class="joystick-base" id="joystickBase">
       <div class="joystick-thumb" id="joystickThumb"></div>
     </div>
-    <div id="touch-dash-btn">DASH</div>
+    <div id="touch-dash-btn" role="button" tabindex="0" aria-label="折跃冲刺：3段可用">
+      <span class="dash-key-glyph" aria-hidden="true">⟐</span>
+      <span class="dash-key-label">DASH</span>
+      <span class="dash-key-count" aria-hidden="true">3/3</span>
+    </div>
+    <div id="astra-touch-actions" hidden>
+      <button type="button" id="astra-switch-spell" aria-label="切换星织法术（Q）">切换</button>
+      <button type="button" id="astra-cast-spell" aria-label="施放星织法术（E）">施法</button>
+    </div>
   </div>
 
   <!-- START GAME MODAL -->
@@ -110,6 +122,7 @@
         全面支持 Xbox / PS / Switch / PC 手柄 + 键鼠 + 触控双摇杆；支持自动/手动瞄准！
       </div>
       <div id="neon-difficulty-selector" style="margin:0 auto 20px;max-width:550px;text-align:left;"></div>
+      <div id="neon-ship-selector" style="margin:0 auto 20px;max-width:550px;text-align:left;"></div>
 
       <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
         <button class="cyber-btn" id="btn-start-game">立即出击 (START MISSION)</button>
@@ -124,7 +137,7 @@
   <div class="modal-overlay" id="modal-levelup">
     <div class="modal-card">
       <div class="modal-title">⚡ 战术模组升级 ⚡</div>
-      <div class="modal-sub">每轮最多强化 3 种不同技能，也可以保留次数到下次升级</div>
+      <div class="modal-sub">先选择技能，再点击「确定升级」才会生效；点错可取消选择。每轮最多强化 3 种不同技能</div>
 
       <div class="upgrade-grid" id="upgrade-options">
         <!-- Rendered dynamically -->
@@ -181,7 +194,7 @@
                 <li><b>A 键 / B 键 / RB / RT / LB / LT</b>：消耗一段折跃充能；从3段最多成长至9段</li>
                 <li><b>开始界面</b>：十字键左右切换已解锁的进阶难度，A 确认开局</li>
                 <li><b>Start / Options 键</b>：暂停游戏 / 呼出菜单</li>
-                <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键确认装配</li>
+                <li><b>升级面板操作</b>：左摇杆/十字键左右切换卡片，A/RT键预选，松开再按一次确认；B键取消待确认选择</li>
                 <li><b>震动反馈与测试</b>：顶部 📳 是开关；点击已连接手柄徽章或「震动测试」按钮可主动检测</li>
                 <li><b>震动无效？</b>：先操作手柄并点击测试。若提示不支持，可换支持震动的浏览器或尝试 USB 连接。浏览器接受震动请求并不代表硬件一定执行</li>
               </ul>
@@ -376,6 +389,16 @@
   <script src="/Game/neon-survivor/js/ui.js"></script>
   <script src="/Game/neon-survivor/js/arsenal.js"></script>
   <script src="/Game/neon-survivor/js/settings.js"></script>
+  <script src="/Game/neon-survivor/js/ships.js"></script>
+  <script src="/Game/neon-survivor/js/ships.generated.js"></script>
+  <script src="/Game/neon-survivor/js/ship-selection.js"></script>
+  <script src="/Game/neon-survivor/js/players.js"></script>
+  <script src="/Game/neon-survivor/js/combat/weapons.js"></script>
+  <script src="/Game/neon-survivor/js/combat/pilots.js"></script>
+  <script src="/Game/neon-survivor/js/network/roster.js"></script>
+  <script src="/Game/neon-survivor/js/network/ready.js"></script>
+  <script src="/Game/neon-survivor/js/network/snapshots.js"></script>
+  <script src="/Game/neon-survivor/js/network/peers.js"></script>
   <script src="/Game/neon-survivor/js/network/rtc.js"></script>
   <script src="/Game/neon-survivor/js/network/signaling.js"></script>
   <script src="/Game/neon-survivor/js/network/qrcode.min.js"></script>

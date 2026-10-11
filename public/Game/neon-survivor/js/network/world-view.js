@@ -94,6 +94,28 @@
     view.camera.x = focus.x;
     view.camera.y = focus.y;
     const player = view.player ||= {};
+    player.shipId = state.guest.shipId || 'riftblade';
+    if (player.shipId === 'astra' && state.guest.arcane) {
+      const aura = state.guest.arcane;
+      player.astra = {
+        mana: aura.mana,
+        maxMana: aura.maxMana,
+        blinkCharges: aura.blinkCharges,
+        blinkRecharge: aura.blinkRecharge,
+        cooldowns: {
+          meteor: aura.meteorCooldown,
+          ward: aura.wardCooldown
+        },
+        wardRemaining: aura.wardRemaining,
+        wardX: aura.wardX,
+        wardY: aura.wardY,
+        warpUpgrades: state.guest.dashUpgrades || {}
+      };
+      player.starWeave = { anchors: aura.anchors || [] };
+    } else {
+      player.astra = null;
+      player.starWeave = null;
+    }
     player.x = state.guest.x;
     player.y = state.guest.y;
     player.hp = state.guest.hp;

@@ -52,7 +52,13 @@ function create(difficulty, level = 2, credits = 1) {
   return game;
 }
 const bankButton = game => game.upgradeGrid.parentNode.querySelector('#upgrade-bank-actions')
-  .children.find(node => node.tagName === 'BUTTON' || node.type === 'button');
+  .children.find(node => node.type === 'button' && /保留剩余|完成选择/.test(node.textContent));
+const choose = (game, index) => {
+  const before = game.pendingLevelUps;
+  game.upgradeGrid.children[index].click();
+  assert.equal(game.pendingLevelUps, before, 'Preview never spends credits');
+  assert.equal(game.confirmUpgradePreview(), true);
+};
 // Difficulty changes both host and guest selection width, never the 3-pick cap.
 for (const [tier, expected] of [[0, 5], [2, 5], [3, 4], [4, 4], [5, 3], [6, 3]]) {
   const game = create(tier);
@@ -74,7 +80,7 @@ for (const [tier, expected] of [[0, 5], [2, 5], [3, 4], [4, 4], [5, 3], [6, 3]])
   game.triggerLevelUp();
   assert.equal(game.upgradeSession.capacity, 2);
   const first = game.currentUpgradeChoices[0];
-  game.upgradeGrid.children[0].click();
+  choose(game, 0);
   assert.equal(game.pendingLevelUps, 1);
   game.upgradeGrid.children[0].click();
   assert.equal(game.pendingLevelUps, 1, 'Same card twice must not spend another credit');
@@ -89,11 +95,11 @@ for (const [tier, expected] of [[0, 5], [2, 5], [3, 4], [4, 4], [5, 3], [6, 3]])
   const game = create(0, 12, 4);
   game.triggerLevelUp();
   const before = game.currentUpgradeChoices.map(card => card.id);
-  game.upgradeGrid.children[0].click();
-  game.upgradeGrid.children[1].click();
+  choose(game, 0);
+  choose(game, 1);
   assert.equal(game.pendingLevelUps, 2);
   assert.equal(game.state, 'levelup');
-  game.upgradeGrid.children[2].click();
+  choose(game, 2);
   assert.equal(game.pendingLevelUps, 1, 'Fourth credit is retained for a later level');
   assert.equal(game.state, 'playing');
   assert.equal(new Set(before.slice(0, 3)).size, 3);

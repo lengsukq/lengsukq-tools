@@ -94,6 +94,8 @@ const legendaryFrom = cards => cards.find(card => card.pityGuaranteed);
   assert.equal(rarity.hasLegendary(coop.ally, game.levelupEligible), false);
   const hostNormal = game.currentUpgradeChoices.findIndex(card => card.rarity !== 'legendary');
   game.upgradeGrid.children[hostNormal].click();
+  assert.equal(game.state, 'levelup', 'Preview alone must not apply a non-legendary');
+  game.confirmUpgradePreview();
   assert.equal(game.state, 'playing');
 
   game.player.level = 11;
@@ -109,6 +111,8 @@ const legendaryFrom = cards => cards.find(card => card.pityGuaranteed);
   assert.ok(coop.ally.weapons[legendaryId] || coop.ally.passives[legendaryId] ||
     coop.ally.dashUpgrades[legendaryId], 'Guest actually owns the legendary');
   game.upgradeGrid.children[0].click(); // first host card is the guaranteed legendary
+  assert.equal(game.state, 'levelup', 'Even the guaranteed legendary requires confirmation');
+  game.confirmUpgradePreview();
   assert.equal(game.state, 'playing');
   assert.ok(rarity.hasLegendary(game.player, game.levelupEligible));
 

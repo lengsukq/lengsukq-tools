@@ -67,6 +67,13 @@ function setup(levels = 1) {
   assert.equal(frame.guest.choices.length, 5);
   return { game, coop, modal, grid, sent };
 }
+function chooseHost(game, index) {
+  const credits = game.pendingLevelUps;
+  game.upgradeGrid.children[index].click();
+  assert.ok(game.pendingUpgradeId, 'Card click creates preview');
+  assert.equal(game.pendingLevelUps, credits, 'Preview does not spend an upgrade');
+  assert.equal(game.confirmUpgradePreview(), true, 'Explicit confirmation commits the card');
+}
 // Guest finishes first: the host must remain paused and able to choose.
 {
   const { game, coop, grid, modal } = setup();
@@ -75,7 +82,7 @@ function setup(levels = 1) {
   assert.equal(coop.ally.pendingUpgrades, 0);
   assert.equal(game.state, 'levelup', 'Guest cannot resume before host chooses');
   assert.equal(modal.classList.active, true);
-  grid.children[0].click();
+  chooseHost(game, 0);
   assert.equal(game.state, 'playing');
   assert.equal(modal.classList.active, false);
   assert.equal(game.pendingLevelUps, 0);
@@ -84,7 +91,7 @@ function setup(levels = 1) {
 {
   const { game, coop, grid, modal } = setup();
   const guestChoice = coop.ally.choices[0];
-  grid.children[0].click();
+  chooseHost(game, 0);
   assert.equal(game.state, 'coop-guest-upgrade');
   assert.equal(modal.classList.active, false);
   coop.updateHost(.21);
@@ -101,7 +108,7 @@ function setup(levels = 1) {
   coop.onMessage({ type: 'upgrade_pick', id: firstGuest, seq: 1 });
   assert.equal(coop.ally.pendingUpgrades, 1);
   assert.equal(coop.ally.choices.length, 5, 'Guest keeps the same visible cards for this draft');
-  grid.children[0].click();
+  chooseHost(game, 0);
   assert.equal(game.state, 'levelup', 'Host may choose a second DIFFERENT card');
   assert.equal(game.pendingLevelUps, 1);
   coop.onMessage({ type: 'upgrade_pick', id: firstGuest, seq: 2 });
@@ -109,7 +116,7 @@ function setup(levels = 1) {
   coop.onMessage({ type: 'upgrade_pick', id: coop.ally.choices.find(id => id !== firstGuest), seq: 3 });
   assert.equal(coop.ally.pendingUpgrades, 0);
   assert.equal(game.state, 'levelup');
-  grid.children[1].click();
+  chooseHost(game, 1);
   assert.equal(game.pendingLevelUps, 0);
   assert.equal(game.state, 'playing');
 }
@@ -166,7 +173,9 @@ function setup(levels = 1) {
   const firstCard = game.upgradeGrid.children[0];
   firstCard.click();
   firstCard.click();
-  assert.equal(sent.length, 1, 'Double click must spend only one guest upgrade');
+  assert.equal(sent.length, 0, 'Even double-tap must not submit before confirmation');
+  assert.equal(client.confirmGuestUpgradePreview(), true);
+  assert.equal(sent.length, 1, 'Explicit confirmation sends exactly one upgrade');
   assert.equal(sent[0].id, 'tesla');
   assert.equal(game.modalLevelup.classList.active, true,
     'Guest selection must stay on screen until host acknowledges it');
@@ -179,7 +188,7 @@ function setup(levels = 1) {
   coop.ally.choices = [];
   coop.ally.upgradeFinished = true;
   game.getCoopUpgradeChoices = () => [];
-  grid.children[0].click();
+  chooseHost(game, 0);
   assert.equal(coop.ally.pendingUpgrades, 1, 'Guest keeps unspent chance when no valid cards exist');
   assert.equal(game.state, 'playing', 'An empty guest pool must not freeze gameplay');
 }

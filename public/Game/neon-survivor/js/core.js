@@ -798,6 +798,12 @@
           aimAngle: 0,
           autoAim: true
         };
+        this.selectedShipId = window.NeonShips?.DEFAULT_SHIP_ID || 'riftblade';
+        this.player.shipId = this.selectedShipId;
+        // Authoritative player container; legacy game.player remains the exact
+        // same object. Remote pilots are registered by the co-op adapter.
+        this.players = window.NeonPlayers ? new window.NeonPlayers.PlayerRegistry() : null;
+        this.players?.register('host', this.player);
 
         // Entities
         this.bullets = [];
@@ -826,6 +832,7 @@
           blackhole: 0,
           cryomine: 0
         };
+        this.player.timers = this.weaponTimers;
         this.bossCycle = 0;
 
         // Spawning director
@@ -849,6 +856,7 @@
         this.setupEvents();
         window.NeonGameSettings?.apply(this);
         this.renderDifficultySelector();
+        window.NeonShipSelection?.render(this);
         this.resize();
         this.renderWeaponsHUD();
 
@@ -864,6 +872,7 @@
         this.hideAllModals();
         this.modalStart.classList.add('active');
         this.renderDifficultySelector();
+        window.NeonShipSelection?.render(this);
       }
 
       getDifficultyRules() {
@@ -977,7 +986,7 @@
         window.addEventListener('touchstart', (e) => {
           if (!['playing', 'lan-client'].includes(this.state) || this.touch.active) return;
           if (e.target && typeof e.target.closest === 'function' &&
-              e.target.closest('#hud, .modal-overlay, #touch-dash-btn, #neon-settings-modal, #neon-lan-lobby')) return;
+              e.target.closest('#hud, .modal-overlay, #touch-dash-btn, #astra-touch-actions, #neon-settings-modal, #neon-lan-lobby')) return;
           const rect = dashBtn.getBoundingClientRect();
           for (const t of e.changedTouches || []) {
             if (t.clientX >= rect.left && t.clientX <= rect.right &&
@@ -1026,6 +1035,30 @@
           e.preventDefault();
           this.triggerDash();
         }, { passive: false });
+        dashBtn.addEventListener('keydown', (e) => {
+          if (!['Enter', ' '].includes(e.key) || e.repeat ||
+              !['playing', 'lan-client'].includes(this.state)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          this.triggerDash();
+        });
+        const spellSwitch = document.getElementById('astra-switch-spell');
+        const spellCast = document.getElementById('astra-cast-spell');
+        for (const [control, action] of [
+          [spellSwitch, () => this.cycleAstraSpell()],
+          [spellCast, () => this.castAstraSpell()]
+        ]) {
+          if (!control) continue;
+          control.addEventListener('touchstart', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            action();
+          }, { passive: false });
+          control.addEventListener('click', event => {
+            event.stopPropagation();
+            action();
+          });
+        }
       }
 
       setupEvents() {
@@ -1037,11 +1070,45 @@
         window.addEventListener('keydown', (e) => {
           if (this.settingsOpen) return;
           if (['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) return;
+          if (this.state === 'levelup' && !e.repeat) {
+            const number = /^[1-5]$/.test(e.key) ? Number(e.key) - 1 : -1;
+            const cards = Array.from(this.upgradeGrid?.children || [])
+              .filter(card => card.upgradeId);
+            if (number >= 0 && cards[number]) {
+              e.preventDefault();
+              this.gamepadSelectedUpgradeIdx = number;
+              cards[number].click();
+              return;
+            }
+            if (e.key === 'Escape' && this.pendingUpgradeId) {
+              e.preventDefault();
+              this.cancelUpgradePreview();
+              return;
+            }
+            if (e.key === 'Enter' && !['BUTTON'].includes(e.target?.tagName)) {
+              e.preventDefault();
+              const card = cards[this.gamepadSelectedUpgradeIdx] || cards[0];
+              if (this.pendingUpgradeId) this.confirmUpgradePreview();
+              else card?.click();
+              return;
+            }
+          }
           this.keys[e.key.toLowerCase()] = true;
           this.keys[e.code] = true;
           if (e.code === 'Space') {
             this.triggerDash();
             e.preventDefault();
+          }
+          if (!e.repeat && (this.state === 'playing' || this.state === 'lan-client') &&
+              (this.state === 'playing' ? this.player?.shipId === 'astra' :
+                this.lanCoop?.latest?.guest?.shipId === 'astra')) {
+            if (e.key.toLowerCase() === 'q') {
+              this.cycleAstraSpell();
+              e.preventDefault();
+            } else if (e.key.toLowerCase() === 'e') {
+              this.castAstraSpell();
+              e.preventDefault();
+            }
           }
           if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
             if (this.state === 'playing') this.pauseGame();
@@ -1450,11 +1517,17 @@
               }
             });
 
-            // Confirm upgrade: A (0), RT (7), RB (5)
+            // A/RT/RB: first press previews, second press on the same card
+            // explicitly confirms. Releasing the button is mandatory because
+            // these are justPressed edges, preventing an accidental double buy.
             if (justPressed(0) || justPressed(7) || justPressed(5)) {
               const targetCard = cards[this.gamepadSelectedUpgradeIdx] || cards[0];
               if (targetCard) {
-                targetCard.click();
+                if (this.pendingUpgradeId && this.pendingUpgradeId === targetCard.upgradeId) {
+                  this.confirmUpgradePreview();
+                } else {
+                  targetCard.click();
+                }
                 this.vibrateGamepad(120, 0.4, 0.2);
               }
             }
@@ -1463,7 +1536,9 @@
               const chosen = this.currentUpgradeChoices?.[this.gamepadSelectedUpgradeIdx];
               if (chosen) this.banishEndlessUpgrade(chosen.id);
             }
-            if (justPressed(1)) this.finishUpgradeSelection(); // B banks unspent chances
+            if (justPressed(1)) {
+              if (!this.cancelUpgradePreview()) this.finishUpgradeSelection();
+            } // B cancels the preview; B with nothing selected banks chances.
           } else {
             // 安全退出避免弹窗死锁
             this.finishUpgradeSelection();
@@ -1535,7 +1610,7 @@
         // On returning from any menu, require the confirmation button to be
         // physically released before gameplay actions can be dispatched.
         if (this.gamepadCombatInputLocked) {
-          const actionButtons = [0, 1, 4, 5, 6, 7, 9];
+          const actionButtons = [0, 1, 2, 3, 4, 5, 6, 7, 9];
           const released = actionButtons.every(index => !isPressed(index));
           this.finishGamepadMenuFrame(gp);
           if (released) this.gamepadCombatInputLocked = false;
@@ -1549,6 +1624,10 @@
             this.pauseGame();
             this.finishGamepadMenuFrame(gp);
             return;
+          }
+          if (this.player?.shipId === 'astra') {
+            if (justPressed(2)) this.cycleAstraSpell();
+            if (justPressed(3)) this.castAstraSpell();
           }
 
           // Dash Trigger: A (0), B (1), RB (5), RT (7), LB (4), LT (6)
@@ -1581,6 +1660,7 @@
 
       startNewGame() {
         this.state = 'playing';
+        this.selectedAstraSpell = 'meteor';
         this.releaseJoystickTouch();
         if (this.lanCoop?.rtc.connected && this.lanCoop.ally) this.lanCoop.startHost();
         this.difficulty = this.selectedDifficulty;
@@ -1655,6 +1735,20 @@
         this.player.dashPreciseHit = false;
         this.player.limitBreaks = {};
         this.player.totalLimitBreaks = 0;
+        // A new run must never inherit previously charged mage spells,
+        // stored star anchors, phase counters or co-op shield duration.
+        // Keep these resets independent of which ship will be selected.
+        this.player.astra = null;
+        this.player.astraArsenal = null;
+        this.player.starWeave = null;
+        this.player.astraTempShield = null;
+        this.player.coopShield = null;
+        this.player.phantom = null;
+        this.player.phantomScythe = null;
+        // Current Riftblade stats are identical to the historical defaults.
+        // Future ships supply their initial loadout through the same factory.
+        const shipStart = window.NeonShips?.startingState(this.selectedShipId);
+        if (shipStart) Object.assign(this.player, shipStart);
         this.recalculateDashStats();
         window.NeonGameSettings?.apply(this); // Restore per-device preferences on every restart.
 
@@ -1674,6 +1768,7 @@
         this.dashTrails = [];
 
         this.weaponTimers = { blaster: 0, tesla: 0, missiles: 0, nova: 0, laser: 0, drones: 0, blackhole: 0, cryomine: 0 };
+        this.player.timers = this.weaponTimers;
         this.bossCycle = 0;
         this.lastSwarmWave = 0;
         this.lastEliteWave = 0;
@@ -1683,6 +1778,7 @@
         this.spawnTimer = 0;
         this.waveTimer = 0;
         window.NeonRogueEndless?.reset(this);
+        window.NeonShips?.runAbility?.(this.player, 'onStart', this);
 
         this.hideAllModals();
         this.bossHud.style.display = 'none';
@@ -1808,10 +1904,67 @@
         `;
       }
 
+      cycleAstraSpell() {
+        if (this.state !== 'playing' && this.state !== 'lan-client') return false;
+        const id = this.state === 'lan-client' ? this.lanCoop?.latest?.guest?.shipId :
+          this.player?.shipId;
+        if (id !== 'astra' || this.settingsOpen) return false;
+        this.selectedAstraSpell = this.selectedAstraSpell === 'ward' ? 'meteor' : 'ward';
+        return true;
+      }
+
+      castAstraSpell() {
+        if (this.state === 'lan-client') {
+          if (this.settingsOpen || this.lanCoop?.latest?.guest?.downed) return false;
+          return this.lanCoop?.requestGuestSpell(this.selectedAstraSpell || 'meteor') === true;
+        }
+        if (this.state !== 'playing' || this.player?.shipId !== 'astra' ||
+            this.settingsOpen || this.player?.downed) return false;
+        return window.NeonShips?.runAbility?.(this.player, 'onAction', this,
+          this.selectedAstraSpell || 'meteor') === true;
+      }
+
       triggerDash() {
         if (this.state === 'lan-client' && this.lanCoop?.guestMode) {
           if (this.lanCoop.latest?.guest?.downed) return;
           this.lanCoop.dashQueued = true;
+          return;
+        }
+        if (this.state === 'playing' && this.player?.shipId === 'astra') {
+          let x = Number(Boolean(this.keys.d || this.keys.arrowright)) -
+            Number(Boolean(this.keys.a || this.keys.arrowleft));
+          let y = Number(Boolean(this.keys.s || this.keys.arrowdown)) -
+            Number(Boolean(this.keys.w || this.keys.arrowup));
+          if (this.touch.active) {
+            x = this.touch.currentX - this.touch.startX;
+            y = this.touch.currentY - this.touch.startY;
+          } else if (this.gamepadMove && Math.hypot(this.gamepadMove.x, this.gamepadMove.y) > .2) {
+            x = this.gamepadMove.x;
+            y = this.gamepadMove.y;
+          }
+          if (!x && !y) {
+            x = Math.cos(this.player.aimAngle || 0);
+            y = Math.sin(this.player.aimAngle || 0);
+          }
+          const blinked = window.NeonShips?.runAbility?.(this.player, 'onAction', this,
+            { kind: 'blink', direction: { x, y } });
+          if (blinked) this.lanCoop?.onHostDash();
+          return;
+        }
+        if (this.state === 'playing' && this.player?.shipId === 'phantom') {
+          let shifted = false;
+          if (this.player.phantom?.shiftActive) {
+            shifted = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'reap') ||
+              window.NeonPhantom?.reap(this.player, this, true);
+          } else {
+            shifted = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'shift') ||
+              window.NeonPhantom?.enterShift(this.player, this);
+            if (shifted) {
+              this.player.invulnTimer = Math.max(this.player.invulnTimer || 0, window.NeonPhantom?.BASE?.shiftDuration || 1.6);
+              this.sound.playDash();
+            }
+          }
+          if (shifted) this.lanCoop?.onHostDash();
           return;
         }
         if (this.player?.downed) return;
@@ -1925,6 +2078,12 @@
         return this.difficulty >= 5 ? 3 : this.difficulty >= 3 ? 4 : 5;
       }
 
+      getUpgradeCatalog(player = this.player) {
+        // Each playable ship may register its own complete upgrade deck.
+        // The original ship retains the exact historical card table.
+        return window.NeonShips?.upgradeCatalogFor(player) || UPGRADES_DB;
+      }
+
       isUpgradeAvailableFor(player, upgrade, banished = null) {
         if (!upgrade || banished?.has(upgrade.id)) return false;
         const field = upgrade.type === 'weapon' ? 'weapons' :
@@ -1941,9 +2100,11 @@
 
       triggerLevelUp() {
         if ((this.pendingLevelUps || 0) <= 0) return;
+        this.pendingUpgradeId = null;
         this.upgradeSession = { picked: new Set(), capacity: Math.min(3, this.pendingLevelUps) };
         const count = this.getUpgradeChoiceCount();
-        const eligible = UPGRADES_DB.filter(u =>
+        const catalog = this.getUpgradeCatalog(this.player);
+        const eligible = catalog.filter(u =>
           this.isUpgradeAvailableFor(this.player, u, this.banishedUpgrades));
 
         // If all standard upgrades are maxed, activate infinite Limit Break!
@@ -1953,7 +2114,7 @@
           choices = this.getLimitBreakChoices(count);
         } else {
           choices = window.NeonUpgradeRarity?.pickForPilot(
-            eligible, count, this.difficulty, this.player, UPGRADES_DB) ||
+            eligible, count, this.difficulty, this.player, catalog) ||
             [...eligible].sort(() => Math.random() - 0.5).slice(0, count);
           if (choices.length < count) {
             const lbChoices = this.getLimitBreakChoices(count);
@@ -1985,15 +2146,17 @@
 
       // Co-op upgrade selection uses the SAME upgrade definitions and cards as
       // solo mode, while authority to validate choices stays on the host.
-      getCoopUpgradeDefinition(id) {
-        return UPGRADES_DB.find(upgrade => upgrade.id === id) || null;
+      getCoopUpgradeDefinition(id, player = this.player) {
+        return (this.getUpgradeCatalog?.(player) || UPGRADES_DB)
+          .find(upgrade => upgrade.id === id) || null;
       }
 
       getCoopUpgradeChoices(ally) {
-        const eligible = UPGRADES_DB.filter(upgrade =>
+        const catalog = this.getUpgradeCatalog(ally);
+        const eligible = catalog.filter(upgrade =>
           this.isUpgradeAvailableFor(ally, upgrade));
         const choices = window.NeonUpgradeRarity?.pickForPilot(
-          eligible, this.getUpgradeChoiceCount(), this.difficulty, ally, UPGRADES_DB) ||
+          eligible, this.getUpgradeChoiceCount(), this.difficulty, ally, catalog) ||
           [...eligible].sort(() => Math.random() - 0.5).slice(0, this.getUpgradeChoiceCount());
         ally.legendaryPityId = choices.find(upgrade => upgrade.pityGuaranteed)?.id || null;
         return choices.map(upgrade => upgrade.id);
@@ -2128,7 +2291,7 @@
       }
 
       skipEndlessUpgrade() {
-        if (!this.endlessMode || this.state !== 'levelup') return false;
+        if (!this.endlessMode || this.state !== 'levelup' || this.pendingUpgradeId) return false;
         this.player.crystals += 12;
         this.pendingLevelUps = Math.max(0, (this.pendingLevelUps || 1) - 1);
         // One opportunity is exchanged for crystals; the rest stay banked.
@@ -2137,6 +2300,7 @@
 
       finishUpgradeSelection() {
         if (this.state !== 'levelup') return false;
+        if (this.pendingUpgradeId) return false; // A preview is not a confirmed upgrade.
         this.upgradeSession = null;
         this.modalLevelup?.classList.remove('active');
         if (!this.lanCoop?.waitForGuestUpgrade?.()) {
@@ -2144,6 +2308,88 @@
           this.lastTime = performance.now();
         }
         this.gamepadCombatInputLocked = true;
+        return true;
+      }
+
+      selectUpgradePreview(upgrade) {
+        if (!upgrade || !(this.currentUpgradeChoices || []).some(item => item.id === upgrade.id) ||
+            upgrade.alreadyChosen || this.upgradeSession?.picked?.has(upgrade.id)) return false;
+        if (typeof this.onUpgradePick !== 'function' &&
+            ((this.state !== 'levelup') || (this.pendingLevelUps || 0) <= 0 ||
+              (this.upgradeSession && this.upgradeSession.picked.size >= this.upgradeSession.capacity) ||
+              (upgrade.type !== 'limit_break' &&
+                !this.isUpgradeAvailableFor(this.player, upgrade, this.banishedUpgrades)))) return false;
+        this.pendingUpgradeId = upgrade.id;
+        const index = this.currentUpgradeChoices.findIndex(item => item.id === upgrade.id);
+        if (index >= 0) this.gamepadSelectedUpgradeIdx = index;
+        this.refreshUpgradePreview();
+        return true;
+      }
+
+      refreshUpgradePreview() {
+        for (const card of Array.from(this.upgradeGrid?.children || [])) {
+          if (!card.upgradeId) continue;
+          const selected = this.pendingUpgradeId === card.upgradeId;
+          card.className = (card.className || '').replace(/\s*selected-pending\b/g, '') +
+            (selected ? ' selected-pending' : '');
+          card.setAttribute?.('aria-pressed', String(selected));
+        }
+        this.refreshUpgradeControls();
+      }
+
+      cancelUpgradePreview() {
+        if (!this.pendingUpgradeId) return false;
+        this.pendingUpgradeId = null;
+        this.refreshUpgradePreview();
+        return true;
+      }
+
+      confirmUpgradePreview() {
+        const id = this.pendingUpgradeId;
+        const upgrade = (this.currentUpgradeChoices || []).find(item => item.id === id);
+        if (!upgrade || upgrade.alreadyChosen || this.upgradeSession?.picked?.has(id)) return false;
+        if (typeof this.onUpgradePick === 'function') {
+          // Guest sends the choice ONLY after explicit confirmation. Keep the
+          // preview if the DataChannel is unavailable so it can be retried.
+          if (this.onUpgradePick(upgrade) !== true) return false;
+          this.pendingUpgradeId = null;
+          return true;
+        }
+        if (this.state !== 'levelup' || (this.pendingLevelUps || 0) <= 0 ||
+            (this.upgradeSession && this.upgradeSession.picked.size >= this.upgradeSession.capacity) ||
+            (upgrade.type !== 'limit_break' &&
+              !this.isUpgradeAvailableFor(this.player, upgrade, this.banishedUpgrades))) {
+          this.cancelUpgradePreview();
+          return false;
+        }
+        try {
+          if (upgrade.type === 'limit_break') this.applyLimitBreak(upgrade);
+          else this.applyUpgrade(upgrade);
+        } catch (error) {
+          console.error('Upgrade application error caught:', error);
+          return false;
+        }
+        this.pendingUpgradeId = null;
+        this.pendingLevelUps = Math.max(0, this.pendingLevelUps - 1);
+        this.upgradeSession?.picked?.add(id);
+        const committedCard = Array.from(this.upgradeGrid?.children || [])
+          .find(card => card.upgradeId === id);
+        if (committedCard) {
+          committedCard.className = (committedCard.className || '')
+            .replace(/\s*selected-pending\b/g, '') + ' picked';
+          committedCard.setAttribute?.('tabindex', '-1');
+        }
+        const session = this.upgradeSession;
+        const hasMore = this.currentUpgradeChoices?.some(option =>
+          !session?.picked?.has(option.id) &&
+          (option.type === 'limit_break' ||
+            this.isUpgradeAvailableFor(this.player, option, this.banishedUpgrades)));
+        if (this.pendingLevelUps <= 0 ||
+            (session && session.picked.size >= session.capacity) || !hasMore) {
+          this.finishUpgradeSelection();
+        } else {
+          this.refreshUpgradePreview();
+        }
         return true;
       }
 
@@ -2164,15 +2410,39 @@
         const info = document.createElement('span');
         info.textContent = `本轮 ${chosen}/${cap} 次 · 剩余 ${credits || 0} 次强化机会（可保留）`;
         controls.appendChild(info);
+        const pending = (this.currentUpgradeChoices || []).find(card => card.id === this.pendingUpgradeId);
+        const selection = document.createElement('span');
+        selection.className = 'upgrade-preview-label';
+        selection.textContent = pending ? `待确认：${pending.name}（尚未生效）` : '先点选卡片，再点击确定升级';
+        controls.appendChild(selection);
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.className = 'upgrade-confirm-btn';
+        confirm.textContent = '确定升级';
+        confirm.disabled = !pending;
+        confirm.onclick = () => this.confirmUpgradePreview();
+        controls.appendChild(confirm);
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'upgrade-cancel-btn';
+        cancel.textContent = '取消选择';
+        cancel.disabled = !pending;
+        cancel.onclick = () => this.cancelUpgradePreview();
+        controls.appendChild(cancel);
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = credits ? `保留剩余 ${credits} 次并继续` : '完成选择';
-        button.onclick = () => this.onUpgradeFinish ? this.onUpgradeFinish() : this.finishUpgradeSelection();
+        button.disabled = Boolean(pending);
+        button.onclick = () => {
+          if (this.pendingUpgradeId) return false;
+          return this.onUpgradeFinish ? this.onUpgradeFinish() : this.finishUpgradeSelection();
+        };
         controls.appendChild(button);
       }
 
       renderUpgradeChoices(choices) {
         this.upgradeGrid.innerHTML = '';
+        this.pendingUpgradeId = null;
         this.currentUpgradeChoices = choices;
         const weights = window.NeonUpgradeRarity?.weights(this.difficulty);
         const subtitle = this.modalLevelup?.querySelector?.('.modal-sub');
@@ -2212,6 +2482,10 @@
           }
 
           const card = document.createElement('div');
+          card.upgradeId = upg.id;
+          card.setAttribute?.('role', 'button');
+          card.setAttribute?.('tabindex', upg.alreadyChosen || this.upgradeSession?.picked?.has(upg.id) ? '-1' : '0');
+          card.setAttribute?.('aria-pressed', 'false');
           const alreadyPicked = upg.alreadyChosen || this.upgradeSession?.picked.has(upg.id);
           card.className = `upgrade-card ${upg.rarity} ${isLb ? 'limit-break' : ''} ${isDash ? 'dash-card' : ''} ${alreadyPicked ? 'picked' : ''}`;
           card.innerHTML = `
@@ -2224,39 +2498,13 @@
           `;
 
           card.onclick = () => {
-            if (upg.alreadyChosen || this.upgradeSession?.picked.has(upg.id)) return;
-            // Guest selections must stay open until the host acknowledges the
-            // chosen card. Never spend a host-side level-up in the guest view.
-            if (typeof this.onUpgradePick === 'function') {
-              this.onUpgradePick(upg);
-              return;
-            }
-            if ((this.pendingLevelUps || 0) <= 0 ||
-                this.upgradeSession?.picked.size >= this.upgradeSession?.capacity ||
-                (upg.type !== 'limit_break' &&
-                  !this.isUpgradeAvailableFor(this.player, upg, this.banishedUpgrades))) return;
-            try {
-              if (upg.type === 'limit_break') {
-                this.applyLimitBreak(upg);
-              } else {
-                this.applyUpgrade(upg);
-              }
-            } catch (err) {
-              console.error("Upgrade application error caught:", err);
-              return;
-            }
-            this.pendingLevelUps = Math.max(0, this.pendingLevelUps - 1);
-            this.upgradeSession?.picked.add(upg.id);
-            card.className += ' picked';
-            const session = this.upgradeSession;
-            const hasMore = this.currentUpgradeChoices?.some(option =>
-              !session?.picked.has(option.id) &&
-              (option.type === 'limit_break' ||
-                this.isUpgradeAvailableFor(this.player, option, this.banishedUpgrades)));
-            if (this.pendingLevelUps <= 0 || session?.picked.size >= session?.capacity || !hasMore) {
-              this.finishUpgradeSelection();
-            } else {
-              this.refreshUpgradeControls();
+            this.selectUpgradePreview(upg);
+          };
+          card.onkeydown = event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              event.stopPropagation();
+              this.selectUpgradePreview(upg);
             }
           };
           if (this.endlessMode && this.endlessUpgradeBanishes > 0) {
@@ -2307,6 +2555,12 @@
       }
 
       applyUpgrade(upg) {
+        // Class-specific actions are provided by ship plugins; returning true
+        // means the hook already applied the card and its side effects.
+        if (window.NeonShips?.runAbility?.(this.player, 'onUpgrade', this, upg) === true) {
+          this.renderWeaponsHUD();
+          return;
+        }
         if (upg.type === 'dash') {
           if (!this.player.dashUpgrades) this.player.dashUpgrades = {};
           this.player.dashUpgrades[upg.id] = (this.player.dashUpgrades[upg.id] || 0) + 1;
@@ -2524,6 +2778,7 @@
 
       renderWeaponsHUD() {
         this.weaponsBar.innerHTML = '';
+        const activeCatalog = this.getUpgradeCatalog(this.player);
 
         // Active weapons row (max 4)
         const rowWeapons = document.createElement('div');
@@ -2533,7 +2788,7 @@
           const slot = document.createElement('div');
           if (i < weaponEntries.length) {
             const [id, lvl] = weaponEntries[i];
-            const def = UPGRADES_DB.find(u => u.id === id);
+            const def = activeCatalog.find(u => u.id === id);
             const lb = (this.player.limitBreaks && this.player.limitBreaks[id]) || 0;
             const lvlText = lb > 0 ? `L5 <span style="color:#ffea00;font-weight:900;">+${lb}</span>` : `L${lvl}`;
             slot.className = `weapon-slot active-w ${lb > 0 ? 'limit-break' : ''}`;
@@ -2556,7 +2811,7 @@
           const slot = document.createElement('div');
           if (i < passiveEntries.length) {
             const [id, lvl] = passiveEntries[i];
-            const def = UPGRADES_DB.find(u => u.id === id);
+            const def = activeCatalog.find(u => u.id === id);
             const lb = (this.player.limitBreaks && this.player.limitBreaks[id]) || 0;
             const lvlText = lb > 0 ? `L5 <span style="color:#ffea00;font-weight:900;">+${lb}</span>` : `L${lvl}`;
             slot.className = `weapon-slot passive ${lb > 0 ? 'limit-break' : ''}`;
@@ -2574,6 +2829,46 @@
       }
 
       updateHUD() {
+        const isAstra = this.player?.shipId === 'astra';
+        const astraState = isAstra ? window.NeonAstra?.state(this.player) : null;
+        if (astraState) {
+          this.player.maxDashCharges = Math.min(4, 2 + (astraState.warpUpgrades.star_gate || 0));
+          this.player.dashCharges = astraState.blinkCharges;
+          this.player.dashRechargeTimer = astraState.blinkRecharge;
+        }
+        const manaPanel = document.getElementById('astra-mana-hud');
+        if (manaPanel) {
+          manaPanel.hidden = !isAstra;
+          if (isAstra && astraState) {
+            const manaLabel = document.getElementById('astra-mana-text');
+            const manaFill = document.getElementById('astra-mana-fill');
+            const maxMana = Math.max(1, astraState.maxMana || 100);
+            if (manaLabel) manaLabel.textContent =
+              '星能 ' + Math.floor(astraState.mana) + '/' + maxMana;
+            if (manaFill) manaFill.style.width =
+              Math.round(Math.max(0, Math.min(1, astraState.mana / maxMana)) * 100) + '%';
+          }
+        }
+        const actionPanel = document.getElementById('astra-touch-actions');
+        if (actionPanel) {
+          const guestPlaying = this.state === 'lan-client' &&
+            this.lanCoop?.latest?.phase === 'playing';
+          actionPanel.hidden = !isAstra || (this.state !== 'playing' && !guestPlaying);
+          if (isAstra && astraState) {
+            const spell = this.selectedAstraSpell || 'meteor';
+            const chosen = spell === 'meteor' ? '星陨裁决' : '星界结界';
+            const switcher = document.getElementById('astra-switch-spell');
+            const caster = document.getElementById('astra-cast-spell');
+            if (switcher) switcher.textContent = '切换 ' + chosen;
+            if (caster) {
+              const cooldown = astraState.cooldowns[spell] || 0;
+              caster.textContent = cooldown > 0 ? '冷却 ' + Math.ceil(cooldown) + 's' : '施法 ' + chosen;
+              caster.disabled = cooldown > 0 ||
+                astraState.mana < (spell === 'meteor' ? 50 : 60);
+              caster.title = '星能 ' + Math.floor(astraState.mana) + '/' + astraState.maxMana;
+            }
+          }
+        }
         this.hudLevel.textContent = `LV ${this.player.level}`;
         const hpPct = Math.max(0, Math.min(100, (this.player.hp / this.player.maxHp) * 100));
         this.hudHp.style.width = `${hpPct}%`;
@@ -2586,7 +2881,7 @@
         const maxCharges = this.player.maxDashCharges || 3;
         const charges = this.player.dashCharges;
         const rechargeProgress = charges < maxCharges
-          ? (this.player.dashRechargeTimer / this.getEffectiveDashRecharge()) * 100
+          ? (this.player.dashRechargeTimer / (isAstra ? 5 : this.getEffectiveDashRecharge())) * 100
           : 0;
 
         if (dashContainer) {
@@ -2619,7 +2914,15 @@
 
         const touchDashBtn = document.getElementById('touch-dash-btn');
         if (touchDashBtn) {
-          touchDashBtn.innerHTML = `DASH<br><span style="font-size:10px">${charges}/${maxCharges}</span>`;
+          const dashCount = touchDashBtn.querySelector('.dash-key-count');
+          if (dashCount) {
+            const countText = `${charges}/${maxCharges}`;
+            if (dashCount.textContent !== countText) dashCount.textContent = countText;
+          }
+          const fraction = Math.max(0, Math.min(1, charges / Math.max(1, maxCharges)));
+          touchDashBtn.style.setProperty('--dash-fill', `${Math.round(fraction * 100)}%`);
+          touchDashBtn.classList.toggle('dash-empty', charges === 0);
+          touchDashBtn.setAttribute('aria-label', `折跃冲刺：${charges}/${maxCharges}段可用`);
         }
 
         const statTextEl = document.getElementById('dash-stat-text');
@@ -2968,7 +3271,7 @@
       }
 
       dealDamage(target, rawDamage, source = 'combat', forceCrit = false, attacker = this.player) {
-        if (this.lanCoop?.ally && !['lan-ally', 'lan-resonance'].includes(source)) {
+        if (this.lanCoop?.ally && source !== 'lan-resonance') {
           rawDamage *= 1 + this.lanCoop.getLinkBonus();
         }
         if (this.endlessMode) {
@@ -3829,6 +4132,15 @@
         if (!Number.isFinite(this.player.vy)) this.player.vy = 0;
 
         this.survivalTime += dt;
+        // A playable ship runs the same registered hook regardless of pilot
+        // identity. This scales to additional ships/teammates without adding
+        // character-specific branches to the world loop.
+        if (window.NeonShips?.runAbility) {
+          const pilots = this.players?.list?.() || [{ id: 'host', state: this.player }];
+          for (const { state: pilot } of pilots) {
+            if (pilot.hp > 0 && !pilot.downed) window.NeonShips.runAbility(pilot, 'onTick', this, dt);
+          }
+        }
         this.updateSpawning(dt);
         window.NeonLanEncounters?.scaleNewEnemies(this);
         if (this.endlessMode) window.NeonRogueEndless?.update(this, dt);
@@ -4104,48 +4416,13 @@
 
         // --- Weapon Timers & Firing ---
         const weapons = this.player.downed ? {} : this.player.weapons;
-        const cdr = this.player.cdrMultiplier;
         if (!this.player.downed) window.NeonLegendaryArsenal?.update(this, dt);
-
-        // 1. Blaster
-        if (weapons.blaster) {
-          this.weaponTimers.blaster += dt;
-          const blasterInterval = Math.max(0.12, 0.35 - (weapons.blaster - 1) * 0.05) * cdr;
-          if (this.weaponTimers.blaster >= blasterInterval) {
-            this.weaponTimers.blaster = 0;
-            this.fireBlaster(weapons.blaster);
-          }
-        }
-
-        // 2. Tesla
-        if (weapons.tesla) {
-          this.weaponTimers.tesla += dt;
-          const teslaInterval = Math.max(0.6, 2.0 - (weapons.tesla - 1) * 0.25) * cdr;
-          if (this.weaponTimers.tesla >= teslaInterval) {
-            this.weaponTimers.tesla = 0;
-            this.fireTesla(weapons.tesla);
-          }
-        }
-
-        // 3. Missiles
-        if (weapons.missiles) {
-          this.weaponTimers.missiles += dt;
-          const missileInterval = Math.max(0.8, 2.4 - (weapons.missiles - 1) * 0.3) * cdr;
-          if (this.weaponTimers.missiles >= missileInterval) {
-            this.weaponTimers.missiles = 0;
-            this.fireMissiles(weapons.missiles);
-          }
-        }
-
-        // 4. Nova Shockwave
-        if (weapons.nova) {
-          this.weaponTimers.nova += dt;
-          const novaInterval = Math.max(2.0, 5.0 - (weapons.nova - 1) * 0.6) * cdr;
-          if (this.weaponTimers.nova >= novaInterval) {
-            this.weaponTimers.nova = 0;
-            this.fireNova(weapons.nova);
-          }
-        }
+        // Class-specific weapon and mana ticks are dispatched once through
+        // NeonShips.onTick above for EVERY registered pilot. Never duplicate.
+        window.NeonAstra?.tickShields(this, dt);
+        // All pilots now share one firing pipeline; timers belong to the
+        // pilot, while effects/kill accounting remain authoritative on game.
+        window.NeonWeaponSystem?.update(this, this.player, dt);
 
         // 5. Orbiters Update
         if (!this.player.downed && this.orbiters.length > 0) {
@@ -4164,39 +4441,9 @@
           });
         }
 
-        // 6. Laser Beam
-        if (weapons.laser) {
-          this.weaponTimers.laser += dt;
-          const laserInterval = Math.max(0.65, 2.0 - (weapons.laser - 1) * 0.28) * cdr;
-          if (this.weaponTimers.laser >= laserInterval) {
-            this.weaponTimers.laser = 0;
-            this.fireLaser(weapons.laser);
-          }
-        }
-
         // 7. Companion Drones
         if (weapons.drones && this.companionDrones.length === 0) {
           this.syncDrones();
-        }
-
-        // 8. Graviton Black Hole
-        if (weapons.blackhole) {
-          this.weaponTimers.blackhole += dt;
-          const bhInterval = Math.max(2.4, 5.5 - (weapons.blackhole - 1) * 0.6) * cdr;
-          if (this.weaponTimers.blackhole >= bhInterval) {
-            this.weaponTimers.blackhole = 0;
-            this.fireBlackHole(weapons.blackhole);
-          }
-        }
-
-        // 9. Cryo Mines
-        if (weapons.cryomine) {
-          this.weaponTimers.cryomine += dt;
-          const mineInterval = Math.max(1.2, 3.0 - (weapons.cryomine - 1) * 0.35) * cdr;
-          if (this.weaponTimers.cryomine >= mineInterval) {
-            this.weaponTimers.cryomine = 0;
-            this.fireCryoMine(weapons.cryomine);
-          }
         }
 
         // --- Update Laser Beams ---
@@ -5136,9 +5383,18 @@
       hitPlayer(dmg) {
         if (this.player.downed) return;
         if (this.player.invulnTimer > 0) return;
+        if (this.player.shipId === 'phantom' && this.player.phantom?.shiftActive) return;
         window.NeonRogueEndless?.onDamageTaken(this);
         dmg *= this.getDifficultyRules().enemyDamage *
           (window.NeonLanEncounters?.active(this) ? window.NeonLanEncounters.TUNING.enemyDamage : 1);
+        if (this.player.hasDockedGunner) {
+          dmg *= (1 - (window.NeonPhantom?.BASE?.carrierRearDamageReduction || 0.40));
+        }
+        // Spell wards reduce incoming damage; class-link shields consume the
+        // remainder before HP. Neither grants another invulnerability window.
+        dmg = window.NeonAstra?.incomingDamage(this, this.player, dmg) ?? dmg;
+        dmg = window.NeonLanResonance?.absorb(this.player, dmg, this.survivalTime || 0) ?? dmg;
+        if (dmg <= 0) return; // Fully blocked hits do not mint invulnerability.
         this.combatTelemetry.damageTaken += dmg;
         this.player.hp -= dmg;
         this.player.invulnTimer = 0.35; // Invulnerable frame
@@ -5803,6 +6059,8 @@
         const role = this.isGuestWorldView ? 'guest' : 'host';
         const localProfile = window.NeonLanTeammates?.ownProfile(role) ||
           { name: role === 'guest' ? '队友' : '房主', color: this.shipColor || '#00f3ff' };
+        window.NeonShips?.drawPilotEffects?.(ctx, this.player, this);
+        window.NeonShips?.drawWorldEffects?.(ctx, this);
         this.renderFighter(ctx, this.player, localProfile,
           this.isGuestWorldView || (this.lanCoop?.ally && this.lanCoop.rtc.connected));
 
@@ -5836,34 +6094,38 @@
         if ((fighter.invulnTimer || 0) > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
           ctx.globalAlpha = 0.4;
         }
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = profile.color;
-        ctx.fillStyle = '#0a1628';
-        ctx.strokeStyle = fighter.downed ? '#ff617e' : profile.color;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(22, 0);
-        ctx.lineTo(-14, -18);
-        ctx.lineTo(-6, -6);
-        ctx.lineTo(-16, 0);
-        ctx.lineTo(-6, 6);
-        ctx.lineTo(-14, 18);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = fighter.downed ? '#ff617e' : profile.color;
-        ctx.beginPath();
-        ctx.arc(0, 0, 6, 0, Math.PI * 2);
-        ctx.fill();
-        const flameLen = 10 + Math.random() * 8;
-        ctx.fillStyle = '#ff007f';
-        ctx.shadowColor = '#ff007f';
-        ctx.beginPath();
-        ctx.moveTo(-16, -4);
-        ctx.lineTo(-16 - flameLen, 0);
-        ctx.lineTo(-16, 4);
-        ctx.closePath();
-        ctx.fill();
+        // New hulls are registered by rendererId. Legacy default geometry
+        // remains as a fallback for isolated tests / missing ship module.
+        if (!window.NeonShips?.drawHull?.(ctx, fighter, profile)) {
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = profile.color;
+          ctx.fillStyle = '#0a1628';
+          ctx.strokeStyle = fighter.downed ? '#ff617e' : profile.color;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(22, 0);
+          ctx.lineTo(-14, -18);
+          ctx.lineTo(-6, -6);
+          ctx.lineTo(-16, 0);
+          ctx.lineTo(-6, 6);
+          ctx.lineTo(-14, 18);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = fighter.downed ? '#ff617e' : profile.color;
+          ctx.beginPath();
+          ctx.arc(0, 0, 6, 0, Math.PI * 2);
+          ctx.fill();
+          const flameLen = 10 + Math.random() * 8;
+          ctx.fillStyle = '#ff007f';
+          ctx.shadowColor = '#ff007f';
+          ctx.beginPath();
+          ctx.moveTo(-16, -4);
+          ctx.lineTo(-16 - flameLen, 0);
+          ctx.lineTo(-16, 4);
+          ctx.closePath();
+          ctx.fill();
+        }
         ctx.restore();
         if (showLabel) {
           ctx.save();
