@@ -658,7 +658,6 @@
       gap: 12px 20px;
       text-align: left;
     }
-
     .stat-row {
       display: flex;
       justify-content: space-between;
@@ -2666,6 +2665,22 @@
       min-width: 0;
       text-align: left;
     }
+    /* Cached pre-deploy card markup might temporarily have direct children.
+       Do not let those descriptions fall into the narrow icon track. */
+    #modal-levelup .upgrade-card > .upgrade-name,
+    #modal-levelup .upgrade-card > .upgrade-desc,
+    #modal-levelup .upgrade-card > .upgrade-lvl,
+    #modal-levelup .upgrade-card > .upgrade-stat-text {
+      grid-column: 2;
+      width: 100%;
+      min-width: 0;
+      text-align: left;
+      display: block;
+      white-space: normal;
+      overflow: visible;
+      -webkit-line-clamp: unset;
+      line-clamp: unset;
+    }
     #modal-levelup .upgrade-card-info .upgrade-name,
     #modal-levelup .upgrade-card-info .upgrade-desc,
     #modal-levelup .upgrade-card-info .upgrade-lvl,
@@ -2726,6 +2741,10 @@
         min-height: 105px;
         padding: 24px 12px 12px;
       }
+      #modal-levelup .upgrade-card-info .upgrade-name { font-size: 15px; }
+      #modal-levelup .upgrade-card-info .upgrade-desc { font-size: 13px; line-height: 1.6; }
+      #modal-levelup .upgrade-card-info .upgrade-lvl,
+      #modal-levelup .upgrade-card-info .upgrade-stat-text { font-size: 12px; }
     }
     @media (max-height: 450px) {
       #modal-levelup .modal-card {

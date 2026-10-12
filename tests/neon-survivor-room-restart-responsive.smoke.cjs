@@ -131,6 +131,17 @@ for (const snippet of [
   'grid-template-columns: clamp(40px, 4.7vw, 58px) minmax(0, 1fr)',
   'line-clamp: unset','overflow-y: auto','upgrade-card-info','upgrade-stat-text'
 ]) assert.ok(latest.includes(snippet),'responsive upgrade rules must contain '+snippet);
+const html = fs.readFileSync(root+'index.html','utf8');
+assert.match(html, /css\/game\.css\?v=upgrade-readable-20261012/,
+  'CSS must be cache-busted so users receive the updated layout');
+assert.match(html, /js\/core\.js\?v=upgrade-readable-20261012/,
+  'DOM generator must share the CSS cache version to avoid mixing incompatible markup');
+assert.match(latest, /#modal-levelup \.upgrade-card-info \{/,
+  'upgrade name, description, level, and stats must occupy the same right-hand column');
+assert.match(latest, /#modal-levelup \.upgrade-card > \.upgrade-desc/,
+  'cached legacy markup must not place upgrade details beneath the icon');
+assert.ok(!latest.includes('line-clamp: 2') && !latest.includes('line-clamp: 3'),
+  'final upgrade styles must not truncate descriptions');
 const ui = fs.readFileSync(root+'js/network/ui.js','utf8');
 assert.ok(ui.includes("back.onclick = closeLobby") && ui.includes("event.key !== 'Escape'"),
   'lobby needs an explicit back action and keyboard escape');
