@@ -875,6 +875,9 @@
       }
 
       showStartMenu() {
+        if (this.lanCoop?.rtc?.connected &&
+            this.lanCoop.rtc.role === 'host' &&
+            this.lanCoop.returnToReady?.()) return;
         this.state = 'start';
         this.releaseJoystickTouch();
         this.hideAllModals();
@@ -1120,7 +1123,8 @@
             if (direction && cards.length) {
               e.preventDefault();
               this.gamepadSelectedUpgradeIdx = window.NeonGamepadMenus?.gridMove(
-                this.gamepadSelectedUpgradeIdx, cards.length, ...direction) ?? this.gamepadSelectedUpgradeIdx;
+                this.gamepadSelectedUpgradeIdx, cards.length, ...direction,
+                window.NeonGamepadMenus?.columnsFor(this.upgradeGrid) || 3) ?? this.gamepadSelectedUpgradeIdx;
               cards[this.gamepadSelectedUpgradeIdx]?.scrollIntoView?.({block:'nearest'});
               return;
             }
@@ -1579,7 +1583,8 @@
               const dy = Number(dDown) - Number(dUp);
               if (dx || dy) {
                 this.gamepadSelectedUpgradeIdx = window.NeonGamepadMenus?.gridMove(
-                  this.gamepadSelectedUpgradeIdx, cards.length, dx, dy) ??
+                  this.gamepadSelectedUpgradeIdx, cards.length, dx, dy,
+                  window.NeonGamepadMenus?.columnsFor(this.upgradeGrid) || 3) ??
                   (this.gamepadSelectedUpgradeIdx + (dx || dy * 3) + cards.length) % cards.length;
                 this.gamepadNavTimer = 0.22;
                 this.sound.playLaser(500, 'sine');
@@ -1756,6 +1761,8 @@
       }
 
       startNewGame() {
+        if (this.lanCoop?.rtc?.connected &&
+            this.lanCoop.rtc.role === 'host') this.lanCoop.restartHostMatch?.();
         this.state = 'playing';
         this.selectedAstraSpell = 'meteor';
         this.releaseJoystickTouch();
@@ -2763,10 +2770,12 @@
           card.innerHTML = `
             <div class="rarity-tag" style="${upg.pityGuaranteed ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isLb ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isDash ? 'color:#00f3ff;background:rgba(0,243,255,0.2);' : ''))}">${upg.pityGuaranteed ? '★ 传说保底' : (isDash ? 'WARP UPGRADE' : (isLb ? 'LIMIT BREAK' : upg.rarity))}</div>
             <div class="upgrade-icon">${upg.icon}</div>
-            <div class="upgrade-name">${upg.name}</div>
-            <div class="upgrade-desc">${upg.desc}</div>
-            <div class="upgrade-lvl" style="color:${badgeColor};font-weight:700;">${badgeText}</div>
-            <div style="font-size:11px;color:${isLb ? '#ffd700' : (isDash ? '#00f3ff' : '#9cb0d0')};margin-top:6px;font-weight:600;">⚡ ${nextText}</div>
+            <div class="upgrade-card-info">
+              <div class="upgrade-name">${upg.name}</div>
+              <div class="upgrade-desc">${upg.desc}</div>
+              <div class="upgrade-lvl" style="color:${badgeColor};font-weight:700;">${badgeText}</div>
+              <div class="upgrade-stat-text" style="color:${isLb ? '#ffd700' : (isDash ? '#00f3ff' : '#9cb0d0')};">⚡ ${nextText}</div>
+            </div>
           `;
 
           card.onclick = () => {

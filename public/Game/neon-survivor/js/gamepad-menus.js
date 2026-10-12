@@ -17,20 +17,26 @@
   ];
   const CONTROLS = 'button, input, select, textarea, summary, a[href]';
 
-  // A three-column spatial grid shared by host, guest and keyboard input.
-  // Moving down keeps the column, clamping only for an incomplete last row.
-  function gridMove(index, count, dx = 0, dy = 0) {
+  // Keep directional input aligned with the 1/2/3-column responsive CSS grid.
+  function columnsFor(element) {
+    if (!element || typeof getComputedStyle !== 'function') return 3;
+    const columns = getComputedStyle(element).gridTemplateColumns;
+    return columns && columns !== 'none'
+      ? Math.max(1, Math.min(3, columns.trim().split(/\s+/).length)) : 3;
+  }
+  function gridMove(index, count, dx = 0, dy = 0, columns = 3) {
     if (!count) return 0;
     const from = Math.max(0, Math.min(count - 1, index || 0));
-    const row = Math.floor(from / 3), col = from % 3;
+    const cols = Math.max(1, Math.min(3, Math.floor(columns) || 3));
+    const row = Math.floor(from / cols), col = from % cols;
     if (dy) {
-      const rows = Math.ceil(count / 3);
+      const rows = Math.ceil(count / cols);
       const nextRow = (row + Math.sign(dy) + rows) % rows;
-      return Math.min(count - 1, nextRow * 3 + col);
+      return Math.min(count - 1, nextRow * cols + col);
     }
     if (dx) {
-      const first = row * 3;
-      const len = Math.min(3, count - first);
+      const first = row * cols;
+      const len = Math.min(cols, count - first);
       return first + (col + Math.sign(dx) + len) % len;
     }
     return from;
@@ -118,9 +124,7 @@
     else if (name === 'help') game.closeHelpModal?.();
     else if (name === 'pause') game.resumeGame?.();
     else if (name === 'lobby') {
-      const exit = Array.from(root.querySelectorAll?.('button') || [])
-        .find(button => button.textContent?.includes('退出联机界面'));
-      exit?.click();
+      root.querySelector?.('#neon-lan-back')?.click();
     } else if (name === 'over' || name === 'victory') game.showStartMenu?.();
   }
   function poll(game, gp, justPressed) {
@@ -177,5 +181,5 @@
     if (scope.name === 'start' && justPressed(9)) document.getElementById('btn-lan-coop')?.click();
     return true;
   }
-  window.NeonGamepadMenus = Object.freeze({ poll, gridMove, get selected() { return selected; } });
+  window.NeonGamepadMenus = Object.freeze({ poll, gridMove, columnsFor, get selected() { return selected; } });
 })();

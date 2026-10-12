@@ -12,6 +12,11 @@ for (const [start,count,dx,dy,expected] of [
   [2,5,0,1,4], [4,5,0,-1,1], [3,5,-1,0,4],
   [0,5,-1,0,2], [0,5,0,-1,3], [1,3,0,1,1]
 ]) assert.equal(move(start,count,dx,dy), expected, `Grid from ${start}, ${dx}, ${dy}`);
+for (const [start,count,dx,dy,cols,expected] of [
+  [0,5,0,1,2,2], [2,5,0,1,2,4],
+  [1,5,1,0,2,0], [0,5,0,1,1,1], [3,5,0,-1,1,2]
+]) assert.equal(move(start,count,dx,dy,cols),expected,
+  `Responsive ${cols}-column grid from ${start}`);
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 const css = fs.readFileSync(root + 'css/game.css', 'utf8');
 const core = fs.readFileSync(root + 'js/core.js', 'utf8');

@@ -18,7 +18,7 @@
     game.state = 'lan-lobby';
     let started = false;
     let leaveButton = null;
-    coop.onReadyLeave = () => {
+    const closeLobby = () => {
       started = false;
       rtc.onConnection = null;
       void signaling?.close();
@@ -29,6 +29,7 @@
       ui.remove();
       game.showStartMenu();
     };
+    coop.onReadyLeave = closeLobby;
     const overlay = document.getElementById('neon-lan-lobby');
     if (overlay) overlay.remove();
     const ui = document.createElement('div');
@@ -36,12 +37,33 @@
     ui.className = 'neon-lan-lobby';
     const card = document.createElement('section');
     card.className = 'neon-lan-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-label', '局域网多人合作');
     ui.appendChild(card);
     document.body.appendChild(ui);
+    const header = document.createElement('div');
+    header.className = 'neon-lan-header';
+    card.appendChild(header);
     const title = document.createElement('h2');
+    title.id = 'neon-lan-title';
     title.textContent = '局域网多人合作 · WebRTC（2–4人）';
-    title.style.cssText = 'color:#00f3ff;margin:0 0 12px;font-size:23px;';
-    card.appendChild(title);
+    header.appendChild(title);
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.id = 'neon-lan-back';
+    back.className = 'neon-lan-back';
+    back.textContent = '← 返回机库';
+    back.setAttribute('aria-label', '关闭联机界面，返回机库');
+    back.onclick = closeLobby;
+    header.appendChild(back);
+    card.setAttribute('aria-labelledby', title.id);
+    ui.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || event.defaultPrevented || game.settingsOpen) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeLobby();
+    });
     const note = document.createElement('p');
     note.textContent = '房主创建6位房间码，队友输入即可加入。Vercel只交换临时连接信息，游戏数据仍经同一局域网的WebRTC直连。';
     note.style.cssText = 'color:#b6c9df;line-height:1.7;';
@@ -199,10 +221,15 @@
         }
         leaveButton = document.createElement('button');
         leaveButton.type = 'button';
-        leaveButton.textContent = '断开联机 · ' + rtc.room;
-        leaveButton.style.cssText = 'position:fixed;top:70px;right:12px;z-index:90;border:1px solid #f77;border-radius:8px;background:#211525dd;color:#ffc8c8;padding:7px;font-size:11px;';
+        leaveButton.id = 'neon-lan-leave';
+        leaveButton.className = 'hud-btn neon-lan-leave';
+        leaveButton.textContent = '⏏';
+        leaveButton.title = '断开联机 · ' + rtc.room;
+        leaveButton.setAttribute('aria-label', '断开联机，房间 ' + rtc.room);
         leaveButton.onclick = () => coop.onReadyLeave();
-        document.body.appendChild(leaveButton);
+        // HUD owns the top-right action row and its responsive positioning.
+        // Never float a second row over the timer/kill/crystal indicators.
+        (document.querySelector('#hud .hud-right') || document.body).appendChild(leaveButton);
       } else if (connected && started && rtc.role === 'host') {
         coop.onPeerConnected?.(playerId);
       } else if (!connected && started) {
@@ -293,10 +320,7 @@
       else { field.focus(); field.select(); document.execCommand?.('copy'); }
       status.textContent = '已尝试复制连接信息，请粘贴发给对方。';
     });
-    const exit = control('退出联机界面', () => {
-      void signaling?.close();
-      rtc.close(); coop.stop(); ui.remove(); game.showStartMenu();
-    });
+    const exit = control('退出联机界面', closeLobby);
     exit.style.borderColor = '#944b64';
     // Camera-scanned invitation: open the lobby and start the same room-code
     // signaling path automatically. Errors stay in the visible lobby so guests

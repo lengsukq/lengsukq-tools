@@ -87,7 +87,8 @@
         return dist(a) - dist(b);
       });
     const frame = {
-      type: 'snapshot', seq, time: round(game.survivalTime),
+      type: 'snapshot', seq, round: game.lanCoop?.roundId || 0,
+      time: round(game.survivalTime),
       level: game.player.level, kills: game.kills,
       difficulty: game.difficulty || 0, mode: game.endlessMode ? 'endless' : 'normal',
       teamXP: window.NeonLanExperience?.progress(game) || {
@@ -195,6 +196,7 @@
         size -= JSON.stringify(last).length + (items.length > 1 ? 1 : 0);
         items.pop();
       }
+      this.roundId = packet.round;
       if (size <= LIMIT) return frame;
     }
     // Bosses survive priority culling; trim only regular enemies.
@@ -263,6 +265,7 @@
       this.sendAccumulator = 0;
       this.inputAccumulator = 0;
       this.seq = 0;
+      this.roundId = 0;
       this.dashQueued = false;
       this.resonance = { link: null, pulseCooldown: 0, lastDash: {} };
       this.rescue = window.NeonLanRevive?.newRun() || null;
@@ -289,6 +292,7 @@
       if (this.rtc.role !== 'host' || !this.rtc.connected) return false;
       if (this.awaitingGuestShip) return false;
       this.awaitingGuestShip = true;
+      this.launchingMatch = false;
       this.game.state = 'lan-waiting';
       this.localReady = false;
       this.readyRoom = new window.NeonLanReady.ReadyRoom(this.rtc.capacity || 2);
@@ -310,6 +314,24 @@
     }
     enterGuestReady() {
       if (this.rtc.role !== 'guest' || !this.rtc.connected) return false;
+      this.guestMode = false;
+      this.latest = null;
+      this.previous = null;
+      this.predicted = null;
+      this.frameSampler = null;
+      this.guestView = null;
+      this.lastGuestHudSeq = -1;
+      this.lastSnapshotSeq = -1;
+      this.guestUpgradeKey = null;
+      this.guestShipWaitPanel?.remove();
+      this.game.hideAllModals?.();
+      this.game.releaseJoystickTouch?.();
+      document.body.classList?.remove('neon-lan-guest');
+      const pause = document.getElementById('btn-pause');
+      if (pause && Object.hasOwn(pause.dataset, 'lanPreviousDisplay')) {
+        pause.style.display = pause.dataset.lanPreviousDisplay;
+        delete pause.dataset.lanPreviousDisplay;
+      }
       this.game.state = 'lan-waiting';
       this.localReady = false;
       this.remoteReady = new window.NeonLanReady.ReadyRoom(this.rtc.capacity || 2).snapshot();
@@ -334,7 +356,7 @@
       if (!ship?.playable) return false;
       const delivered = this.rtc.send({
         type: 'ready_update', seq: this.readySeq++,
-        shipId: ship.id, ready
+        round: this.roundId, shipId: ship.id, ready
       });
       if (delivered) this.localReady = ready;
       this.refreshReadyView?.();
@@ -372,6 +394,7 @@
       const shipIds = Object.fromEntries(guests.map(m => [m.id, m.shipId]));
       const packet = {
         type: 'match_start', revision: this.readyRoom.revision,
+        round: this.roundId + 1,
         hostShipId: host.shipId, guestShipId: shipIds.guest, shipIds
       };
       // Freeze all room mutations while match_start travels to each guest.
@@ -397,6 +420,36 @@
       // startNewGame() does not instantiate an ally before the first room
       // launch. New room restarts already owning an ally are handled there.
       if (!this.ally) this.startHost();
+      this.launchingMatch = false;
+      return true;
+    }
+    // Keep the current WebRTC room alive. All peers must re-enter readiness
+    // instead of leaving remote clients stuck in their former battle state.
+    returnToReady() {
+      if (this.rtc.role !== 'host' || !this.rtc.connected ||
+          this.awaitingGuestShip) return false;
+      this.roundId++;
+      const packet = {type:'ready_reset',round:this.roundId};
+      if (this.rtc.broadcastToGuests) this.rtc.broadcastToGuests(packet);
+      else this.rtc.send(packet);
+      for (const id of this.allies.keys()) this.game.players?.remove(id);
+      this.allies.clear();
+      this.ally = null;
+      this.readyRoom = null;
+      this.guestShipWaitPanel?.remove();
+      this.guestShipWaitPanel = null;
+      this.game.hideAllModals?.();
+      return this.awaitGuestShip();
+    }
+    // Quick restart skips the ready room but is still an explicit host command.
+    // An incrementing round rejects late snapshots from the previous run.
+    restartHostMatch() {
+      if (this.rtc.role !== 'host' || !this.rtc.connected ||
+          this.awaitingGuestShip || this.launchingMatch || !this.ally) return false;
+      this.roundId++;
+      const packet = {type:'match_restart',round:this.roundId};
+      if (this.rtc.broadcastToGuests) this.rtc.broadcastToGuests(packet);
+      else this.rtc.send(packet);
       return true;
     }
     onPeerConnected(id) {
@@ -472,7 +525,13 @@
       // The same HUD is now reused, but a guest cannot pause the room.
       for (const id of ['btn-pause']) {
         const node = document.getElementById(id);
-        if (node) { node.dataset.lanPreviousDisplay = node.style.display; node.style.display = 'none'; }
+        if (node) {
+          // Repeated rounds must not overwrite the original display value.
+          if (!Object.hasOwn(node.dataset, 'lanPreviousDisplay')) {
+            node.dataset.lanPreviousDisplay = node.style.display;
+          }
+          node.style.display = 'none';
+        }
       }
     }
     // Host-star authority: each guest gets an independent input clock,
@@ -644,6 +703,11 @@
       if (this.rtc.role === 'host' && message?.type === 'ready_update') {
         if (!this.awaitingGuestShip || this.game.state !== 'lan-waiting' ||
             !this.readyRoom || typeof message.ready !== 'boolean') return;
+        // Old queued ready packets may arrive after a return-to-ready cycle.
+        // New rounds require an explicit epoch; only initial epoch zero may
+        // accept older clients/tests that omit it.
+        if ((this.roundId > 0 && message.round !== this.roundId) ||
+            (message.round !== undefined && message.round !== this.roundId)) return;
         const ship = window.NeonShips?.get(message.shipId);
         if (!ship?.playable) return;
         const current = this.readyRoom.get(remotePlayerId);
@@ -671,6 +735,20 @@
         this.refreshReadyView?.();
         return;
       }
+      if (this.rtc.role === 'guest' && message?.type === 'ready_reset') {
+        if (!Number.isSafeInteger(message.round) || message.round <= this.roundId ||
+            !this.rtc.connected) return;
+        this.roundId = message.round;
+        this.enterGuestReady();
+        return;
+      }
+      if (this.rtc.role === 'guest' && message?.type === 'match_restart') {
+        if (!Number.isSafeInteger(message.round) || message.round <= this.roundId ||
+            !this.rtc.connected || !this.guestMode) return;
+        this.roundId = message.round;
+        this.startGuest();
+        return;
+      }
       if (this.rtc.role === 'guest' && message?.type === 'match_start') {
         const mine = this.rtc.localPlayerId || 'guest';
         if (this.game.state !== 'lan-waiting' || !this.localReady ||
@@ -678,6 +756,8 @@
             message.revision !== this.readyRevision ||
             (message.shipIds?.[mine] || message.guestShipId) !== this.game.selectedShipId ||
             !window.NeonShips?.get(message.hostShipId)?.playable) return;
+        if (!Number.isSafeInteger(message.round) || message.round <= this.roundId) return;
+        this.roundId = message.round;
         this.guestShipWaitPanel?.remove();
         this.guestShipWaitPanel = null;
         this.refreshReadyView = null;
@@ -760,7 +840,8 @@
             }
           }
         }
-      } else if (this.guestMode && safeSnapshot(message) && message.seq > this.lastSnapshotSeq) {
+      } else if (this.guestMode && safeSnapshot(message) &&
+          message.round === this.roundId && message.seq > this.lastSnapshotSeq) {
         this.lastSnapshotSeq = message.seq;
         this.previous = this.latest;
         this.receivedAt = performance.now();
@@ -1323,7 +1404,8 @@
           const dy = Number(pressed('down')) - Number(pressed('up'));
           if ((dx || dy) && options.length) {
             this.guestSelectionIdx = window.NeonGamepadMenus?.gridMove(
-              this.guestSelectionIdx, options.length, dx, dy) ??
+              this.guestSelectionIdx, options.length, dx, dy,
+              window.NeonGamepadMenus?.columnsFor(this.game.upgradeGrid) || 3) ??
               (this.guestSelectionIdx + (dx || dy * 3) + options.length) % options.length;
             this.game.upgradeGrid?.children?.[this.guestSelectionIdx]?.scrollIntoView?.({block:'nearest'});
           }

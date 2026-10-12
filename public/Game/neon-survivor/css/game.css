@@ -1135,6 +1135,47 @@
       }
     }
 
+    /* LAN lobby: return action stays available even when manual pairing,
+       QR invites or the virtual keyboard require scrolling the form. */
+    .neon-lan-header {
+      position: sticky;
+      top: 0;
+      z-index: 6;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: -4px -4px 10px;
+      padding: 5px 4px 12px;
+      background: #0e2436;
+      border-bottom: 1px solid rgba(63, 168, 204, .25);
+    }
+    .neon-lan-header h2 {
+      margin: 0;
+      font-size: clamp(16px, 2.8vw, 23px);
+      line-height: 1.35;
+      min-width: 0;
+      color: #00f3ff;
+    }
+    .neon-lan-back {
+      flex: 0 0 auto;
+      min-height: 42px;
+      padding: 8px 12px;
+      border: 1px solid #66bedb;
+      border-radius: 9px;
+      background: #15374b;
+      color: #e7faff;
+      font: 700 13px system-ui;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .neon-lan-back:focus-visible { outline: 2px solid #ffe2a2; outline-offset: 2px; }
+    @media (max-width: 540px) {
+      .neon-lan-header { align-items: flex-start; }
+      .neon-lan-header h2 { font-size: 17px; }
+      .neon-lan-back { padding-inline: 9px; white-space: nowrap; }
+    }
+
     /* Start-screen options remain scrollable on short or narrow displays. */
     .neon-control-setup {
       display: flex; flex-wrap: wrap; justify-content: center; gap: 9px 18px;
@@ -1199,8 +1240,8 @@
     #modal-levelup .upgrade-card .upgrade-name { font-size: clamp(10px, 2.8vw, 15px); }
     #modal-levelup .upgrade-card .upgrade-desc {
       font-size: clamp(9px, 2.25vw, 12px); line-height: 1.3;
-      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
-      line-clamp: 3; overflow: hidden;
+      display: block;
+      overflow: visible;
     }
     #modal-levelup .upgrade-card .rarity-tag { top: 3px; right: 3px; font-size: 9px; padding: 1px 3px; }
     #modal-levelup .upgrade-bank-actions {
@@ -1212,7 +1253,6 @@
     @media (max-width: 520px), (max-height: 520px) {
       #modal-levelup .modal-card { height: calc(100dvh - var(--neon-safe-top, 0px) - var(--neon-safe-bottom, 0px) - 18px); }
       #modal-levelup .upgrade-card { min-height: 92px; }
-      #modal-levelup .upgrade-card .upgrade-desc { -webkit-line-clamp: 2; line-clamp: 2; }
       #modal-levelup .upgrade-bank-actions .neon-gamepad-hint-row { margin: 3px 0; padding: 4px; }
       #modal-levelup .upgrade-bank-actions button { font-size: 11px; }
     }
@@ -2555,4 +2595,163 @@
         font-size: 11px;
         padding: 5px 10px;
       }
+    }
+
+    /* Final upgrade layout rules follow legacy modal/mobile styles. A card
+       always has an icon rail and a readable details column; only the list
+       scrolls, never individual paragraphs or the fixed action footer. */
+    #modal-levelup .modal-card {
+      width: min(1080px, 100%);
+      max-width: 100%;
+      height: min(94dvh, 840px);
+      max-height: calc(100dvh - var(--neon-safe-top, 0px) - var(--neon-safe-bottom, 0px) - 16px);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: clamp(9px, 1.7vw, 20px);
+    }
+    #modal-levelup .upgrade-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-rows: max-content;
+      gap: clamp(8px, 1.2vw, 12px);
+      align-items: stretch;
+      align-content: start;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      padding: 5px 5px 12px;
+      margin-bottom: 5px;
+    }
+    #modal-levelup .upgrade-card {
+      display: grid;
+      grid-template-columns: clamp(40px, 4.7vw, 58px) minmax(0, 1fr);
+      grid-template-rows: auto;
+      gap: 11px;
+      align-items: start;
+      align-content: start;
+      text-align: left;
+      width: 100%;
+      height: auto;
+      min-width: 0;
+      min-height: 135px;
+      padding: 27px 12px 13px;
+      overflow: visible;
+      touch-action: pan-y;
+      border-radius: 13px;
+    }
+    #modal-levelup .upgrade-card .upgrade-icon {
+      grid-column: 1;
+      grid-row: 1;
+      width: 100%;
+      margin: 0;
+      font-size: clamp(26px, 3vw, 38px);
+      text-align: center;
+      line-height: 1.25;
+    }
+    #modal-levelup .upgrade-card-info {
+      grid-column: 2;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      min-width: 0;
+      text-align: left;
+    }
+    #modal-levelup .upgrade-card-info .upgrade-name,
+    #modal-levelup .upgrade-card-info .upgrade-desc,
+    #modal-levelup .upgrade-card-info .upgrade-lvl,
+    #modal-levelup .upgrade-card-info .upgrade-stat-text {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      height: auto;
+      margin: 0;
+      overflow: visible;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      text-align: left;
+      text-overflow: clip;
+      -webkit-line-clamp: unset;
+      line-clamp: unset;
+      line-height: 1.5;
+    }
+    #modal-levelup .upgrade-card-info .upgrade-name {
+      font-size: clamp(13px, 1.3vw, 16px);
+      font-weight: 800;
+      color: #ffffff;
+    }
+    #modal-levelup .upgrade-card-info .upgrade-desc {
+      font-size: clamp(11px, 1.1vw, 13px);
+      color: #c9d9ec;
+      -webkit-box-orient: initial;
+    }
+    #modal-levelup .upgrade-card-info .upgrade-lvl,
+    #modal-levelup .upgrade-card-info .upgrade-stat-text {
+      font-size: 11px;
+      font-weight: 700;
+    }
+    #modal-levelup .upgrade-bank-actions {
+      position: relative;
+      bottom: auto;
+      flex: 0 0 auto;
+      max-height: min(29dvh, 158px);
+      overflow-y: auto;
+      padding: 7px 5px 4px;
+      margin-top: 3px;
+    }
+    @media (max-width: 980px) {
+      #modal-levelup .upgrade-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 610px) {
+      #modal-levelup .modal-card {
+        height: calc(100dvh - var(--neon-safe-top, 0px) - var(--neon-safe-bottom, 0px) - 16px);
+      }
+      #modal-levelup .upgrade-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      #modal-levelup .upgrade-card {
+        grid-template-columns: 44px minmax(0, 1fr);
+        min-height: 105px;
+        padding: 24px 12px 12px;
+      }
+    }
+    @media (max-height: 450px) {
+      #modal-levelup .modal-card {
+        height: calc(100dvh - var(--neon-safe-top, 0px) - var(--neon-safe-bottom, 0px) - 12px);
+      }
+      #modal-levelup .modal-title { font-size: 17px; margin-bottom: 3px; }
+      #modal-levelup .modal-sub { font-size: 11px; margin-bottom: 5px; }
+      #modal-levelup .upgrade-bank-actions { max-height: min(37dvh, 120px); }
+    }
+
+    /* LAN disconnect belongs to the HUD action bar; it no longer floats over
+       HP, skill energy or the second row of portrait mobile statistics. */
+    #hud .neon-lan-leave {
+      flex: 0 0 36px;
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      min-height: 36px;
+      border-color: #c86a7a;
+      background: #391b2b;
+      color: #ffc5d0;
+      padding: 0;
+      pointer-events: auto;
+      touch-action: manipulation;
+    }
+    #hud .neon-lan-leave:focus-visible {
+      outline: 2px solid #ffb7ca;
+      outline-offset: 2px;
     }
