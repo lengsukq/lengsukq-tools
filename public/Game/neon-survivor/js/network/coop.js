@@ -620,17 +620,19 @@
         return;
       }
       if (this.rtc.role === 'host' && message?.type === 'ship_action') {
-        if (!this.ally || this.ally.shipId !== 'phantom' ||
-            this.game.state !== 'playing' || this.ally.downed || this.ally.hp <= 0 ||
-            message.action !== 'dock_toggle' ||
+        if (!sender || sender.shipId !== 'phantom' ||
+            this.game.state !== 'playing' || sender.downed || sender.hp <= 0 ||
+            !['dock_toggle','strike'].includes(message.action) ||
             !Number.isSafeInteger(message.seq) || message.seq < 0 ||
-            message.seq <= (this.ally.lastShipActionSeq ?? -1)) return;
-        this.ally.lastShipActionSeq = message.seq;
-        if (this.ally.phantom?.docked) {
-          window.NeonShips?.runAbility?.(this.ally, 'onAction', this.game,
+            message.seq <= (sender.lastShipActionSeq ?? -1)) return;
+        sender.lastShipActionSeq = message.seq;
+        if (message.action === 'strike') {
+          window.NeonShips?.runAbility?.(sender, 'onAction', this.game, 'strike');
+        } else if (sender.phantom?.docked) {
+          window.NeonShips?.runAbility?.(sender, 'onAction', this.game,
             {kind:'undock',eject:true});
         } else if (this.game.player.hp > 0 && !this.game.player.downed) {
-          window.NeonShips?.runAbility?.(this.ally, 'onAction', this.game,
+          window.NeonShips?.runAbility?.(sender, 'onAction', this.game,
             {kind:'dock',carrier:this.game.player});
         }
         return;
@@ -1253,7 +1255,9 @@
       const length = Math.hypot(dx, dy);
       if (length > 1) { dx /= length; dy /= length; }
       const aim = this.latest?.guest?.aimAngle || 0;
-      const padDash = Boolean(pad?.buttons?.[0]?.pressed);
+      // Match the host's dash mapping (A/B and both bumpers/triggers). A
+      // single edge represents the action, even if several are held.
+      const padDash = [0, 1, 4, 5, 6, 7].some(index => Boolean(pad?.buttons?.[index]?.pressed));
       const dash = this.dashQueued || (padDash && !this.previousGamepadDash);
       if (consume) {
         this.previousGamepadDash = padDash;
@@ -1272,7 +1276,7 @@
     requestGuestShipAction(action) {
       if (!this.guestMode || !this.rtc.connected ||
           this.latest?.phase !== 'playing' || this.latest?.guest?.shipId !== 'phantom' ||
-          this.latest?.guest?.downed || action !== 'dock_toggle') return false;
+          this.latest?.guest?.downed || !['dock_toggle','strike'].includes(action)) return false;
       return this.rtc.send({ type: 'ship_action', seq: this.seq++, action });
     }
     updateGuest(dt) {
@@ -1286,8 +1290,17 @@
         const options = this.latest.guest?.choices || [];
         const keys = this.game.keys || {};
         const pad = Array.from(navigator.getGamepads?.() || []).find(p => p && p.connected !== false);
-        const left = Boolean(pad?.buttons?.[14]?.pressed || keys.arrowleft);
-        const right = Boolean(pad?.buttons?.[15]?.pressed || keys.arrowright);
+        // Treat menu presses as already consumed when returning to combat.
+        this.guestAbilityButtons = {
+          x: Boolean(pad?.buttons?.[2]?.pressed),
+          y: Boolean(pad?.buttons?.[3]?.pressed)
+        };
+        this.previousGamepadDash = [0, 1, 4, 5, 6, 7]
+          .some(index => Boolean(pad?.buttons?.[index]?.pressed));
+        const left = Boolean(pad?.buttons?.[14]?.pressed || (pad?.axes?.[0] || 0) < -0.55 || keys.arrowleft);
+        const right = Boolean(pad?.buttons?.[15]?.pressed || (pad?.axes?.[0] || 0) > 0.55 || keys.arrowright);
+        const up = Boolean(pad?.buttons?.[12]?.pressed || (pad?.axes?.[1] || 0) < -0.55 || keys.arrowup);
+        const down = Boolean(pad?.buttons?.[13]?.pressed || (pad?.axes?.[1] || 0) > 0.55 || keys.arrowdown);
         const accept = Boolean(pad?.buttons?.[0]?.pressed || keys.enter);
         const fastConfirm = Boolean(pad?.buttons?.[2]?.pressed ||
           pad?.buttons?.[7]?.pressed);
@@ -1295,14 +1308,18 @@
         const finish = Boolean(pad?.buttons?.[3]?.pressed || keys.f);
         // Independent just-pressed edges: holding A while moving the cursor
         // must not confirm a different card merely because another key changed.
-        const current = {left, right, accept, fastConfirm, cancel, finish};
+        const current = {left, right, up, down, accept, fastConfirm, cancel, finish};
         const previous = this.guestMenuButtons || {};
         const pressed = action => current[action] && !previous[action];
         {
-          if (pressed('left')) this.guestSelectionIdx = (this.guestSelectionIdx + options.length - 1) %
-            Math.max(1, options.length);
-          if (pressed('right')) this.guestSelectionIdx = (this.guestSelectionIdx + 1) %
-            Math.max(1, options.length);
+          const dx = Number(pressed('right')) - Number(pressed('left'));
+          const dy = Number(pressed('down')) - Number(pressed('up'));
+          if ((dx || dy) && options.length) {
+            this.guestSelectionIdx = window.NeonGamepadMenus?.gridMove(
+              this.guestSelectionIdx, options.length, dx, dy) ??
+              (this.guestSelectionIdx + (dx || dy * 3) + options.length) % options.length;
+            this.game.upgradeGrid?.children?.[this.guestSelectionIdx]?.scrollIntoView?.({block:'nearest'});
+          }
           if (pressed('accept') && options.length) {
             const id = options[this.guestSelectionIdx];
             if (this.pendingGuestUpgradeId === id) this.confirmGuestUpgradePreview();
@@ -1331,6 +1348,26 @@
       this.guestMenuButtons = null;
       this.previousMenuSelection = '';
       this.lastNumberKey = '';
+      // Remote guests own X/Y skill edges too; only send action IDs. The host
+      // remains authoritative for cooldown, energy, damage and hit selection.
+      const pad = Array.from(navigator.getGamepads?.() || []).find(p => p && p.connected !== false);
+      const currentAbility = {
+        x: Boolean(pad?.buttons?.[2]?.pressed),
+        y: Boolean(pad?.buttons?.[3]?.pressed)
+      };
+      const prevAbility = this.guestAbilityButtons || {};
+      this.guestAbilityButtons = currentAbility;
+      if (this.latest?.phase === 'playing' && !this.latest?.guest?.downed && !this.game.settingsOpen) {
+        const ship = this.latest.guest?.shipId;
+        if (currentAbility.x && !prevAbility.x) {
+          if (ship === 'astra') this.game.castAstraWard?.();
+          else if (ship === 'phantom') this.game.triggerPhantomStrike?.();
+        }
+        if (currentAbility.y && !prevAbility.y) {
+          if (ship === 'astra') this.game.castAstraMeteor?.();
+          else if (ship === 'phantom') this.game.togglePhantomDock?.();
+        }
+      }
       // Predict local steering immediately (display-only, no damage or kills).
       // Host snapshots periodically reconcile this position.
       const canSteer = this.latest?.phase === 'playing' && !this.latest?.guest?.downed &&

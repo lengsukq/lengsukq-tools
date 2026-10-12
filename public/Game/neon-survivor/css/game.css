@@ -1135,6 +1135,125 @@
       }
     }
 
+    /* Start-screen options remain scrollable on short or narrow displays. */
+    .neon-control-setup {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 9px 18px;
+      margin: 10px auto 14px; padding: 9px 12px;
+      max-width: min(100%, 640px);
+      background: rgba(8, 23, 43, .82);
+      border: 1px solid rgba(70, 172, 211, .36); border-radius: 12px;
+    }
+    .neon-control-setup label {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+      font-size: 12px; font-weight: 700; color: #c4e9f7;
+      min-width: 0;
+    }
+    .neon-control-setup select, .neon-setting-row select {
+      max-width: 100%; min-width: 0; padding: 7px 9px;
+      border-radius: 8px; border: 1px solid #478da7;
+      background: #10273d; color: #effaff;
+    }
+    .neon-control-setup select:focus-visible { outline: 2px solid #75eafa; outline-offset: 2px; }
+
+    /* Upgrade panel: a predictable 3-column / 2-row spatial grid. Keep the
+       confirmation actions outside the scrolling cards and inside safe area. */
+    #modal-levelup {
+      padding: calc(var(--neon-safe-top, 0px) + 8px)
+        calc(var(--neon-safe-right, 0px) + 8px)
+        calc(var(--neon-safe-bottom, 0px) + 8px)
+        calc(var(--neon-safe-left, 0px) + 8px);
+      align-items: center; justify-content: center;
+    }
+    #modal-levelup .modal-card {
+      display: flex; flex-direction: column;
+      width: min(920px, 100%);
+      height: min(88dvh, 780px);
+      max-height: calc(100dvh - var(--neon-safe-top, 0px) - var(--neon-safe-bottom, 0px) - 16px);
+      min-height: 0; overflow: hidden;
+      padding: clamp(9px, 2vw, 20px);
+    }
+    #modal-levelup .modal-title { flex: 0 0 auto; font-size: clamp(17px, 3.8vw, 27px); margin-bottom: 6px; }
+    #modal-levelup .modal-sub { flex: 0 0 auto; font-size: clamp(10px, 2.7vw, 13px); margin-bottom: 9px; }
+    #modal-levelup .upgrade-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(5px, 1.4vw, 12px); align-content: start;
+      min-width: 0; min-height: 0; flex: 1 1 auto;
+      overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+      padding: 4px; margin-bottom: 7px; touch-action: pan-y;
+    }
+    #modal-levelup .upgrade-card {
+      display: flex; flex-direction: column; align-items: center;
+      min-width: 0; min-height: 112px; padding: 20px 5px 9px;
+      border-radius: 12px; text-align: center; touch-action: pan-y;
+    }
+    #modal-levelup .upgrade-card .upgrade-name,
+    #modal-levelup .upgrade-card .upgrade-desc,
+    #modal-levelup .upgrade-card .upgrade-lvl {
+      grid-column: auto; grid-row: auto; text-align: center;
+      min-width: 0; overflow-wrap: anywhere;
+    }
+    #modal-levelup .upgrade-card .upgrade-icon {
+      grid-column: auto; grid-row: auto; margin: 3px 0 4px;
+      font-size: clamp(18px, 4vw, 27px);
+    }
+    #modal-levelup .upgrade-card .upgrade-name { font-size: clamp(10px, 2.8vw, 15px); }
+    #modal-levelup .upgrade-card .upgrade-desc {
+      font-size: clamp(9px, 2.25vw, 12px); line-height: 1.3;
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+      line-clamp: 3; overflow: hidden;
+    }
+    #modal-levelup .upgrade-card .rarity-tag { top: 3px; right: 3px; font-size: 9px; padding: 1px 3px; }
+    #modal-levelup .upgrade-bank-actions {
+      position: relative; bottom: auto; flex: 0 0 auto;
+      max-height: min(33dvh, 180px); overflow-y: auto;
+      padding: 7px 4px 2px; gap: 5px;
+    }
+    #modal-levelup .upgrade-bank-actions button { min-width: 0; padding: 7px 10px; }
+    @media (max-width: 520px), (max-height: 520px) {
+      #modal-levelup .modal-card { height: calc(100dvh - var(--neon-safe-top, 0px) - var(--neon-safe-bottom, 0px) - 18px); }
+      #modal-levelup .upgrade-card { min-height: 92px; }
+      #modal-levelup .upgrade-card .upgrade-desc { -webkit-line-clamp: 2; line-clamp: 2; }
+      #modal-levelup .upgrade-bank-actions .neon-gamepad-hint-row { margin: 3px 0; padding: 4px; }
+      #modal-levelup .upgrade-bank-actions button { font-size: 11px; }
+    }
+
+    /* MOBA action cluster: main dash is separate and touchable; two optional
+       ship skills form an arc to its upper-left (or upper-right for left hand). */
+    .neon-touch-enabled #combat-hud-dock {
+      right: calc(var(--neon-safe-right, 0px) + var(--neon-dash-size, 68px) + 43px);
+      bottom: calc(var(--neon-safe-bottom, 0px) + clamp(28px, 7vh, 65px));
+      width: auto; max-width: none; z-index: 7;
+      pointer-events: none;
+    }
+    .neon-touch-enabled #combat-hud-dock .ship-skills-bar {
+      display: flex; flex-direction: row; align-items: flex-end;
+      gap: clamp(7px, 2.5vw, 15px); pointer-events: auto;
+    }
+    .neon-touch-enabled #combat-hud-dock .combat-skill-btn {
+      width: clamp(48px, 12vw, 58px); height: clamp(48px, 12vw, 58px);
+      min-width: 48px; min-height: 48px; touch-action: manipulation;
+    }
+    .neon-touch-enabled #combat-hud-dock .ship-status-banner { display: none; }
+    .neon-touch-enabled #btn-skill-dash,
+    .neon-touch-enabled #btn-skill-blink,
+    .neon-touch-enabled #btn-skill-shift,
+    .neon-touch-enabled #phantom-touch-actions { display: none !important; }
+    .neon-touch-enabled[data-neon-control-layout="arc"] #combat-hud-dock .combat-skill-btn:first-child { top: -18px; }
+    .neon-touch-enabled[data-neon-control-layout="arc"] #combat-hud-dock .combat-skill-btn:nth-child(2) { top: -72px; }
+    .neon-touch-enabled[data-neon-control-layout="compact"] #combat-hud-dock {
+      bottom: calc(var(--neon-safe-bottom, 0px) + clamp(40px, 9vh, 80px));
+    }
+    .neon-touch-enabled[data-neon-control-side="left"] #touch-dash-btn {
+      right: auto; left: calc(var(--neon-safe-left, 0px) + clamp(18px, 4vw, 42px));
+    }
+    .neon-touch-enabled[data-neon-control-side="left"] #combat-hud-dock {
+      right: auto; left: calc(var(--neon-safe-left, 0px) + var(--neon-dash-size, 68px) + 43px);
+    }
+    .neon-touch-enabled[data-neon-control-side="left"] #combat-hud-dock .ship-skills-bar { flex-direction: row-reverse; }
+    @media (orientation: landscape) and (max-height: 420px) {
+      .neon-touch-enabled[data-neon-control-layout="arc"] #combat-hud-dock .combat-skill-btn:nth-child(2) { top: -48px; }
+    }
+
     @media (max-width: 640px) {
       #hud {
         padding: 6px 8px;
@@ -1834,7 +1953,17 @@
       .neon-ready-actions button { transition: none; }
     }
 
-    /* Never show controller hints to keyboard/touch-only players. */
+    /* Input labels reflect an actual attached pad; touch/keyboard remains
+       usable but must never show simultaneous conflicting shortcut guides. */
+    .neon-controller-only { display: none !important; }
+    .neon-gamepad-connected .neon-controller-only { display: inline-flex !important; align-items: center; gap: 4px; }
+    .neon-gamepad-connected .neon-keyboard-only,
+    .neon-gamepad-connected .neon-keyboard-help { display: none !important; }
+    .combat-skill-btn .skill-hotkey[data-pad-label]::after { content: ''; }
+    .neon-gamepad-connected .combat-skill-btn .skill-hotkey[data-pad-label] { font-size: 0; }
+    .neon-gamepad-connected .combat-skill-btn .skill-hotkey[data-pad-label]::after {
+      content: attr(data-pad-label); font: 800 11px system-ui;
+    }
     .neon-gamepad-key,
     .neon-gamepad-hint-row,
     [data-gamepad-key]::after { display: none !important; }
@@ -1876,6 +2005,33 @@
     .neon-gamepad-hint-row .neon-gamepad-key { margin-inline-start: 0; }
     .neon-gamepad-connected .neon-ready-panel .neon-gamepad-hint-row {
       margin-top: 17px;
+    }
+
+    .neon-gamepad-menu-focus { outline: 2px solid #70e6ff !important; outline-offset: 3px; }
+
+    /* Phone combat controls occupy two different non-overlapping bands:
+       dedicated dash low, direct-cast skill buttons above it. Status is
+       attached to the upper band instead of covering the dash hit target. */
+    @media (pointer: coarse), (max-width: 768px) {
+      #combat-hud-dock {
+        right: calc(var(--neon-safe-right, 0px) + 12px);
+        bottom: calc(var(--neon-safe-bottom, 0px) + clamp(32px, 7vh, 65px) + var(--neon-dash-size, 68px) + 22px);
+        max-width: calc(100vw - var(--neon-safe-left, 0px) - var(--neon-safe-right, 0px) - 24px);
+        gap: 5px;
+      }
+      #combat-hud-dock .ship-skills-bar { gap: 7px; }
+      #combat-hud-dock .combat-skill-btn { width: clamp(48px, 14vw, 58px); height: clamp(48px, 14vw, 58px); }
+      #combat-hud-dock .ship-status-banner { max-width: min(260px, 80vw); white-space: normal; font-size: 10px; }
+      .neon-touch-enabled #btn-skill-dash,
+      .neon-touch-enabled #btn-skill-blink,
+      .neon-touch-enabled #btn-skill-shift { display: none; }
+      .neon-touch-enabled #phantom-touch-actions { display: none !important; }
+    }
+    @media (orientation: landscape) and (max-height: 650px) and (pointer: coarse) {
+      #combat-hud-dock {
+        right: calc(var(--neon-safe-right, 0px) + var(--neon-dash-size, 68px) + 36px);
+        bottom: calc(var(--neon-safe-bottom, 0px) + 14px);
+      }
     }
 
     /* ASTRA arcane command keys use a separate surface and never replace

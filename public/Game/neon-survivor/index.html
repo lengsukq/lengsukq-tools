@@ -109,10 +109,6 @@
       <span class="dash-key-label">折跃</span>
       <span class="dash-key-count" aria-hidden="true">3/3</span>
     </div>
-    <div id="astra-touch-actions" hidden>
-      <button type="button" id="astra-switch-spell" aria-label="切换星织法术（Q）">切换</button>
-      <button type="button" id="astra-cast-spell" aria-label="施放星织法术（E）">施法</button>
-    </div>
     <div id="phantom-touch-actions" hidden>
       <button type="button" id="phantom-dock-action" aria-label="幽灵靠近队友后合体或脱离（Q）">共生合体 Q</button>
     </div>
@@ -127,14 +123,32 @@
       </div>
 
       <div class="start-features">
-        <span><span class="keyboard-hint">⌨️ WASD</span> 战机机动</span>
-        <span><span class="keyboard-hint">🗡️ J / K</span> 专属战术技能</span>
-        <span><span class="keyboard-hint">⚡ 空格 / 右键</span> 折跃 / 幽灵化身</span>
-        <span><span class="keyboard-hint">🎮 手柄</span> 即插即用 (支持震动)</span>
+        <span class="neon-keyboard-only"><span class="keyboard-hint">⌨️ WASD</span> 战机机动</span>
+        <span class="neon-keyboard-only"><span class="keyboard-hint">🗡️ J / K</span> 专属战术技能</span>
+        <span class="neon-keyboard-only"><span class="keyboard-hint">⚡ 空格 / 右键</span> 折跃 / 幽灵化身</span>
+        <span class="neon-keyboard-only"><span class="keyboard-hint">🎮 手柄</span> 连接后切换手柄键位</span>
+        <span class="neon-controller-only"><kbd class="neon-gamepad-key" data-gamepad-symbol="ls">LS</kbd> 战机机动</span>
+        <span class="neon-controller-only"><kbd class="neon-gamepad-key" data-gamepad-symbol="x">X</kbd> / <kbd class="neon-gamepad-key" data-gamepad-symbol="y">Y</kbd> 专属战术技能</span>
+        <span class="neon-controller-only"><kbd class="neon-gamepad-key" data-gamepad-symbol="rt">RT</kbd> 折跃 / 幽灵化身</span>
       </div>
 
       <div id="neon-ship-selector" class="hangar-ship-selector"></div>
       <div id="neon-difficulty-selector" class="hangar-difficulty-selector"></div>
+
+      <div class="neon-control-setup" aria-label="战斗按键布局">
+        <label for="neon-control-layout">触屏布局
+          <select id="neon-control-layout">
+            <option value="arc">王者式 · 弧形技能</option>
+            <option value="compact">紧凑式 · 横向技能</option>
+          </select>
+        </label>
+        <label for="neon-control-side">技能区位置
+          <select id="neon-control-side">
+            <option value="right">右手操作</option>
+            <option value="left">左手操作</option>
+          </select>
+        </label>
+      </div>
 
       <div class="hangar-actions-bar">
         <button class="cyber-btn cyber-btn-launch" id="btn-start-game">🚀 立即出击</button>
@@ -214,7 +228,7 @@
               </ul>
             </div>
 
-            <div class="help-box">
+            <div class="help-box neon-keyboard-help">
               <div class="help-box-title">⌨️ 键盘与鼠标 (KEYBOARD & MOUSE)</div>
               <ul>
                 <li><b>W / A / S / D</b> 或 <b>方向键</b>：战机飞行移动</li>
@@ -495,6 +509,7 @@
   <script src="/Game/neon-survivor/js/network/coop.js"></script>
   <script src="/Game/neon-survivor/js/network/ui.js"></script>
   <script src="/Game/neon-survivor/js/gamepad-hints.js"></script>
+  <script src="/Game/neon-survivor/js/gamepad-menus.js"></script>
   <script src="/Game/neon-survivor/js/core.js"></script>
 </body>
 </html>

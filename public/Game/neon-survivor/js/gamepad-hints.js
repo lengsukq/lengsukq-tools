@@ -12,9 +12,9 @@
     return 'xbox';
   }
   const KEYS = Object.freeze({
-    xbox: { a:'A', b:'B', x:'X', y:'Y', rt:'RT', lb:'LB', rb:'RB', start:'Menu' },
-    ps: { a:'×', b:'○', x:'□', y:'△', rt:'R2', lb:'L1', rb:'R1', start:'Options' },
-    switch: { a:'B', b:'A', x:'Y', y:'X', rt:'ZR', lb:'L', rb:'R', start:'+' }
+    xbox: { a:'A', b:'B', x:'X', y:'Y', rt:'RT', lt:'LT', lb:'LB', rb:'RB', start:'Menu', ls:'LS', dpad:'十字键' },
+    ps: { a:'×', b:'○', x:'□', y:'△', rt:'R2', lt:'L2', lb:'L1', rb:'R1', start:'Options', ls:'左摇杆', dpad:'十字键' },
+    switch: { a:'B', b:'A', x:'Y', y:'X', rt:'ZR', lt:'ZL', lb:'L', rb:'R', start:'+', ls:'左摇杆', dpad:'十字键' }
   });
   function label(key) { return KEYS[layout]?.[key] || KEYS.xbox[key] || key; }
   function sync(pad) {
@@ -32,6 +32,9 @@
     });
     document.querySelectorAll?.('[data-gamepad-symbol]').forEach(element => {
       element.textContent = label(element.getAttribute('data-gamepad-symbol'));
+    });
+    document.querySelectorAll?.('[data-pad-input]').forEach(element => {
+      element.setAttribute('data-pad-label', label(element.getAttribute('data-pad-input')));
     });
   }
   function prompt(text, key) {

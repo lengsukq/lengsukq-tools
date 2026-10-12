@@ -995,17 +995,26 @@
         const dashBtn = document.getElementById('touch-dash-btn');
         if (!touchArea || !joyBase || !joyThumb || !dashBtn) return;
 
-        if ('ontouchstart' in window) touchArea.style.display = 'block';
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+          touchArea.style.display = 'block';
+          document.documentElement.classList.add('neon-touch-enabled');
+        }
 
         // Only one specific finger owns the joystick. Dash touches are independent.
         window.addEventListener('touchstart', (e) => {
           if (!['playing', 'lan-client'].includes(this.state) || this.touch.active) return;
           if (e.target && typeof e.target.closest === 'function' &&
-              e.target.closest('#hud, .modal-overlay, #touch-dash-btn, #astra-touch-actions, #neon-settings-modal, #neon-lan-lobby')) return;
+              e.target.closest('#hud, .modal-overlay, #touch-dash-btn, #combat-hud-dock, #phantom-touch-actions, #neon-settings-modal, #neon-lan-lobby')) return;
           const rect = dashBtn.getBoundingClientRect();
           for (const t of e.changedTouches || []) {
             if (t.clientX >= rect.left && t.clientX <= rect.right &&
                 t.clientY >= rect.top && t.clientY <= rect.bottom) continue;
+            // A left-handed skill cluster leaves the right half available
+            // for the floating movement joystick, and vice versa.
+            const leftHanded = window.NeonGameSettings?.get('controlSide') === 'left';
+            const screenWidth = window.innerWidth || this.width || 0;
+            if (screenWidth && (leftHanded ? t.clientX < screenWidth * 0.36 :
+              t.clientX > screenWidth * 0.64)) continue;
             this.touch.identifier = t.identifier;
             this.touch.active = true;
             this.touch.startX = t.clientX;
@@ -1057,23 +1066,6 @@
           e.stopPropagation();
           this.triggerDash();
         });
-        const spellSwitch = document.getElementById('astra-switch-spell');
-        const spellCast = document.getElementById('astra-cast-spell');
-        for (const [control, action] of [
-          [spellSwitch, () => this.cycleAstraSpell()],
-          [spellCast, () => this.castAstraSpell()]
-        ]) {
-          if (!control) continue;
-          control.addEventListener('touchstart', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            action();
-          }, { passive: false });
-          control.addEventListener('click', event => {
-            event.stopPropagation();
-            action();
-          });
-        }
         const phantomDock = document.getElementById('phantom-dock-action');
         if (phantomDock) {
           phantomDock.addEventListener('touchstart', event => {
@@ -1098,6 +1090,17 @@
             const number = /^[1-5]$/.test(e.key) ? Number(e.key) - 1 : -1;
             const cards = Array.from(this.upgradeGrid?.children || [])
               .filter(card => card.upgradeId);
+            const direction = {
+              ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+              ArrowUp: [0, -1], ArrowDown: [0, 1]
+            }[e.key];
+            if (direction && cards.length) {
+              e.preventDefault();
+              this.gamepadSelectedUpgradeIdx = window.NeonGamepadMenus?.gridMove(
+                this.gamepadSelectedUpgradeIdx, cards.length, ...direction) ?? this.gamepadSelectedUpgradeIdx;
+              cards[this.gamepadSelectedUpgradeIdx]?.scrollIntoView?.({block:'nearest'});
+              return;
+            }
             if (number >= 0 && cards[number]) {
               e.preventDefault();
               this.gamepadSelectedUpgradeIdx = number;
@@ -1518,6 +1521,13 @@
           return pressed && !wasPressed;
         };
 
+        // Menus own all controller actions, including LAN lobby and settings.
+        // Consume this frame so confirm never leaks through into a dash.
+        if (window.NeonGamepadMenus?.poll(this, gp, justPressed)) {
+          this.finishGamepadMenuFrame(gp, true);
+          return;
+        }
+
         if (this.state === 'lan-waiting') {
           window.NeonLanReady?.pollGamepad(this.lanCoop, justPressed);
           this.finishGamepadMenuFrame(gp, true);
@@ -1537,17 +1547,20 @@
             if (this.gamepadNavTimer > 0) this.gamepadNavTimer -= dt;
             else {
               const lx = gp.axes[0] || 0;
+              const ly = gp.axes[1] || 0;
               const dLeft = isPressed(14) || lx < -0.45;
               const dRight = isPressed(15) || lx > 0.45;
-
-              if (dLeft) {
-                this.gamepadSelectedUpgradeIdx = (this.gamepadSelectedUpgradeIdx - 1 + cards.length) % cards.length;
+              const dUp = isPressed(12) || ly < -0.45;
+              const dDown = isPressed(13) || ly > 0.45;
+              const dx = Number(dRight) - Number(dLeft);
+              const dy = Number(dDown) - Number(dUp);
+              if (dx || dy) {
+                this.gamepadSelectedUpgradeIdx = window.NeonGamepadMenus?.gridMove(
+                  this.gamepadSelectedUpgradeIdx, cards.length, dx, dy) ??
+                  (this.gamepadSelectedUpgradeIdx + (dx || dy * 3) + cards.length) % cards.length;
                 this.gamepadNavTimer = 0.22;
                 this.sound.playLaser(500, 'sine');
-              } else if (dRight) {
-                this.gamepadSelectedUpgradeIdx = (this.gamepadSelectedUpgradeIdx + 1) % cards.length;
-                this.gamepadNavTimer = 0.22;
-                this.sound.playLaser(500, 'sine');
+                cards[this.gamepadSelectedUpgradeIdx]?.scrollIntoView?.({block:'nearest'});
               }
             }
 
@@ -1683,10 +1696,13 @@
             return;
           }
           if (this.player?.shipId === 'astra') {
-            if (justPressed(2)) this.cycleAstraSpell();
-            if (justPressed(3)) this.castAstraSpell();
+            if (justPressed(2)) this.castAstraWard();
+            if (justPressed(3)) this.castAstraMeteor();
           }
-          if (this.player?.shipId === 'phantom' && justPressed(2)) this.togglePhantomDock();
+          if (this.player?.shipId === 'phantom') {
+            if (justPressed(2)) this.triggerPhantomStrike();
+            if (justPressed(3)) this.togglePhantomDock();
+          }
 
           // Dash Trigger: A (0), B (1), RB (5), RT (7), LB (4), LT (6)
           if (justPressed(0) || justPressed(1) || justPressed(5) || justPressed(7) || justPressed(4) || justPressed(6)) {
@@ -2049,6 +2065,10 @@
       }
 
       triggerPhantomStrike() {
+        if (this.state === 'lan-client') {
+          if (this.settingsOpen || this.lanCoop?.latest?.guest?.downed) return false;
+          return this.lanCoop?.requestGuestShipAction('strike') === true;
+        }
         if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
             this.settingsOpen || this.player?.downed) return false;
         const ghost = this.player.phantom;
@@ -2656,7 +2676,7 @@
         const hint = window.NeonGamepadHints;
         if (hint) {
           hints.append(
-            hint.prompt('左右切换', 'lb'), hint.prompt('预选', 'a'),
+            hint.prompt('十字键 / 摇杆上下左右选卡', 'dpad'), hint.prompt('预选', 'a'),
             hint.prompt(this.endlessMode ? '放逐' : '快速确认', 'x'),
             hint.prompt('快速确认', 'rt'),
             hint.prompt('取消预选', 'b'),
@@ -3115,26 +3135,6 @@
               Math.round(Math.max(0, Math.min(1, astraState.mana / maxMana)) * 100) + '%';
           }
         }
-        const actionPanel = document.getElementById('astra-touch-actions');
-        if (actionPanel) {
-          const guestPlaying = this.state === 'lan-client' &&
-            this.lanCoop?.latest?.phase === 'playing';
-          actionPanel.hidden = !isAstra || (this.state !== 'playing' && !guestPlaying);
-          if (isAstra && astraState) {
-            const spell = this.selectedAstraSpell || 'meteor';
-            const chosen = spell === 'meteor' ? '星陨裁决' : '星界结界';
-            const switcher = document.getElementById('astra-switch-spell');
-            const caster = document.getElementById('astra-cast-spell');
-            if (switcher) switcher.textContent = '切换 ' + chosen;
-            if (caster) {
-              const cooldown = astraState.cooldowns[spell] || 0;
-              caster.textContent = cooldown > 0 ? '冷却 ' + Math.ceil(cooldown) + 's' : '施法 ' + chosen;
-              caster.disabled = cooldown > 0 ||
-                astraState.mana < (spell === 'meteor' ? 50 : 60);
-              caster.title = '星能 ' + Math.floor(astraState.mana) + '/' + astraState.maxMana;
-            }
-          }
-        }
         this.hudLevel.textContent = `${this.player.level} 级`;
         const hpPct = Math.max(0, Math.min(100, (this.player.hp / this.player.maxHp) * 100));
         this.hudHp.style.width = `${hpPct}%`;
@@ -3346,6 +3346,20 @@
             skillsBar.querySelector('#btn-skill-dash')?.addEventListener('click', (e) => {
               e.stopPropagation(); this.triggerDash();
             });
+          }
+          // Preserve keyboard glyphs in the DOM and project the connected
+          // controller's glyph onto each skill without overwriting the key.
+          for (const [id, key] of [
+            ['btn-skill-ward', 'x'], ['btn-skill-meteor', 'y'],
+            ['btn-skill-reap', 'x'], ['btn-skill-dock', 'y'],
+            ['btn-skill-blink', 'rt'], ['btn-skill-shift', 'rt'],
+            ['btn-skill-dash', 'rt']
+          ]) {
+            const hotkey = skillsBar.querySelector('#' + id + ' .skill-hotkey');
+            if (hotkey) {
+              hotkey.setAttribute('data-pad-input', key);
+              hotkey.setAttribute('data-pad-label', window.NeonGamepadHints?.label(key) || key);
+            }
           }
         }
 
@@ -6930,12 +6944,12 @@
           const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
           this.lastTime = timestamp;
 
+          this.pollGamepad(dt);
           if (this.state === 'lan-client' && this.lanCoop?.guestMode) {
             this.lanCoop.updateGuest(dt);
             this.lanCoop.renderGuest();
             return;
           }
-          if (this.state !== 'lan-lobby' && !this.settingsOpen) this.pollGamepad(dt);
           this.update(dt);
           this.lanCoop?.updateHost(dt);
           this.render();

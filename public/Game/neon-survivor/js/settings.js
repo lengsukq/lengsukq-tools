@@ -7,7 +7,8 @@
   const defaults = Object.freeze({
     sound: true, autoAim: true, vibration: true, crt: true,
     lowEffects: false, dashSize: 68, dashOpacity: 90, joystickDeadzone: 10,
-    cameraZoom: 100, playerName: '', shipColor: 'auto'
+    cameraZoom: 100, playerName: '', shipColor: 'auto',
+    controlLayout: 'arc', controlSide: 'right'
   });
   const colorOptions = Object.freeze([
     ['auto', '自动区分', '#00f3ff'], ['cyan', '霓虹蓝', '#00f3ff'],
@@ -38,6 +39,8 @@
           .replace(/[\x00-\x1f\x7f<>]/g, '').trim().slice(0, 12);
       }
       if (colorKeys.has(raw.shipColor)) state.shipColor = raw.shipColor;
+      if (['arc', 'compact'].includes(raw.controlLayout)) state.controlLayout = raw.controlLayout;
+      if (['right', 'left'].includes(raw.controlSide)) state.controlSide = raw.controlSide;
     } catch { /* localStorage can be blocked */ }
   }
   function persist() {
@@ -47,6 +50,16 @@
     const root = document.documentElement;
     root.style.setProperty('--neon-dash-size', state.dashSize + 'px');
     root.style.setProperty('--neon-dash-opacity', String(state.dashOpacity / 100));
+    root.setAttribute('data-neon-control-layout', state.controlLayout);
+    root.setAttribute('data-neon-control-side', state.controlSide);
+    for (const [id, key] of [['neon-control-layout','controlLayout'],['neon-control-side','controlSide']]) {
+      const field = document.getElementById(id);
+      if (field && field.value !== state[key]) field.value = state[key];
+    }
+    for (const [id, key] of [['neon-control-layout','controlLayout'],['neon-control-side','controlSide']]) {
+      const field = document.getElementById(id);
+      if (field) field.onchange = () => set(key, field.value, window.game);
+    }
     const crt = document.getElementById('crtOverlay');
     if (crt) crt.style.opacity = state.crt ? '1' : '0';
     if (!game) return;
@@ -78,6 +91,8 @@
     else if (key === 'playerName') state[key] = String(value || '').replace(/<[^>]*>/g, '')
       .replace(/[\x00-\x1f\x7f<>]/g, '').trim().slice(0, 12);
     else if (key === 'shipColor') state[key] = colorKeys.has(value) ? value : 'auto';
+    else if (key === 'controlLayout') state[key] = ['arc','compact'].includes(value) ? value : 'arc';
+    else if (key === 'controlSide') state[key] = ['left','right'].includes(value) ? value : 'right';
     else {
       const bounds = { dashSize: [54,100], dashOpacity:[50,100], joystickDeadzone:[3,26], cameraZoom:[65,150] };
       state[key] = clamp(value, ...bounds[key]);
@@ -212,6 +227,22 @@
     zoomInfo.textContent = '100% 为原始视角；低于100%视野更广，高于100%更靠近战机。只影响战场，不改变操控按钮与文字。';
     video.appendChild(zoomInfo);
     const touch = section('触屏操作');
+    function choice(parent, key, label, options) {
+      const row = document.createElement('label');
+      row.className = 'neon-setting-row';
+      const name = document.createElement('strong'); name.textContent = label;
+      const field = document.createElement('select');
+      field.id = 'neon-setting-' + key;
+      for (const [value, caption] of options) {
+        const option = document.createElement('option');
+        option.value = value; option.textContent = caption; field.appendChild(option);
+      }
+      field.value = state[key];
+      field.onchange = () => set(key, field.value, window.game);
+      row.append(name, field); parent.appendChild(row);
+    }
+    choice(touch, 'controlLayout', '技能布局', [['arc','王者式弧形'],['compact','紧凑横排']]);
+    choice(touch, 'controlSide', '操作方向', [['right','右手'],['left','左手']]);
     range(touch, 'dashSize', '折跃按钮大小', 'px', 54, 100, 2);
     range(touch, 'dashOpacity', '折跃按钮不透明度', '%', 50, 100, 5);
     range(touch, 'joystickDeadzone', '摇杆死区', 'px', 3, 26, 1);
