@@ -482,7 +482,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         // Continuous slow and inner core repulsion for enemies
         if (Array.isArray(game?.enemies)) {
           for (const e of game.enemies) {
-            if (!e || e.dead || e.hp <= 0) continue;
+            if (!e || e.dead || e.hp <= 0 || !Number.isFinite(e.x) || !Number.isFinite(e.y)) continue;
             const dist = Math.hypot(e.x - s.wardX, e.y - s.wardY);
             if (dist <= wardRadius) {
               e.freezeTimer = Math.max(e.freezeTimer || 0, 0.35);
@@ -501,7 +501,8 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         if (Array.isArray(game?.enemyBullets)) {
           for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
             const eb = game.enemyBullets[b];
-            if (Math.hypot(eb.x - s.wardX, eb.y - s.wardY) <= wardRadius) {
+            if (eb && Number.isFinite(eb.x) && Number.isFinite(eb.y) &&
+                Math.hypot(eb.x - s.wardX, eb.y - s.wardY) <= wardRadius) {
               game.enemyBullets.splice(b, 1);
             }
           }
@@ -623,7 +624,8 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         const wardRadius = BASE.wardRadius * m.areaFactor;
         for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
           const eb = game.enemyBullets[b];
-          if (Math.hypot(eb.x - pilot.x, eb.y - pilot.y) <= wardRadius) {
+          if (eb && Number.isFinite(eb.x) && Number.isFinite(eb.y) &&
+              Math.hypot(eb.x - pilot.x, eb.y - pilot.y) <= wardRadius) {
             game.enemyBullets.splice(b, 1);
           }
         }
@@ -749,12 +751,14 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   function renderWard(ctx, pilot) {
     const s = pilot?.astra;
     if (!s || s.wardRemaining <= 0 || !ctx) return;
-    const radius = BASE.wardRadius * modifiers(pilot).areaFactor;
+    const wx = Number.isFinite(s.wardX) ? s.wardX : Number.isFinite(pilot?.x) ? pilot.x : 0;
+    const wy = Number.isFinite(s.wardY) ? s.wardY : Number.isFinite(pilot?.y) ? pilot.y : 0;
+    const radius = BASE.wardRadius * (modifiers(pilot)?.areaFactor || 1);
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
     const timeSec = now * 0.001;
 
     ctx.save();
-    ctx.translate(s.wardX, s.wardY);
+    ctx.translate(wx, wy);
 
     // 1. Translucent Cosmic Nebula Dome
     const pulse = Math.sin(timeSec * 3) * 0.03;

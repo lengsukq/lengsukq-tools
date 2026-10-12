@@ -3905,20 +3905,24 @@
 
         // Celestial Ward amplification: Astra standing within ward gets +70% personal damage amp!
         if (window.NeonAstra?.wardDamageBonus) {
-          const wardBonus = window.NeonAstra.wardDamageBonus(this, target, attacker);
-          if (wardBonus > 1.0) {
-            finalDamage *= wardBonus;
-            if (this.texts.length < 28 && Math.random() < 0.2) {
-              this.texts.push({
-                x: target.x,
-                y: target.y - 24,
-                text: '✨炮台超频+70%',
-                color: '#d8b4fe',
-                size: 11,
-                life: 0.4,
-                maxLife: 0.4
-              });
+          try {
+            const wardBonus = window.NeonAstra.wardDamageBonus(this, target, attacker);
+            if (wardBonus > 1.0) {
+              finalDamage *= wardBonus;
+              if (this.texts.length < 28 && Math.random() < 0.2) {
+                this.texts.push({
+                  x: target.x,
+                  y: target.y - 24,
+                  text: '✨炮台超频+70%',
+                  color: '#d8b4fe',
+                  size: 11,
+                  life: 0.4,
+                  maxLife: 0.4
+                });
+              }
             }
+          } catch (e) {
+            // Guard against any ward bonus calculation issues
           }
         }
 
@@ -5087,18 +5091,27 @@
         // Class-specific weapon and mana ticks are dispatched once through
         // NeonShips.onTick above for EVERY registered pilot. Never duplicate.
         window.NeonAstra?.tickShields(this, dt);
-        // Celestial Ward Continuous Holy Burn DoT in live combat
+        // Celestial Ward Continuous Holy Burn DoT in live combat (batched 0.20s pulse)
         if (!this.player.downed && this.player.shipId === 'astra') {
           const astraState = this.player.astra;
           if (astraState && astraState.wardActive) {
-            const wardR = 160 * (window.NeonAstraArsenal?.modifiers(this.player)?.areaFactor || 1);
-            const dotDmg = (32 + (this.player.level || 1) * 3.5) * dt * (this.player.dmgMultiplier || 1);
-            for (const e of this.enemies) {
-              if (!e || e.dead || e.hp <= 0) continue;
-              if (Vec.dist(astraState.wardX, astraState.wardY, e.x, e.y) <= wardR) {
-                this.dealDamage(e, dotDmg, 'astra_ward_burn', false, this.player);
+            astraState.wardBurnTimer = (astraState.wardBurnTimer || 0) + dt;
+            if (astraState.wardBurnTimer >= 0.20) {
+              const burnInterval = astraState.wardBurnTimer;
+              astraState.wardBurnTimer = 0;
+              const wardR = 160 * (window.NeonAstraArsenal?.modifiers(this.player)?.areaFactor || 1);
+              const dotDmg = (32 + (this.player.level || 1) * 3.5) * burnInterval * (this.player.dmgMultiplier || 1);
+              const wx = Number.isFinite(astraState.wardX) ? astraState.wardX : this.player.x;
+              const wy = Number.isFinite(astraState.wardY) ? astraState.wardY : this.player.y;
+              for (const e of this.enemies) {
+                if (!e || e.dead || e.hp <= 0 || !Number.isFinite(e.x) || !Number.isFinite(e.y)) continue;
+                if (Vec.dist(wx, wy, e.x, e.y) <= wardR) {
+                  this.dealDamage(e, dotDmg, 'astra_ward_burn', false, this.player);
+                }
               }
             }
+          } else if (astraState) {
+            astraState.wardBurnTimer = 0;
           }
         }
         // All pilots now share one firing pipeline; timers belong to the
