@@ -1994,20 +1994,28 @@
             this.settingsOpen || this.player?.downed) return false;
         const astraState = window.NeonAstra?.state(this.player);
         if (astraState) {
-          if (astraState.cooldowns?.ward > 0) {
-            this.notifySkillFeedback(`⏳ 结界冷却中 (${Math.ceil(astraState.cooldowns.ward)}s)`, '#f43f5e');
-            return false;
-          }
-          if (astraState.mana < 60) {
-            this.notifySkillFeedback(`⚠️ 星能不足 (需60/当前${Math.floor(astraState.mana)})`, '#c084fc');
-            try { this.sound?.playLaser?.(240, 'triangle'); } catch (_) {}
-            return false;
+          if (!astraState.wardActive) {
+            if (astraState.cooldowns?.ward > 0) {
+              this.notifySkillFeedback(`⏳ 结界冷却中 (${Math.ceil(astraState.cooldowns.ward)}s)`, '#f43f5e');
+              return false;
+            }
+            if (astraState.mana < 20) {
+              this.notifySkillFeedback(`⚠️ 星能不足 (需20/当前${Math.floor(astraState.mana)})`, '#c084fc');
+              try { this.sound?.playLaser?.(240, 'triangle'); } catch (_) {}
+              return false;
+            }
           }
         }
+        const wasWardActive = Boolean(astraState?.wardActive);
         const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'ward') === true;
         if (ok) {
-          this.notifySkillFeedback('🛡️ 天界结界已展开 (-25% 伤害)!', '#a78bfa');
-          try { this.sound?.playBeam?.(); } catch (_) {}
+          if (!wasWardActive) {
+            this.notifySkillFeedback('🛡️ 移动炮台已启动！(持续燃能 · 防弹推怪)', '#a78bfa');
+            try { this.sound?.playBeam?.(); } catch (_) {}
+          } else {
+            this.notifySkillFeedback('💨 移动炮台已关闭，激活撤离护盾与加速！', '#c084fc');
+            try { this.sound?.playDash?.(); } catch (_) {}
+          }
         }
         return ok;
       }
@@ -2021,12 +2029,8 @@
             this.settingsOpen || this.player?.downed) return false;
         const astraState = window.NeonAstra?.state(this.player);
         if (astraState) {
-          if (astraState.cooldowns?.meteor > 0) {
-            this.notifySkillFeedback(`⏳ 星陨冷却中 (${astraState.cooldowns.meteor.toFixed(1)}s)`, '#f43f5e');
-            return false;
-          }
-          if (astraState.mana < 22) {
-            this.notifySkillFeedback(`⚠️ 星能不足 (需22/当前${Math.floor(astraState.mana)})`, '#c084fc');
+          if (astraState.mana < 20) {
+            this.notifySkillFeedback(`⚠️ 星能不足 (需20/当前${Math.floor(astraState.mana)})`, '#c084fc');
             try { this.sound?.playLaser?.(240, 'triangle'); } catch (_) {}
             return false;
           }
@@ -3901,7 +3905,7 @@
 
         // Celestial Ward amplification: Astra standing within ward gets +70% personal damage amp!
         if (window.NeonAstra?.wardDamageBonus) {
-          const wardBonus = window.NeonAstra.wardDamageBonus(this, target, owner);
+          const wardBonus = window.NeonAstra.wardDamageBonus(this, target, attacker);
           if (wardBonus > 1.0) {
             finalDamage *= wardBonus;
             if (this.texts.length < 28 && Math.random() < 0.2) {
@@ -5086,7 +5090,7 @@
         // Celestial Ward Continuous Holy Burn DoT in live combat
         if (!this.player.downed && this.player.shipId === 'astra') {
           const astraState = this.player.astra;
-          if (astraState && astraState.wardRemaining > 0) {
+          if (astraState && astraState.wardActive) {
             const wardR = 160 * (window.NeonAstraArsenal?.modifiers(this.player)?.areaFactor || 1);
             const dotDmg = (32 + (this.player.level || 1) * 3.5) * dt * (this.player.dmgMultiplier || 1);
             for (const e of this.enemies) {

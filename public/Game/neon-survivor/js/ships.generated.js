@@ -403,13 +403,16 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     // 2. Disengagement Speed Surge (+50% speed for 2.5s)
     s.kiteSpeedTimer = BASE.wardExitSpeedDuration;
 
+    const px = Number.isFinite(pilot?.x) ? pilot.x : 0;
+    const py = Number.isFinite(pilot?.y) ? pilot.y : 0;
+
     // 3. Radial Disperse Shockwave to repel close enemies
     if (game && Array.isArray(game.enemies)) {
       for (const e of game.enemies) {
         if (!e || e.dead || e.hp <= 0) continue;
-        const d = Math.hypot(e.x - pilot.x, e.y - pilot.y);
+        const d = Math.hypot(e.x - px, e.y - py);
         if (d <= 150) {
-          const angle = Math.atan2(e.y - pilot.y, e.x - pilot.x) || 0;
+          const angle = Math.atan2(e.y - py, e.x - px) || 0;
           e.x += Math.cos(angle) * 80;
           e.y += Math.sin(angle) * 80;
           e.vx = (e.vx || 0) + Math.cos(angle) * 160;
@@ -419,7 +422,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     }
     if ((game?.shockwaves?.length || 0) < 40) {
       game?.shockwaves?.push({
-        x: pilot.x, y: pilot.y,
+        x: px, y: py,
         radius: 12, maxRadius: 150,
         color: '#c084fc', alpha: 0.85
       });
@@ -463,8 +466,8 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
 
     if (s.wardActive) {
       // Mobile Sanctuary: ward follows the ship continuously!
-      s.wardX = pilot.x;
-      s.wardY = pilot.y;
+      s.wardX = Number.isFinite(pilot.x) ? pilot.x : 0;
+      s.wardY = Number.isFinite(pilot.y) ? pilot.y : 0;
       s.wardRemaining = 999;
       s.isTurretAnchored = true;
 
