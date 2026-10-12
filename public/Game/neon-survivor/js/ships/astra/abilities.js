@@ -5,7 +5,7 @@
   const BASE = Object.freeze({
     initialMana: 60, maxMana: 100, naturalRegen: 2,
     maxHitRegenPerSecond: 12, hitRegenInterval: 1.5,
-    meteorCost: 50, meteorCooldown: 10, meteorDamage: 110,
+    meteorCost: 22, meteorCooldown: 3.2, meteorDamage: 48,
     meteorRadius: 125, meteorMaxTargets: 12,
     wardCost: 60, wardCooldown: 16, wardDuration: 5,
     wardRadius: 160, wardReduction: .25,
@@ -50,12 +50,12 @@
   // Every upgrade has rank-specific text for the five-card picker, help panel
   // and accessibility labels; rarity/maximum levels are defined by UNIQUE.
   const CARD_COPY = Object.freeze({
-    star_weave: ['◇','星梭射击命中后布置星锚，连线切割敌潮',
-      ['发射星梭，最多2个星锚，节点间造成连线伤害',
-       '星梭射速提高，连线伤害+25%',
-       '最多3个星锚，组成完整三角星网',
-       '延长星锚持续时间，扩大星网命中宽度',
-       '星网收束：每6秒触发一次范围坍缩爆发']],
+    star_weave: ['◇','星梭发射自动追踪飞弹，命中后布置星锚连线切割敌潮',
+      ['发射追踪星梭飞弹，命中部署星锚并连线切割敌潮',
+       '星梭升级为双发追踪弹，连线伤害+25%',
+       '星梭升级为3发多目标追踪弹，组成完整三角星网',
+       '星梭升级为4发多目标追踪弹，延长星锚留存并扩大星网宽度',
+       '终极织阵：5发多目标追踪弹群攻，每6秒触发一次范围坍缩爆发']],
     star_fragments: ['✦','标记敌群，短暂延迟后召唤定点星陨',
       ['锁定后召唤星陨碎片','提高星陨伤害与爆炸范围',
        '缩短星陨部署周期','提升星陨标记覆盖率','大范围陨落轰击']],
@@ -198,6 +198,24 @@
     }
     s.wardRemaining = Math.max(0, s.wardRemaining - dt);
     if (s.wardRemaining <= 0) s.wardHarmonyBonus = 0;
+    else if (Array.isArray(game?.enemies)) {
+      // Continuous slow & bullet dissolve inside active ward
+      const wardRadius = BASE.wardRadius * m.areaFactor;
+      for (const e of game.enemies) {
+        if (e && !e.dead && e.hp > 0 && Math.hypot(e.x - s.wardX, e.y - s.wardY) <= wardRadius) {
+          e.freezeTimer = Math.max(e.freezeTimer || 0, 0.35);
+        }
+      }
+      if (Array.isArray(game?.enemyBullets)) {
+        for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
+          const eb = game.enemyBullets[b];
+          if (Math.hypot(eb.x - s.wardX, eb.y - s.wardY) <= wardRadius) {
+            game.enemyBullets.splice(b, 1);
+          }
+        }
+      }
+    }
+    s.kiteSpeedTimer = Math.max(0, (s.kiteSpeedTimer || 0) - dt);
     s.phaseVeilRemaining = Math.max(0, s.phaseVeilRemaining - dt);
     if (s.blinkFx) {
       s.blinkFx.life -= dt;
@@ -230,8 +248,12 @@
         const d = Math.hypot(e.x - pilot.x, e.y - pilot.y);
         if (d < nearest) { focus = e; nearest = d; }
       }
-      if (!focus) return false; // Do not spend mana on an empty battlefield.
-      s.mana -= cost; // Hit-driven energy must not be lost against a full pre-cast bar.
+      if (!focus) {
+        // If no enemy is in close range, bombard along aim direction so the spell is responsive
+        const aim = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : 0;
+        focus = { x: pilot.x + Math.cos(aim) * 320, y: pilot.y + Math.sin(aim) * 320, radius: 12 };
+      }
+      s.mana -= cost;
       const targets = enemies.filter(e => within(e, focus, BASE.meteorRadius * m.areaFactor))
         .sort((a, b) => Math.hypot(a.x - focus.x, a.y - focus.y) -
           Math.hypot(b.x - focus.x, b.y - focus.y))
@@ -241,6 +263,8 @@
           m.dangerBonus * (1 + harmonyBonus),
           'astra_meteor', false, pilot);
         regenOnHit(pilot, enemy, game.survivalTime || 0);
+        // Stun enemies hit by meteor
+        enemy.stunnedUntil = Math.max(enemy.stunnedUntil || 0, (game.survivalTime || 0) + 1.2);
       }
       window.NeonAstraVisual?.emit(pilot,'burst',focus,null,
         BASE.meteorRadius * m.areaFactor,.6);
@@ -254,6 +278,16 @@
       s.wardX = pilot.x;
       s.wardY = pilot.y;
       s.wardHarmonyBonus = alternating ? m.harmony * .012 : 0;
+      // Dissolve all enemy bullets within ward radius on cast
+      if (Array.isArray(game?.enemyBullets)) {
+        const wardRadius = BASE.wardRadius * m.areaFactor;
+        for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
+          const eb = game.enemyBullets[b];
+          if (Math.hypot(eb.x - pilot.x, eb.y - pilot.y) <= wardRadius) {
+            game.enemyBullets.splice(b, 1);
+          }
+        }
+      }
       window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,
         BASE.wardRadius * m.areaFactor,.8);
     }
@@ -278,6 +312,18 @@
       }
     }
     return 0; // Wards do not stack with one another.
+  }
+  function wardDamageBonus(game, target) {
+    if (!target || target.dead || target.hp <= 0) return 1.0;
+    for (const pilot of pilots(game)) {
+      if (pilot?.shipId !== 'astra' || pilot.hp <= 0 || pilot.downed ||
+          !pilot.astra || pilot.astra.wardRemaining <= 0) continue;
+      const radius = BASE.wardRadius * modifiers(pilot).areaFactor;
+      if (within({ x: pilot.astra.wardX, y: pilot.astra.wardY }, target, radius)) {
+        return 1.40; // Enemies within celestial ward take +40% extra damage!
+      }
+    }
+    return 1.0;
   }
   // Blink shield is strictly self-only. Periodic TEAM shields are supplied
   // exclusively by the link resonance system, not by flash upgrades.
@@ -344,27 +390,96 @@
         radius: 8, maxRadius: 65, alpha: .8, color: '#b38dff' });
     }
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, BASE.blinkInvulnerability);
+    s.kiteSpeedTimer = 2.0;
     foldShield(pilot, game, timeSeconds);
     window.NeonAstraArsenal?.onBlink(pilot, game, timeSeconds);
     return true;
   }
   function renderWard(ctx, pilot) {
     const s = pilot?.astra;
-    if (!s || s.wardRemaining <= 0) return;
+    if (!s || s.wardRemaining <= 0 || !ctx) return;
     const radius = BASE.wardRadius * modifiers(pilot).areaFactor;
+    const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const timeSec = now * 0.001;
+
     ctx.save();
+    ctx.translate(s.wardX, s.wardY);
+
+    // 1. Translucent Cosmic Nebula Dome
+    const pulse = Math.sin(timeSec * 3) * 0.03;
     ctx.beginPath();
-    ctx.arc(s.wardX, s.wardY, radius, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(155, 111, 239, .07)';
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(155, 111, 239, ${0.11 + pulse})`;
     ctx.fill();
-    ctx.setLineDash([9, 7]);
-    ctx.strokeStyle = 'rgba(177, 133, 248, .72)';
-    ctx.lineWidth = 2;
+
+    // 2. Outer Radiant Runic Barrier Ring
+    ctx.strokeStyle = 'rgba(192, 132, 252, 0.85)';
+    ctx.lineWidth = 2.5;
+    ctx.shadowBlur = 16;
+    ctx.shadowColor = '#c084fc';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.stroke();
+
+    // 3. Rotating Celestial Dial Tick Marks (12 outer astronomical notches)
+    const dialAngle = timeSec * 0.35;
+    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = '#e9d5ff';
+    for (let i = 0; i < 12; i++) {
+      const a = dialAngle + (i * Math.PI / 6);
+      const isMajor = i % 3 === 0;
+      const len = isMajor ? 8 : 4;
+      const x1 = Math.cos(a) * (radius - len);
+      const y1 = Math.sin(a) * (radius - len);
+      const x2 = Math.cos(a) * (radius + (isMajor ? 3 : 0));
+      const y2 = Math.sin(a) * (radius + (isMajor ? 3 : 0));
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // 4. Inner Counter-Rotating Hexagonal Sacred Geometry Ring
+    ctx.save();
+    ctx.rotate(-dialAngle * 0.8);
+    const innerR = radius * 0.65;
+    ctx.strokeStyle = 'rgba(216, 180, 254, 0.4)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI / 3);
+      const hx = Math.cos(a) * innerR;
+      const hy = Math.sin(a) * innerR;
+      if (i === 0) ctx.moveTo(hx, hy);
+      else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Hexagonal node crystal stars
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI / 3);
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * innerR, Math.sin(a) * innerR, 2.0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 5. Ambient Stardust Motes floating within ward boundary
+    ctx.fillStyle = 'rgba(245, 243, 255, 0.7)';
+    for (let i = 0; i < 4; i++) {
+      const moteAngle = timeSec * (0.6 + i * 0.2) + i * 1.57;
+      const moteDist = radius * (0.25 + (i * 0.18));
+      ctx.beginPath();
+      ctx.arc(Math.cos(moteAngle) * moteDist, Math.sin(moteAngle) * moteDist, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
   window.NeonAstra = Object.freeze({
     BASE, SPELLS, catalog, createState, state, regenOnHit,
-    tick, cast, wardReduction, foldShield, tickShields, incomingDamage, blink, renderWard
+    tick, cast, wardReduction, wardDamageBonus, foldShield, tickShields, incomingDamage, blink, renderWard
   });
 })();

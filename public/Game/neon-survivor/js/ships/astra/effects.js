@@ -53,26 +53,56 @@ const NeonAstraVisual = (() => {
 window.NeonAstraVisual=NeonAstraVisual;
 function drawAstraBlink(ctx, fx) {
   if (!fx || !ctx || !(fx.life > 0)) return;
-  const fade = Math.min(1, fx.life / Math.max(.01,fx.maxLife || .32));
+  const fade = Math.min(1, fx.life / Math.max(.01, fx.maxLife || .32));
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.lineCap = 'round';
-  ctx.strokeStyle = '#a783ff';
-  ctx.lineWidth = 17 * fade + 2;
-  ctx.shadowColor = '#9a7aff';
-  ctx.shadowBlur = 15;
+
+  // 1. Wide ethereal astral fracture beam
+  ctx.strokeStyle = 'rgba(167, 131, 255, 0.4)';
+  ctx.lineWidth = 22 * fade + 4;
+  ctx.shadowColor = '#c084fc';
+  ctx.shadowBlur = 18;
   ctx.beginPath();
-  ctx.moveTo(fx.x1,fx.y1);
-  ctx.lineTo(fx.x2,fx.y2);
+  ctx.moveTo(fx.x1, fx.y1);
+  ctx.lineTo(fx.x2, fx.y2);
   ctx.stroke();
-  ctx.strokeStyle = '#e8f9ff';
-  ctx.lineWidth = 3;
+
+  // 2. High-intensity prismatic core beam
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3.5 * fade + 1;
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(fx.x1, fx.y1);
+  ctx.lineTo(fx.x2, fx.y2);
   ctx.stroke();
-  for(const [x,y] of [[fx.x1,fx.y1],[fx.x2,fx.y2]]) {
+
+  // 3. Dimensional gateway ripple rings at origin and destination
+  for (const [x, y] of [[fx.x1, fx.y1], [fx.x2, fx.y2]]) {
+    const ringRadius = 12 + 28 * (1 - fade);
+    ctx.strokeStyle = '#d8b4fe';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 12;
     ctx.beginPath();
-    ctx.arc(x,y,10+24*(1-fade),0,Math.PI*2);
+    ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
   }
+
+  // 4. Destination starburst diamond flare
+  const flareSize = 14 * fade;
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.moveTo(fx.x2, fx.y2 - flareSize);
+  ctx.lineTo(fx.x2 + flareSize * 0.35, fx.y2);
+  ctx.lineTo(fx.x2, fx.y2 + flareSize);
+  ctx.lineTo(fx.x2 - flareSize * 0.35, fx.y2);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.restore();
 }
 window.NeonShips.registerEffects('astra', {

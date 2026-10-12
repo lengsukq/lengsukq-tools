@@ -197,48 +197,100 @@
     if (!s?.scythes?.length || !ctx) return;
     ctx.save();
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const timeSec = now * 0.001;
+
     for (const sc of s.scythes) {
       ctx.save();
       ctx.translate(sc.x, sc.y);
       const spin = (sc.phase === 'hover') ? (now * 0.02) : (sc.angle + now * 0.012);
+
+      // 1. Ghostly Motion-Blur Slashing Arc Trails
+      const isHover = sc.phase === 'hover';
+      const trailAlpha = isHover ? 0.35 : 0.55;
+      ctx.save();
+      ctx.rotate(spin - 0.25);
+      ctx.strokeStyle = `rgba(0, 240, 255, ${trailAlpha * 0.5})`;
+      ctx.lineWidth = 4;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#00f0ff';
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 0.7);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, Math.PI, Math.PI * 1.7);
+      ctx.stroke();
+      ctx.restore();
+
       ctx.rotate(spin);
 
-      ctx.shadowBlur = 14;
+      // 2. Twin Spectral Crescent Scythe Blades
+      ctx.shadowBlur = 16;
       ctx.shadowColor = '#00f0ff';
       ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2.2;
-      ctx.fillStyle = '#180b2b';
+      ctx.lineWidth = 2.4;
+      ctx.fillStyle = '#120724';
 
-      // Twin curved scythe blades
+      // Blade 1
       ctx.beginPath();
-      ctx.arc(0, 0, 16, 0, Math.PI * 0.85);
-      ctx.lineTo(2, 2);
+      ctx.arc(0, 0, 17, 0, Math.PI * 0.88);
+      ctx.lineTo(3, 2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
+      // Blade 1 inner soul rune spine
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(0, 0, 16, Math.PI, Math.PI * 1.85);
-      ctx.lineTo(-2, -2);
+      ctx.arc(0, 0, 12, 0.15, Math.PI * 0.75);
+      ctx.stroke();
+
+      // Blade 2
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 17, Math.PI, Math.PI * 1.88);
+      ctx.lineTo(-3, -2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Glowing center eye
+      // Blade 2 inner soul rune spine
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.arc(0, 0, 12, Math.PI + 0.15, Math.PI * 1.75);
+      ctx.stroke();
+
+      // 3. Central Ocular Void Core
+      ctx.beginPath();
+      ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = '#a855f7';
+      ctx.shadowBlur = 12;
       ctx.shadowColor = '#a855f7';
-      ctx.shadowBlur = 10;
       ctx.fill();
 
-      // If hovering, draw expanding pulse ring
-      if (sc.phase === 'hover') {
-        const pulse = (now * 0.008) % 1;
+      // Slit pupil in center of scythe
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#00f0ff';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 1.2, 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. Hover Resonance Pulse Rings
+      if (isHover) {
+        const pulse = (now * 0.006) % 1;
         ctx.beginPath();
-        ctx.arc(0, 0, 14 + pulse * 20, 0, Math.PI * 2);
+        ctx.arc(0, 0, 15 + pulse * 24, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(168, 85, 247, ${1 - pulse})`;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 8 + pulse * 14, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 240, 255, ${0.8 * (1 - pulse)})`;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
       }
 

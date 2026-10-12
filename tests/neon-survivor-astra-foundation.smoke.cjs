@@ -44,17 +44,17 @@ assert.equal(s.mana,72,'Only 12 energy per simulated second from hits');
 game.enemies=Array.from({length:20},(_,i)=>({x:80+i*.1,y:0,hp:1000}));
 assert.equal(a.cast(wizard,game,'meteor'),true);
 assert.equal(hits.length,12,'Meteor AoE stops at 12 targets');
-assert.ok(hits.every(h=>h.owner===wizard&&h.damage===110&&h.source==='astra_meteor'));
-assert.equal(s.mana,22,'Meteor spends 50 mana; hit budget is exhausted');
+assert.ok(hits.every(h=>h.owner===wizard&&h.damage===48&&h.source==='astra_meteor'));
+assert.equal(s.mana,50,'Meteor spends 22 mana; hit budget is exhausted');
 assert.equal(a.cast(wizard,game,'meteor'),false,'Cooldown prevents casting');
-assert.equal(s.cooldowns.meteor,10);
+assert.equal(s.cooldowns.meteor,3.2);
 wizard.level=12;
 a.tick(wizard,game,5);
 assert.equal(s.talentLevel,3);
-assert.equal(s.cooldowns.meteor,5);
-assert.equal(s.mana,32);
+assert.equal(s.cooldowns.meteor,0);
+assert.equal(s.mana,60);
 assert.equal(a.regenOnHit(wizard,one,16),5,'Talent lv3 returns 5 mana per target');
-assert.equal(s.mana,37);
+assert.equal(s.mana,65);
 
 // Distinct ward and meteor cooldowns; position-based protection only.
 s.mana=100;

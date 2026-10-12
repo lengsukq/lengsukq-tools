@@ -21,91 +21,176 @@ if (!window.NeonShips?.get("astra")) { throw new Error("Ship astra did not regis
 // Source: ships/astra/renderer.js
 /* Auto-registered ship plugin */
 window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
-    const mainColor = profile.color || '#b69aff';
-    const downed = Boolean(fighter.downed);
-    const strokeColor = downed ? '#ff617e' : mainColor;
+  const mainColor = profile.color || '#b69aff';
+  const downed = Boolean(fighter.downed);
+  const strokeColor = downed ? '#ff617e' : mainColor;
+  const now = typeof performance !== 'undefined' ? performance.now() : 0;
+  const timeSec = now * 0.001;
 
+  ctx.save();
+  ctx.shadowBlur = downed ? 10 : 20;
+  ctx.shadowColor = strokeColor;
+
+  // 1. Dual-ring Celestial Astrolabe (Slowly counter-rotating mystical rings)
+  if (!downed) {
+    const ringAngle = timeSec * 0.9;
     ctx.save();
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = strokeColor;
+    ctx.translate(-7, 0);
 
-    // 1. Celestial astrolabe halo ring suspended behind the starship
-    ctx.strokeStyle = downed ? 'rgba(255,97,126,0.45)' : 'rgba(182,154,255,0.6)';
-    ctx.lineWidth = 1.8;
+    // Outer astrolabe ring with celestial tick marks
+    ctx.strokeStyle = 'rgba(182, 154, 255, 0.45)';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.arc(-8, 0, 19, -Math.PI * 0.72, Math.PI * 0.72);
+    ctx.arc(0, 0, 22, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Celestial orbit motes
-    ctx.fillStyle = downed ? '#ff617e' : '#e4d8ff';
-    ctx.shadowColor = '#e4d8ff';
-    ctx.beginPath();
-    ctx.arc(-18, -13, 2.2, 0, Math.PI * 2);
-    ctx.arc(-18, 13, 2.2, 0, Math.PI * 2);
-    ctx.arc(-26, 0, 2.5, 0, Math.PI * 2);
-    ctx.fill();
+    // 4 orbital tick markers on outer ring
+    for (let i = 0; i < 4; i++) {
+      const a = ringAngle + (i * Math.PI / 2);
+      const rx = Math.cos(a) * 22;
+      const ry = Math.sin(a) * 22;
+      ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#c4b5fd';
+      ctx.beginPath();
+      ctx.arc(rx, ry, i % 2 === 0 ? 1.8 : 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // 2. Main star-shuttle crystalline hull
-    ctx.fillStyle = '#110a26';
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = 2.2;
-    ctx.shadowColor = strokeColor;
+    // Inner counter-rotating astrolabe ring
+    ctx.strokeStyle = 'rgba(216, 180, 254, 0.55)';
+    ctx.lineWidth = 1.0;
     ctx.beginPath();
-    ctx.moveTo(27, 0);              // Slender astral spearhead
-    ctx.lineTo(8, -6);
-    ctx.lineTo(-4, -13);
-    ctx.lineTo(-18, -23);           // Swept ethereal wing left
-    ctx.lineTo(-14, -7);
-    ctx.lineTo(-17, 0);             // Tail cusp
-    ctx.lineTo(-14, 7);
-    ctx.lineTo(-18, 23);            // Swept ethereal wing right
-    ctx.lineTo(-4, 13);
-    ctx.lineTo(8, 6);
-    ctx.closePath();
-    ctx.fill();
+    ctx.arc(0, 0, 15, -ringAngle * 1.3, -ringAngle * 1.3 + Math.PI * 1.6);
     ctx.stroke();
 
-    // 3. Sacred geometric prism rune inlays
-    ctx.lineWidth = 1.2;
-    ctx.strokeStyle = downed ? 'rgba(255,97,126,0.6)' : '#d5c4ff';
+    // Orbiting celestial star motes
+    const moteA = -ringAngle * 1.4;
+    ctx.fillStyle = '#f5f3ff';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#d8b4fe';
     ctx.beginPath();
-    ctx.moveTo(17, 0);
-    ctx.lineTo(2, -5);
-    ctx.lineTo(-10, 0);
-    ctx.lineTo(2, 5);
-    ctx.closePath();
-    ctx.stroke();
-
-    // 4. Central celestial singularity core
-    ctx.beginPath();
-    ctx.arc(3, 0, 6, 0, Math.PI * 2);
-    ctx.fillStyle = downed ? '#ff617e' : '#cbbaff';
-    ctx.shadowBlur = 16;
-    ctx.shadowColor = '#d9b3ff';
+    ctx.arc(Math.cos(moteA) * 15, Math.sin(moteA) * 15, 2.0, 0, Math.PI * 2);
     ctx.fill();
-
-    // Radiant core inner focus
-    ctx.beginPath();
-    ctx.arc(3, 0, 2.8, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-
-    // 5. Stardust slipstream comet tails (ethereal propulsion)
-    const drift = downed ? 4 : (9 + Math.random() * 7);
-    ctx.strokeStyle = downed ? '#ff617e' : 'rgba(182,154,255,0.85)';
-    ctx.lineWidth = 2.0;
-    ctx.shadowColor = '#b69aff';
-    ctx.beginPath();
-    ctx.moveTo(-16, -4);
-    ctx.lineTo(-16 - drift * 0.9, -6);
-    ctx.moveTo(-17, 0);
-    ctx.lineTo(-17 - drift * 1.3, 0);
-    ctx.moveTo(-16, 4);
-    ctx.lineTo(-16 - drift * 0.9, 6);
-    ctx.stroke();
 
     ctx.restore();
-  });
+  } else {
+    // Fractured dull ring when downed
+    ctx.strokeStyle = 'rgba(255, 97, 126, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(-7, 0, 20, -Math.PI * 0.6, Math.PI * 0.6);
+    ctx.stroke();
+  }
+
+  // 2. Main star-shuttle crystalline hull (Layered astral armor)
+  ctx.fillStyle = downed ? '#1a0d18' : '#120b29';
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2.4;
+  ctx.shadowBlur = downed ? 8 : 16;
+  ctx.shadowColor = strokeColor;
+
+  ctx.beginPath();
+  ctx.moveTo(28, 0);              // Astral spearhead
+  ctx.lineTo(10, -6);
+  ctx.lineTo(-3, -13);
+  ctx.lineTo(-19, -24);           // Swept ethereal wing port
+  ctx.lineTo(-14, -8);
+  ctx.lineTo(-18, 0);             // Tail keel cusp
+  ctx.lineTo(-14, 8);
+  ctx.lineTo(-19, 24);            // Swept ethereal wing starboard
+  ctx.lineTo(-3, 13);
+  ctx.lineTo(10, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 3. Sacred geometric prism inlays & facet lines
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = downed ? 'rgba(255, 97, 126, 0.5)' : 'rgba(224, 204, 255, 0.85)';
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = downed ? '#ff617e' : '#e0ccff';
+
+  // Central diamond facet
+  ctx.beginPath();
+  ctx.moveTo(18, 0);
+  ctx.lineTo(3, -5.5);
+  ctx.lineTo(-10, 0);
+  ctx.lineTo(3, 5.5);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Wing crystal facet ribs
+  ctx.beginPath();
+  ctx.moveTo(3, -5.5);
+  ctx.lineTo(-12, -18);
+  ctx.moveTo(3, 5.5);
+  ctx.lineTo(-12, 18);
+  ctx.stroke();
+
+  // Wingtip focus crystals
+  ctx.fillStyle = downed ? '#ff617e' : '#f3e8ff';
+  ctx.beginPath();
+  ctx.arc(-17, -21, 1.8, 0, Math.PI * 2);
+  ctx.arc(-17, 21, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. Central Celestial Singularity Core (Breathing radiance)
+  const pulse = downed ? 0 : Math.sin(timeSec * 5) * 0.8;
+  const coreRadius = 5.5 + pulse;
+
+  ctx.beginPath();
+  ctx.arc(3, 0, coreRadius, 0, Math.PI * 2);
+  ctx.fillStyle = downed ? '#ff617e' : '#a855f7';
+  ctx.shadowBlur = downed ? 6 : 18;
+  ctx.shadowColor = downed ? '#ff617e' : '#c084fc';
+  ctx.fill();
+
+  // Radiant core inner focus
+  ctx.beginPath();
+  ctx.arc(3, 0, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  // 5. Stardust Slipstream Comet Exhausts (Multi-tier ethereal propulsion)
+  const drift = downed ? 4 : (11 + Math.random() * 8);
+  const thrusterGlow = downed ? '#ff617e' : '#c084fc';
+
+  // Primary celestial plasma comet tail
+  ctx.strokeStyle = downed ? '#ff617e' : 'rgba(192, 132, 252, 0.9)';
+  ctx.lineWidth = 2.2;
+  ctx.shadowColor = thrusterGlow;
+  ctx.shadowBlur = 14;
+
+  ctx.beginPath();
+  ctx.moveTo(-17, -4);
+  ctx.lineTo(-17 - drift * 0.9, -6);
+  ctx.moveTo(-18, 0);
+  ctx.lineTo(-18 - drift * 1.4, 0);
+  ctx.moveTo(-17, 4);
+  ctx.lineTo(-17 - drift * 0.9, 6);
+  ctx.stroke();
+
+  // Inner white starlight plume core
+  if (!downed) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(-18, 0);
+    ctx.lineTo(-18 - drift * 0.8, 0);
+    ctx.stroke();
+
+    // Drifting stardust sparkles behind ship
+    const sparkOffset = (now * 0.05) % 12;
+    ctx.fillStyle = 'rgba(233, 213, 255, 0.85)';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-22 - sparkOffset, -3 + Math.sin(timeSec * 8) * 2, 1.2, 0, Math.PI * 2);
+    ctx.arc(-26 - sparkOffset * 0.7, 3 + Math.cos(timeSec * 7) * 2, 1.0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+});
 
 // Source: ships/astra/abilities.js
 /* ASTRA / 星织·织界术师 — host-authoritative abilities and transient warp FX.
@@ -115,7 +200,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   const BASE = Object.freeze({
     initialMana: 60, maxMana: 100, naturalRegen: 2,
     maxHitRegenPerSecond: 12, hitRegenInterval: 1.5,
-    meteorCost: 50, meteorCooldown: 10, meteorDamage: 110,
+    meteorCost: 22, meteorCooldown: 3.2, meteorDamage: 48,
     meteorRadius: 125, meteorMaxTargets: 12,
     wardCost: 60, wardCooldown: 16, wardDuration: 5,
     wardRadius: 160, wardReduction: .25,
@@ -160,12 +245,12 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   // Every upgrade has rank-specific text for the five-card picker, help panel
   // and accessibility labels; rarity/maximum levels are defined by UNIQUE.
   const CARD_COPY = Object.freeze({
-    star_weave: ['◇','星梭射击命中后布置星锚，连线切割敌潮',
-      ['发射星梭，最多2个星锚，节点间造成连线伤害',
-       '星梭射速提高，连线伤害+25%',
-       '最多3个星锚，组成完整三角星网',
-       '延长星锚持续时间，扩大星网命中宽度',
-       '星网收束：每6秒触发一次范围坍缩爆发']],
+    star_weave: ['◇','星梭发射自动追踪飞弹，命中后布置星锚连线切割敌潮',
+      ['发射追踪星梭飞弹，命中部署星锚并连线切割敌潮',
+       '星梭升级为双发追踪弹，连线伤害+25%',
+       '星梭升级为3发多目标追踪弹，组成完整三角星网',
+       '星梭升级为4发多目标追踪弹，延长星锚留存并扩大星网宽度',
+       '终极织阵：5发多目标追踪弹群攻，每6秒触发一次范围坍缩爆发']],
     star_fragments: ['✦','标记敌群，短暂延迟后召唤定点星陨',
       ['锁定后召唤星陨碎片','提高星陨伤害与爆炸范围',
        '缩短星陨部署周期','提升星陨标记覆盖率','大范围陨落轰击']],
@@ -308,6 +393,24 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     }
     s.wardRemaining = Math.max(0, s.wardRemaining - dt);
     if (s.wardRemaining <= 0) s.wardHarmonyBonus = 0;
+    else if (Array.isArray(game?.enemies)) {
+      // Continuous slow & bullet dissolve inside active ward
+      const wardRadius = BASE.wardRadius * m.areaFactor;
+      for (const e of game.enemies) {
+        if (e && !e.dead && e.hp > 0 && Math.hypot(e.x - s.wardX, e.y - s.wardY) <= wardRadius) {
+          e.freezeTimer = Math.max(e.freezeTimer || 0, 0.35);
+        }
+      }
+      if (Array.isArray(game?.enemyBullets)) {
+        for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
+          const eb = game.enemyBullets[b];
+          if (Math.hypot(eb.x - s.wardX, eb.y - s.wardY) <= wardRadius) {
+            game.enemyBullets.splice(b, 1);
+          }
+        }
+      }
+    }
+    s.kiteSpeedTimer = Math.max(0, (s.kiteSpeedTimer || 0) - dt);
     s.phaseVeilRemaining = Math.max(0, s.phaseVeilRemaining - dt);
     if (s.blinkFx) {
       s.blinkFx.life -= dt;
@@ -340,8 +443,12 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         const d = Math.hypot(e.x - pilot.x, e.y - pilot.y);
         if (d < nearest) { focus = e; nearest = d; }
       }
-      if (!focus) return false; // Do not spend mana on an empty battlefield.
-      s.mana -= cost; // Hit-driven energy must not be lost against a full pre-cast bar.
+      if (!focus) {
+        // If no enemy is in close range, bombard along aim direction so the spell is responsive
+        const aim = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : 0;
+        focus = { x: pilot.x + Math.cos(aim) * 320, y: pilot.y + Math.sin(aim) * 320, radius: 12 };
+      }
+      s.mana -= cost;
       const targets = enemies.filter(e => within(e, focus, BASE.meteorRadius * m.areaFactor))
         .sort((a, b) => Math.hypot(a.x - focus.x, a.y - focus.y) -
           Math.hypot(b.x - focus.x, b.y - focus.y))
@@ -351,6 +458,8 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
           m.dangerBonus * (1 + harmonyBonus),
           'astra_meteor', false, pilot);
         regenOnHit(pilot, enemy, game.survivalTime || 0);
+        // Stun enemies hit by meteor
+        enemy.stunnedUntil = Math.max(enemy.stunnedUntil || 0, (game.survivalTime || 0) + 1.2);
       }
       window.NeonAstraVisual?.emit(pilot,'burst',focus,null,
         BASE.meteorRadius * m.areaFactor,.6);
@@ -364,6 +473,16 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       s.wardX = pilot.x;
       s.wardY = pilot.y;
       s.wardHarmonyBonus = alternating ? m.harmony * .012 : 0;
+      // Dissolve all enemy bullets within ward radius on cast
+      if (Array.isArray(game?.enemyBullets)) {
+        const wardRadius = BASE.wardRadius * m.areaFactor;
+        for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
+          const eb = game.enemyBullets[b];
+          if (Math.hypot(eb.x - pilot.x, eb.y - pilot.y) <= wardRadius) {
+            game.enemyBullets.splice(b, 1);
+          }
+        }
+      }
       window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,
         BASE.wardRadius * m.areaFactor,.8);
     }
@@ -388,6 +507,18 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       }
     }
     return 0; // Wards do not stack with one another.
+  }
+  function wardDamageBonus(game, target) {
+    if (!target || target.dead || target.hp <= 0) return 1.0;
+    for (const pilot of pilots(game)) {
+      if (pilot?.shipId !== 'astra' || pilot.hp <= 0 || pilot.downed ||
+          !pilot.astra || pilot.astra.wardRemaining <= 0) continue;
+      const radius = BASE.wardRadius * modifiers(pilot).areaFactor;
+      if (within({ x: pilot.astra.wardX, y: pilot.astra.wardY }, target, radius)) {
+        return 1.40; // Enemies within celestial ward take +40% extra damage!
+      }
+    }
+    return 1.0;
   }
   // Blink shield is strictly self-only. Periodic TEAM shields are supplied
   // exclusively by the link resonance system, not by flash upgrades.
@@ -454,28 +585,97 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         radius: 8, maxRadius: 65, alpha: .8, color: '#b38dff' });
     }
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, BASE.blinkInvulnerability);
+    s.kiteSpeedTimer = 2.0;
     foldShield(pilot, game, timeSeconds);
     window.NeonAstraArsenal?.onBlink(pilot, game, timeSeconds);
     return true;
   }
   function renderWard(ctx, pilot) {
     const s = pilot?.astra;
-    if (!s || s.wardRemaining <= 0) return;
+    if (!s || s.wardRemaining <= 0 || !ctx) return;
     const radius = BASE.wardRadius * modifiers(pilot).areaFactor;
+    const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const timeSec = now * 0.001;
+
     ctx.save();
+    ctx.translate(s.wardX, s.wardY);
+
+    // 1. Translucent Cosmic Nebula Dome
+    const pulse = Math.sin(timeSec * 3) * 0.03;
     ctx.beginPath();
-    ctx.arc(s.wardX, s.wardY, radius, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(155, 111, 239, .07)';
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(155, 111, 239, ${0.11 + pulse})`;
     ctx.fill();
-    ctx.setLineDash([9, 7]);
-    ctx.strokeStyle = 'rgba(177, 133, 248, .72)';
-    ctx.lineWidth = 2;
+
+    // 2. Outer Radiant Runic Barrier Ring
+    ctx.strokeStyle = 'rgba(192, 132, 252, 0.85)';
+    ctx.lineWidth = 2.5;
+    ctx.shadowBlur = 16;
+    ctx.shadowColor = '#c084fc';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.stroke();
+
+    // 3. Rotating Celestial Dial Tick Marks (12 outer astronomical notches)
+    const dialAngle = timeSec * 0.35;
+    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = '#e9d5ff';
+    for (let i = 0; i < 12; i++) {
+      const a = dialAngle + (i * Math.PI / 6);
+      const isMajor = i % 3 === 0;
+      const len = isMajor ? 8 : 4;
+      const x1 = Math.cos(a) * (radius - len);
+      const y1 = Math.sin(a) * (radius - len);
+      const x2 = Math.cos(a) * (radius + (isMajor ? 3 : 0));
+      const y2 = Math.sin(a) * (radius + (isMajor ? 3 : 0));
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // 4. Inner Counter-Rotating Hexagonal Sacred Geometry Ring
+    ctx.save();
+    ctx.rotate(-dialAngle * 0.8);
+    const innerR = radius * 0.65;
+    ctx.strokeStyle = 'rgba(216, 180, 254, 0.4)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI / 3);
+      const hx = Math.cos(a) * innerR;
+      const hy = Math.sin(a) * innerR;
+      if (i === 0) ctx.moveTo(hx, hy);
+      else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Hexagonal node crystal stars
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI / 3);
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * innerR, Math.sin(a) * innerR, 2.0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 5. Ambient Stardust Motes floating within ward boundary
+    ctx.fillStyle = 'rgba(245, 243, 255, 0.7)';
+    for (let i = 0; i < 4; i++) {
+      const moteAngle = timeSec * (0.6 + i * 0.2) + i * 1.57;
+      const moteDist = radius * (0.25 + (i * 0.18));
+      ctx.beginPath();
+      ctx.arc(Math.cos(moteAngle) * moteDist, Math.sin(moteAngle) * moteDist, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
   window.NeonAstra = Object.freeze({
     BASE, SPELLS, catalog, createState, state, regenOnHit,
-    tick, cast, wardReduction, foldShield, tickShields, incomingDamage, blink, renderWard
+    tick, cast, wardReduction, wardDamageBonus, foldShield, tickShields, incomingDamage, blink, renderWard
   });
 })();
 
@@ -491,9 +691,10 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   const FIRE_RANGE = 650;
   const LINK_INTERVAL = .5;
   const BURST_COOLDOWN = 6;
+  const MAX_MISSILES = 24;
 
   function createState() {
-    return { anchors: [], fireElapsed: 0, linkElapsed: 0,
+    return { anchors: [], missiles: [], fireElapsed: 0, linkElapsed: 0,
       nextBurstAt: 0, serial: 0 };
   }
   function state(pilot) {
@@ -510,6 +711,18 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       if (d2 < bestSquare) { best = e; bestSquare = d2; }
     }
     return best;
+  }
+  function findTargets(enemies, pilot, count = 1) {
+    const list = [];
+    const maxSq = FIRE_RANGE * FIRE_RANGE;
+    for (const e of enemies) {
+      if (!e || e.dead || e.hp <= 0) continue;
+      const dx = e.x - pilot.x, dy = e.y - pilot.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 <= maxSq) list.push({ e, d2 });
+    }
+    list.sort((a, b) => a.d2 - b.d2);
+    return list.slice(0, count).map(item => item.e);
   }
   function segmentDistanceSq(x, y, a, b) {
     const dx = b.x - a.x, dy = b.y - a.y;
@@ -549,19 +762,106 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     s.fireElapsed += dt;
     if (s.fireElapsed >= interval) {
       s.fireElapsed = Math.min(s.fireElapsed - interval, interval);
-      const target = closest(enemies, pilot);
-      if (target) {
-        applyDamage(game, pilot, target, 28, 'astra_weave_bolt', true);
-        // The signature weapon must activate the class's marked-target passive
-        // without requiring a second specific weapon (star_fragments).
-        if ((pilot.passives?.star_mark_hunt || 0) > 0)
-          window.NeonAstraArsenal?.markEnemy(pilot,target,(game.survivalTime||0)+3);
-        const angle = s.serial++ * 2.3999632;
-        const newAnchor = { x: target.x + Math.cos(angle) * 25,
-          y: target.y + Math.sin(angle) * 25, life: level >= 4 ? 5 : 4 };
-        const maxAnchors = level >= 3 ? 3 : 2;
-        if (s.anchors.length >= maxAnchors) s.anchors.shift();
-        s.anchors.push(newAnchor);
+      // Homing projectiles count scales with level:
+      // Lv1: 1 homing missile (single target tracking)
+      // Lv2: 2 homing missiles (can track 2 distinct targets)
+      // Lv3: 3 homing missiles (multi-target swarm)
+      // Lv4: 4 homing missiles (high barrage density)
+      // Lv5: 5 homing missiles (barrage cluster swarm)
+      const missileCount = Math.min(5, Math.max(1, level));
+      const targets = findTargets(enemies, pilot, missileCount);
+      if (targets.length > 0) {
+        s.missiles ||= [];
+        const baseAngle = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : 0;
+        for (let i = 0; i < missileCount; i++) {
+          if (s.missiles.length >= MAX_MISSILES) s.missiles.shift();
+          const target = targets[i % targets.length];
+          const spread = missileCount > 1 ? (i - (missileCount - 1) / 2) * 0.35 : 0;
+          const launchAngle = baseAngle + spread;
+          const launchSpeed = 480;
+          s.missiles.push({
+            x: pilot.x,
+            y: pilot.y,
+            vx: Math.cos(launchAngle) * launchSpeed,
+            vy: Math.sin(launchAngle) * launchSpeed,
+            target,
+            damage: 28,
+            life: 2.2,
+            deployAnchor: i === 0 || i >= missileCount - 1,
+            trail: [{ x: pilot.x, y: pilot.y }]
+          });
+        }
+      }
+    }
+
+    // Update active homing missiles with sub-stepping for smooth physics & collision accuracy
+    if (s.missiles?.length) {
+      let remainingDt = dt;
+      const step = Math.min(0.032, dt);
+      while (remainingDt > 0) {
+        const subDt = Math.min(step, remainingDt);
+        remainingDt -= subDt;
+
+        for (let i = s.missiles.length - 1; i >= 0; i--) {
+          const m = s.missiles[i];
+          m.life -= subDt;
+          if (m.life <= 0) {
+            s.missiles.splice(i, 1);
+            continue;
+          }
+
+          // Target retargeting if current target died
+          if (!m.target || m.target.dead || m.target.hp <= 0) {
+            m.target = closest(enemies, m);
+          }
+
+          if (m.target && !m.target.dead && m.target.hp > 0) {
+            const dx = m.target.x - m.x;
+            const dy = m.target.y - m.y;
+            const dist = Math.hypot(dx, dy);
+            const speed = Math.hypot(m.vx, m.vy);
+            const hitR = (m.target.radius || 12) + 16;
+
+            if (dist <= hitR || dist <= speed * subDt) {
+              // Impact hit
+              applyDamage(game, pilot, m.target, m.damage, 'astra_weave_bolt', true);
+              if ((pilot.passives?.star_mark_hunt || 0) > 0) {
+                window.NeonAstraArsenal?.markEnemy(pilot, m.target, (game.survivalTime || 0) + 3);
+              }
+
+              // Deploy anchor on impact point
+              if (m.deployAnchor) {
+                const angle = s.serial++ * 2.3999632;
+                const newAnchor = {
+                  x: m.target.x + Math.cos(angle) * 25,
+                  y: m.target.y + Math.sin(angle) * 25,
+                  life: level >= 4 ? 5 : 4
+                };
+                const maxAnchors = level >= 3 ? 3 : 2;
+                if (s.anchors.length >= maxAnchors) s.anchors.shift();
+                s.anchors.push(newAnchor);
+              }
+
+              s.missiles.splice(i, 1);
+              continue;
+            }
+
+            // Homing curve towards target
+            const maxSpeed = 740;
+            const targetVx = (dx / dist) * maxSpeed;
+            const targetVy = (dy / dist) * maxSpeed;
+            const steer = Math.min(1, 15 * subDt);
+            m.vx += (targetVx - m.vx) * steer;
+            m.vy += (targetVy - m.vy) * steer;
+          }
+
+          m.x += m.vx * subDt;
+          m.y += m.vy * subDt;
+
+          m.trail ||= [];
+          m.trail.unshift({ x: m.x, y: m.y });
+          if (m.trail.length > 7) m.trail.pop();
+        }
       }
     }
     s.linkElapsed += dt;
@@ -603,19 +903,160 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   }
   function render(ctx, pilot) {
     const s = pilot?.starWeave;
-    if (!s?.anchors?.length) return;
+    if (!s?.anchors?.length || !ctx) return;
+    const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const timeSec = now * 0.001;
+    const pairs = linkedPairs(s.anchors);
+
     ctx.save();
-    ctx.strokeStyle = '#a778ff';
-    ctx.lineWidth = 3;
-    ctx.globalAlpha = .7;
-    for (const [a, b] of linkedPairs(s.anchors)) {
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    }
-    for (const anchor of s.anchors) {
+
+    // 1. Constellation Enclosed Nebula Field (when 3 nodes form a celestial triangle)
+    if (s.anchors.length >= 3) {
       ctx.beginPath();
-      ctx.arc(anchor.x, anchor.y, 7, 0, Math.PI * 2);
-      ctx.fillStyle = '#d2afff'; ctx.fill();
+      ctx.moveTo(s.anchors[0].x, s.anchors[0].y);
+      ctx.lineTo(s.anchors[1].x, s.anchors[1].y);
+      ctx.lineTo(s.anchors[2].x, s.anchors[2].y);
+      ctx.closePath();
+      const triAlpha = 0.08 + Math.sin(timeSec * 4) * 0.04;
+      ctx.fillStyle = `rgba(168, 85, 247, ${triAlpha})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(192, 132, 252, ${triAlpha * 2})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
+
+    // 2. Multi-tier Celestial Resonance Beams
+    for (const [a, b] of pairs) {
+      // Outer ethereal glow
+      ctx.strokeStyle = 'rgba(167, 120, 255, 0.4)';
+      ctx.lineWidth = 6;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#c084fc';
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+
+      // Core concentrated starlight laser beam
+      ctx.strokeStyle = '#e9d5ff';
+      ctx.lineWidth = 2.2;
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+
+      // Travelling starlight energy packets along the beam
+      const travel = (timeSec * 1.5) % 1;
+      const px = a.x + (b.x - a.x) * travel;
+      const py = a.y + (b.y - a.y) * travel;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 3. Four-point Celestial Star Crystal Anchor Nodes
+    for (const anchor of s.anchors) {
+      ctx.save();
+      ctx.translate(anchor.x, anchor.y);
+      const nodePulse = Math.sin(timeSec * 6 + anchor.x) * 1.5;
+      const rot = timeSec * 1.8;
+
+      // Pulsing aura ring
+      ctx.strokeStyle = 'rgba(192, 132, 252, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#c084fc';
+      ctx.beginPath();
+      ctx.arc(0, 0, 9 + nodePulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Rotating four-pointed starlight crystal
+      ctx.rotate(rot);
+      ctx.fillStyle = '#f3e8ff';
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = '#d8b4fe';
+      ctx.beginPath();
+      ctx.moveTo(0, -7.5);
+      ctx.lineTo(2.2, -2.2);
+      ctx.lineTo(7.5, 0);
+      ctx.lineTo(2.2, 2.2);
+      ctx.lineTo(0, 7.5);
+      ctx.lineTo(-2.2, 2.2);
+      ctx.lineTo(-7.5, 0);
+      ctx.lineTo(-2.2, -2.2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Brilliant core center
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, 0, 2.0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // 4. Homing Starlight Needles / Missiles (Astral Tracking Darts)
+    if (s.missiles?.length) {
+      for (const m of s.missiles) {
+        ctx.save();
+
+        // Starlight trail ribbon
+        if (m.trail?.length > 1) {
+          ctx.strokeStyle = 'rgba(192, 132, 252, 0.45)';
+          ctx.lineWidth = 3.5;
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#c084fc';
+          ctx.beginPath();
+          ctx.moveTo(m.trail[0].x, m.trail[0].y);
+          for (let i = 1; i < m.trail.length; i++) {
+            ctx.lineTo(m.trail[i].x, m.trail[i].y);
+          }
+          ctx.stroke();
+
+          // Inner white starlight filament
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(m.trail[0].x, m.trail[0].y);
+          for (let i = 1; i < m.trail.length; i++) {
+            ctx.lineTo(m.trail[i].x, m.trail[i].y);
+          }
+          ctx.stroke();
+        }
+
+        // Missile arrowhead
+        ctx.translate(m.x, m.y);
+        const heading = Math.atan2(m.vy, m.vx);
+        ctx.rotate(heading);
+
+        // Radiant core glow
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = '#c084fc';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Astral needle point
+        ctx.fillStyle = '#f3e8ff';
+        ctx.beginPath();
+        ctx.moveTo(9, 0);
+        ctx.lineTo(-4, -2.8);
+        ctx.lineTo(-2, 0);
+        ctx.lineTo(-4, 2.8);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
     ctx.restore();
   }
   window.NeonAstraWeave = Object.freeze({
@@ -1039,26 +1480,56 @@ const NeonAstraVisual = (() => {
 window.NeonAstraVisual=NeonAstraVisual;
 function drawAstraBlink(ctx, fx) {
   if (!fx || !ctx || !(fx.life > 0)) return;
-  const fade = Math.min(1, fx.life / Math.max(.01,fx.maxLife || .32));
+  const fade = Math.min(1, fx.life / Math.max(.01, fx.maxLife || .32));
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.lineCap = 'round';
-  ctx.strokeStyle = '#a783ff';
-  ctx.lineWidth = 17 * fade + 2;
-  ctx.shadowColor = '#9a7aff';
-  ctx.shadowBlur = 15;
+
+  // 1. Wide ethereal astral fracture beam
+  ctx.strokeStyle = 'rgba(167, 131, 255, 0.4)';
+  ctx.lineWidth = 22 * fade + 4;
+  ctx.shadowColor = '#c084fc';
+  ctx.shadowBlur = 18;
   ctx.beginPath();
-  ctx.moveTo(fx.x1,fx.y1);
-  ctx.lineTo(fx.x2,fx.y2);
+  ctx.moveTo(fx.x1, fx.y1);
+  ctx.lineTo(fx.x2, fx.y2);
   ctx.stroke();
-  ctx.strokeStyle = '#e8f9ff';
-  ctx.lineWidth = 3;
+
+  // 2. High-intensity prismatic core beam
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3.5 * fade + 1;
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(fx.x1, fx.y1);
+  ctx.lineTo(fx.x2, fx.y2);
   ctx.stroke();
-  for(const [x,y] of [[fx.x1,fx.y1],[fx.x2,fx.y2]]) {
+
+  // 3. Dimensional gateway ripple rings at origin and destination
+  for (const [x, y] of [[fx.x1, fx.y1], [fx.x2, fx.y2]]) {
+    const ringRadius = 12 + 28 * (1 - fade);
+    ctx.strokeStyle = '#d8b4fe';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 12;
     ctx.beginPath();
-    ctx.arc(x,y,10+24*(1-fade),0,Math.PI*2);
+    ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
   }
+
+  // 4. Destination starburst diamond flare
+  const flareSize = 14 * fade;
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.moveTo(fx.x2, fx.y2 - flareSize);
+  ctx.lineTo(fx.x2 + flareSize * 0.35, fx.y2);
+  ctx.lineTo(fx.x2, fx.y2 + flareSize);
+  ctx.lineTo(fx.x2 - flareSize * 0.35, fx.y2);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.restore();
 }
 window.NeonShips.registerEffects('astra', {
@@ -1145,116 +1616,159 @@ if (!window.NeonShips?.get("phantom")) { throw new Error("Ship phantom did not r
 // Source: ships/phantom/renderer.js
 /* Auto-registered ship plugin */
 window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
-    const mainColor = profile.color || '#00f0ff';
-    const downed = Boolean(fighter.downed);
-    const strokeColor = downed ? '#ff617e' : mainColor;
+  const mainColor = profile.color || '#00f0ff';
+  const downed = Boolean(fighter.downed);
+  const strokeColor = downed ? '#ff617e' : mainColor;
+  const now = typeof performance !== 'undefined' ? performance.now() : 0;
+  const timeSec = now * 0.001;
 
-    ctx.save();
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = strokeColor;
+  ctx.save();
+  ctx.shadowBlur = downed ? 10 : 20;
+  ctx.shadowColor = strokeColor;
 
-    // 1. Dual-mandible predatory stealth hull (forked needle prongs)
-    ctx.fillStyle = '#130826';
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(25, -4);             // Port forward strike fang
-    ctx.lineTo(21, 0);              // Central notch
-    ctx.lineTo(25, 4);              // Starboard forward strike fang
-    ctx.lineTo(14, 9);
-    ctx.lineTo(2, 10);
-    ctx.lineTo(-6, 23);             // Swept stealth gull wing right
-    ctx.lineTo(-14, 19);
-    ctx.lineTo(-9, 7);
-    ctx.lineTo(-16, 3);
-    ctx.lineTo(-12, 0);             // Tail keel
-    ctx.lineTo(-16, -3);
-    ctx.lineTo(-9, -7);
-    ctx.lineTo(-14, -19);
-    ctx.lineTo(-6, -23);            // Swept stealth gull wing left
-    ctx.lineTo(2, -10);
-    ctx.lineTo(14, -9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+  // 1. Dual-mandible predatory stealth hull (Forked needle prongs)
+  ctx.fillStyle = downed ? '#1a0d18' : '#0e051c';
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2.4;
 
-    // 2. Negative-space void vents (hollow energy conduits inside the wings)
-    ctx.fillStyle = downed ? 'rgba(255,97,126,0.3)' : 'rgba(0,240,255,0.25)';
-    ctx.strokeStyle = downed ? '#ff617e' : 'rgba(0,240,255,0.8)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0, -8);
-    ctx.lineTo(-8, -17);
-    ctx.lineTo(-10, -12);
-    ctx.lineTo(-5, -7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(26, -4.5);           // Port forward strike fang
+  ctx.lineTo(21, 0);              // Central notch
+  ctx.lineTo(26, 4.5);            // Starboard forward strike fang
+  ctx.lineTo(14, 9);
+  ctx.lineTo(2, 10);
+  ctx.lineTo(-6, 24);             // Swept stealth gull wing starboard
+  ctx.lineTo(-14, 20);
+  ctx.lineTo(-9, 7);
+  ctx.lineTo(-16, 3);
+  ctx.lineTo(-12, 0);             // Tail keel
+  ctx.lineTo(-16, -3);
+  ctx.lineTo(-9, -7);
+  ctx.lineTo(-14, -20);
+  ctx.lineTo(-6, -24);            // Swept stealth gull wing port
+  ctx.lineTo(2, -10);
+  ctx.lineTo(14, -9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(0, 8);
-    ctx.lineTo(-8, 17);
-    ctx.lineTo(-10, 12);
-    ctx.lineTo(-5, 7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+  // 2. Negative-space void vents (Hollow energy conduits inside wings)
+  const ventAlpha = downed ? 0.25 : (0.35 + Math.sin(timeSec * 5) * 0.15);
+  ctx.fillStyle = downed ? 'rgba(255,97,126,0.3)' : `rgba(0, 240, 255, ${ventAlpha})`;
+  ctx.strokeStyle = downed ? '#ff617e' : 'rgba(0, 240, 255, 0.85)';
+  ctx.lineWidth = 1.2;
 
-    // 3. Symbiote docking nodes (tactical clamp anchors on wings)
-    ctx.fillStyle = downed ? '#ff617e' : '#a855f7';
-    ctx.shadowColor = '#a855f7';
-    ctx.beginPath();
-    ctx.arc(-4, -13, 2.0, 0, Math.PI * 2);
-    ctx.arc(-4, 13, 2.0, 0, Math.PI * 2);
-    ctx.fill();
+  // Port void vent
+  ctx.beginPath();
+  ctx.moveTo(1, -8);
+  ctx.lineTo(-7, -18);
+  ctx.lineTo(-10, -13);
+  ctx.lineTo(-5, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-    // 4. Central ocular soul core (spectral eye)
-    ctx.beginPath();
-    ctx.arc(3, 0, 5.5, 0, Math.PI * 2);
-    ctx.fillStyle = downed ? '#ff617e' : '#a855f7';
-    ctx.shadowBlur = 16;
-    ctx.shadowColor = '#a855f7';
-    ctx.fill();
+  // Starboard void vent
+  ctx.beginPath();
+  ctx.moveTo(1, 8);
+  ctx.lineTo(-7, 18);
+  ctx.lineTo(-10, 13);
+  ctx.lineTo(-5, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-    // Vertical slit pupil ocular gleam
+  // 3. Symbiote docking nodes (Tactical bioclamps on wings)
+  ctx.fillStyle = downed ? '#ff617e' : '#a855f7';
+  ctx.shadowColor = '#a855f7';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(-4, -13, 2.2, 0, Math.PI * 2);
+  ctx.arc(-4, 13, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. Central Ocular Soul Core (Eerie spectral eye with breathing slit pupil)
+  const eyePulse = downed ? 0 : Math.sin(timeSec * 4) * 0.6;
+  ctx.beginPath();
+  ctx.arc(3, 0, 5.8 + eyePulse, 0, Math.PI * 2);
+  ctx.fillStyle = downed ? '#ff617e' : '#a855f7';
+  ctx.shadowBlur = downed ? 6 : 18;
+  ctx.shadowColor = downed ? '#ff617e' : '#c084fc';
+  ctx.fill();
+
+  // Sinister vertical slit pupil with ocular gleam
+  if (!downed) {
+    const slitWidth = 1.6 + Math.sin(timeSec * 6) * 0.4;
     ctx.fillStyle = '#00f0ff';
     ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.ellipse(3, 0, 1.8, 4.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(3, 0, slitWidth, 4.4, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 5. Twin ethereal phosphor exhaust plumes
-    const plume = downed ? 4 : (9 + Math.random() * 7);
-    ctx.fillStyle = downed ? '#ff617e' : '#00f0ff';
+    // Pupil bright pinpoint
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(3, 0, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 5. Twin Ethereal Phosphor Exhaust Plumes (Cyan plasma & violet soul flames)
+  const plume = downed ? 4 : (10 + Math.random() * 8);
+  const thrusterColor = downed ? '#ff617e' : '#00f0ff';
+  ctx.fillStyle = thrusterColor;
+  ctx.shadowColor = thrusterColor;
+  ctx.shadowBlur = 14;
+
+  // Port engine flame
+  ctx.beginPath();
+  ctx.moveTo(-13, -6);
+  ctx.lineTo(-13 - plume, -7);
+  ctx.lineTo(-10, -4);
+  ctx.closePath();
+  ctx.fill();
+
+  // Starboard engine flame
+  ctx.beginPath();
+  ctx.moveTo(-13, 6);
+  ctx.lineTo(-13 - plume, 7);
+  ctx.lineTo(-10, 4);
+  ctx.closePath();
+  ctx.fill();
+
+  // Ethereal violet soul-fire overlayer & drifting smoke sparks
+  if (!downed) {
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.75)';
+    ctx.shadowColor = '#a855f7';
+    ctx.shadowBlur = 10;
+
+    ctx.beginPath();
+    ctx.moveTo(-12, -4);
+    ctx.lineTo(-12 - plume * 0.7, -4.5);
+    ctx.lineTo(-10, -2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(-12, 4);
+    ctx.lineTo(-12 - plume * 0.7, 4.5);
+    ctx.lineTo(-10, 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Trailing spectral sparks
+    const sparkT = (now * 0.04) % 10;
+    ctx.fillStyle = '#00f0ff';
     ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 14;
-
+    ctx.shadowBlur = 6;
     ctx.beginPath();
-    ctx.moveTo(-13, -6);
-    ctx.lineTo(-13 - plume, -7);
-    ctx.lineTo(-10, -4);
-    ctx.closePath();
+    ctx.arc(-17 - sparkT, -5 + Math.sin(timeSec * 7) * 2, 1.3, 0, Math.PI * 2);
+    ctx.arc(-17 - sparkT, 5 + Math.cos(timeSec * 7) * 2, 1.3, 0, Math.PI * 2);
     ctx.fill();
+  }
 
-    ctx.beginPath();
-    ctx.moveTo(-13, 6);
-    ctx.lineTo(-13 - plume, 7);
-    ctx.lineTo(-10, 4);
-    ctx.closePath();
-    ctx.fill();
-
-    // Violet trailing sparks
-    if (!downed) {
-      ctx.fillStyle = '#a855f7';
-      ctx.shadowColor = '#a855f7';
-      ctx.beginPath();
-      ctx.arc(-17 - plume * 0.7, -4, 1.4, 0, Math.PI * 2);
-      ctx.arc(-17 - plume * 0.7, 4, 1.4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  });
+  ctx.restore();
+});
 
 // Source: ships/phantom/abilities.js
 /* PHANTOM / 幽灵·共生拟态 — headless, host-authoritative ability foundation.
@@ -1268,9 +1782,11 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     maxEctoplasm: 100,
     killEctoplasm: 3,
     passThroughEctoplasm: 4,
-    shiftDuration: 1.6,             // Retain generous 1.6s for deep maneuver immersion
-    shiftSpeedMultiplier: 1.4,
-    shiftCooldown: 7.0,
+    shiftDuration: 1.6,             // Retain base window for headless assertions
+    shiftSpeedMultiplier: 1.45,
+    shiftCooldown: 0,
+    shiftDrainPerSecond: 20,        // Drains 20 ectoplasm per second
+    shiftMinActivationEcto: 15,     // Minimum 15 ectoplasm required to enter
     baseDashCharges: 2,
     maxDashCharges: 3,
     dashRecharge: 5.5,
@@ -1315,9 +1831,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     soul_gatherer: '幽灵专属武器每次命中额外回收灵质',
     death_reversal: '本局首次致命伤害触发一次紧急重构（已消耗则不再触发）',
     dual_mind: '提高灵质系统提供的暴击概率',
-    spectral_extend: '每级延长潜行持续时间0.5秒',
+    spectral_extend: '降低幽灵形态灵质消耗速度（每级-20%消耗），大幅延长维持时间',
     soul_detonation: '提高烙印引爆范围与伤害',
-    charge_overflow: '提升可用潜行次数，最多3段',
+    charge_overflow: '灵能超蓄：提高灵质上限25点并降低化身门槛至10灵质',
     ghost_trail: '潜行期间每0.36秒产生近距离冥火伤害与特效',
     terror_shriek: '斩魂引爆后短暂恐吓周围敌群',
     dimension_door: '潜行结束时减速周围敌人',
@@ -1388,12 +1904,17 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       passiveUpgrades: {},
       lastEjectAt: -Infinity,
       slingshotBuffUntil: 0,
-      shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0
+      shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0,
+      sprintTimer: 0, sprintCooldown: 0, strikeCooldown: 0
     };
   }
 
   function state(pilot) {
-    return pilot?.shipId === 'phantom' ? (pilot.phantom ||= createState()) : null;
+    if (pilot?.shipId !== 'phantom') return null;
+    const s = (pilot.phantom ||= createState());
+    const extraMax = (s.warpUpgrades?.charge_overflow || 0) * 25;
+    s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || 0) * 8 + extraMax;
+    return s;
   }
 
   function addEctoplasm(pilot, amount) {
@@ -1425,12 +1946,20 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   function enterShift(pilot, game) {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || game?.state !== 'playing') return false;
-    if (s.dashCharges < 1 || s.shiftActive) return false;
 
-    s.dashCharges--;
+    // Toggle: if already in ghost state, exit and trigger reap explosion!
+    if (s.shiftActive) {
+      return finishShift(pilot, game, true);
+    }
+
+    const minEcto = (s.warpUpgrades?.charge_overflow || 0) > 0 ? 10 : BASE.shiftMinActivationEcto;
+    const hasEnoughEcto = s.ectoplasm >= minEcto;
+    if (!hasEnoughEcto && s.dashCharges < 1 && s.ectoplasm <= 0) return false;
+
+    if (s.dashCharges > 0) s.dashCharges--;
     s.shiftActive = true;
     const extraDuration = (s.warpUpgrades.spectral_extend || 0) * 0.5;
-    s.shiftRemaining = BASE.shiftDuration + extraDuration;
+    s.shiftRemaining = Math.max(BASE.shiftDuration + extraDuration, s.ectoplasm > 0 ? s.ectoplasm / 15 : 0);
     s.shiftTrail.length = 0;
     s.shiftTrailTimer = 0;
     s.shiftFlash = .24;
@@ -1446,10 +1975,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     return true;
   }
 
-  function markEnemy(pilot, enemy, timeSeconds) {
+  function markEnemy(pilot, enemy, timeSeconds, force = false) {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || !enemy || enemy.dead || enemy.hp <= 0) return false;
-    if (!s.shiftActive) return false;
+    if (!s.shiftActive && !force) return false;
     // Guests used to re-mark the same enemy every frame and farm unlimited
     // ectoplasm without changing position. One fresh mark earns one reward.
     if ((s.marks.get(enemy) || 0) > timeSeconds) return false;
@@ -1461,6 +1990,19 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     addEctoplasm(pilot, BASE.passThroughEctoplasm);
     window.NeonPhantomVisual?.emit(pilot,'mark',enemy,null,25,.37);
     return true;
+  }
+
+  function isMarked(pilot, enemy, timeSeconds = 0) {
+    const s = state(pilot);
+    if (!s || !enemy || !s.marks?.has(enemy)) return false;
+    const expireAt = s.marks.get(enemy);
+    return Number.isFinite(expireAt) ? expireAt > timeSeconds : true;
+  }
+
+  function markDamageBonus(pilot, enemy, timeSeconds = 0) {
+    if (!validPilot(pilot) || !isMarked(pilot, enemy, timeSeconds)) return 1.0;
+    // Branded enemies take +25% amplified damage from all of Phantom's attacks!
+    return 1.25;
   }
 
   function reap(pilot, game, force = false) {
@@ -1559,6 +2101,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   function dock(pilot, carrier) {
     if (!canDock(pilot, carrier)) return false;
     const s = state(pilot);
+    if (s.shiftActive) {
+      s.shiftActive = false;
+      s.shiftRemaining = 0;
+    }
     s.docked = true;
     s.carrier = carrier;
     s.dockElapsed = 0;
@@ -1627,6 +2173,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     }
     s.shiftFlash = Math.max(0,(s.shiftFlash || 0)-dt);
     s.reapFlash = Math.max(0,(s.reapFlash || 0)-dt);
+    s.sprintTimer = Math.max(0, (s.sprintTimer || 0) - dt);
+    s.sprintCooldown = Math.max(0, (s.sprintCooldown || 0) - dt);
+    s.strikeCooldown = Math.max(0, (s.strikeCooldown || 0) - dt);
     for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
       s.shiftTrail[i].life -= dt;
       if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i,1);
@@ -1651,8 +2200,16 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       }
     }
 
-    // Handle shift duration
+    // Handle shift duration & continuous ectoplasm drain
     if (s.shiftActive) {
+      const extendTier = s.warpUpgrades.spectral_extend || 0;
+      const drainReduction = Math.min(0.5, extendTier * 0.20);
+      const drainRate = BASE.shiftDrainPerSecond * (1 - drainReduction);
+
+      if (s.ectoplasm > 0) {
+        s.ectoplasm = Math.max(0, s.ectoplasm - dt * drainRate);
+      }
+
       if ((s.warpUpgrades.ghost_trail || 0) > 0) {
         s.ghostTrailCooldown = Math.max(0, (s.ghostTrailCooldown || 0) - dt);
         if (s.ghostTrailCooldown === 0 && (game.shockwaves?.length || 0) < 35) {
@@ -1670,7 +2227,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
         }
       }
       s.shiftRemaining -= dt;
-      if (s.shiftRemaining <= 0) {
+      if (s.shiftRemaining <= 0 || (s.ectoplasm <= 0 && s.dashCharges <= 0)) {
         finishShift(pilot, game, false);
       }
     }
@@ -1719,36 +2276,133 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       [game?.player,game?.lanCoop?.ally].filter(Boolean);
     if (!ctx || !pilots.some(pilot=>pilot?.phantom?.marks?.size)) return;
     const now = game.survivalTime || 0;
+    const realTime = typeof performance !== 'undefined' ? performance.now() * 0.001 : now;
     ctx.save();
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#a855f7';
-    ctx.fillStyle = '#a855f7';
-    ctx.strokeStyle = '#00f0ff';
-    ctx.lineWidth = 1.4;
 
     for (const pilot of pilots) for (const [enemy, expireAt] of (pilot?.phantom?.marks || new Map()).entries()) {
       if (!enemy || enemy.dead || enemy.hp <= 0 || expireAt < now) continue;
+      const timeLeft = expireAt - now;
       const x = enemy.x;
-      const y = enemy.y - (enemy.radius || 14) - 10;
+      const hoverY = Math.sin(realTime * 6 + x) * 2.5;
+      const y = enemy.y - (enemy.radius || 14) - 13 + hoverY;
 
-      // Floating ethereal diamond mark
+      // 1. Eerie Vertical Soul Mist Tether (ascending from enemy to seal)
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(x, y - 5);
-      ctx.lineTo(x + 4, y);
-      ctx.lineTo(x, y + 5);
-      ctx.lineTo(x - 4, y);
+      ctx.moveTo(x, enemy.y - (enemy.radius || 14));
+      ctx.lineTo(x, y + 7);
+      ctx.stroke();
+
+      // 2. Outer Pulsating Soul Seal Halo
+      const pulse = Math.sin(realTime * 8) * 1.5;
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = '#c084fc';
+      ctx.strokeStyle = timeLeft < 1.0 ? '#ff4081' : '#00f0ff';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(x, y, 9 + pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 3. Floating Ethereal Soul Brand Diamond Crest
+      ctx.fillStyle = '#18072b';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 8);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x, y + 8);
+      ctx.lineTo(x - 6, y);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Center cyan gleam
+      // Inner soul flame diamond
+      ctx.fillStyle = timeLeft < 1.0 ? '#ff6090' : '#a855f7';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = ctx.fillStyle;
       ctx.beginPath();
-      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#00f0ff';
+      ctx.moveTo(x, y - 5);
+      ctx.lineTo(x + 3.8, y);
+      ctx.lineTo(x, y + 5);
+      ctx.lineTo(x - 3.8, y);
+      ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = '#a855f7';
+
+      // 4. Center Cyan Soul Slit Pupil
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#00f0ff';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 1.0, 2.8, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
+  }
+
+  function ghostStrike(pilot, game) {
+    if (!validPilot(pilot) || game?.state !== 'playing') return false;
+    const s = state(pilot);
+    if (!s || (s.strikeCooldown || 0) > 0) return false;
+    s.strikeCooldown = 4.5;
+
+    const now = game.survivalTime || 0;
+    const aim = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : 0;
+    const range = 300;
+    const halfWidth = 65;
+    const cos = Math.cos(aim), sin = Math.sin(aim);
+    const enemies = (game.enemies || []).filter(e => e && !e.dead && e.hp > 0);
+    let hitCount = 0;
+    const maxTargets = 10;
+
+    for (const e of enemies) {
+      if (hitCount >= maxTargets) break;
+      const dx = e.x - pilot.x, dy = e.y - pilot.y;
+      const forward = dx * cos + dy * sin;
+      if (forward < -20 || forward > range) continue;
+      const lateral = Math.abs(-dx * sin + dy * cos);
+      if (lateral > halfWidth + (e.radius || 12)) continue;
+
+      const level = pilot.level || 1;
+      const slashDamage = (26 + level * 3) * (pilot.dmgMultiplier || 1);
+      game.dealDamage(e, slashDamage, 'phantom_strike', false, pilot);
+      markEnemy(pilot, e, now + 4.5, true);
+      e.freezeTimer = Math.max(e.freezeTimer || 0, 1.6);
+      hitCount++;
+    }
+
+    addEctoplasm(pilot, 8 + Math.min(6, hitCount));
+
+    window.NeonPhantomVisual?.emit(pilot, 'beam',
+      { x: pilot.x, y: pilot.y },
+      { x: pilot.x + cos * range, y: pilot.y + sin * range },
+      halfWidth * 2, .32);
+
+    if ((game.shockwaves?.length || 0) < 40) {
+      game.shockwaves.push({
+        x: pilot.x + cos * (range * 0.45),
+        y: pilot.y + sin * (range * 0.45),
+        radius: 12, maxRadius: 85,
+        color: '#00f0ff', alpha: 0.85
+      });
+    }
+
+    return true;
+  }
+
+  function sprint(pilot, game) {
+    if (!validPilot(pilot) || game?.state !== 'playing') return false;
+    const s = state(pilot);
+    if (!s || (s.sprintCooldown || 0) > 0) return false;
+    s.sprintTimer = 3.0;
+    s.sprintCooldown = 5.0;
+    window.NeonPhantomVisual?.emit(pilot, 'burst', pilot, null, 80, .35);
+    if ((game.shockwaves?.length || 0) < 40) {
+      game.shockwaves.push({
+        x: pilot.x, y: pilot.y,
+        radius: 12, maxRadius: 100,
+        color: '#00f0ff', alpha: 0.8
+      });
+    }
+    return true;
   }
 
   // Register with V6 ship abilities & catalog if present
@@ -1770,10 +2424,14 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
             window.NeonPhantomArsenal?.tick(pilot, game, dt);
           },
           onAction(pilot, game, action) {
-            if (action?.kind === 'warp') return state(pilot)?.shiftActive ?
+            if (action?.kind === 'warp' || action === 'warp') return state(pilot)?.shiftActive ?
               finishShift(pilot,game,true) : enterShift(pilot,game);
-            if (action === 'shift') return enterShift(pilot, game);
+            if (action === 'shift') return state(pilot)?.shiftActive ?
+              finishShift(pilot,game,true) : enterShift(pilot,game);
             if (action === 'reap') return finishShift(pilot, game, true);
+            if (action === 'strike' || action === 'slash' || action === 'surge')
+              return ghostStrike(pilot, game);
+            if (action === 'sprint' || action?.kind === 'sprint') return sprint(pilot, game);
             if (action === 'dock' || action?.kind === 'dock') return dock(pilot, action.carrier);
             if (action === 'undock' || action?.kind === 'undock') return undock(pilot, game, action?.eject);
             return false;
@@ -1798,8 +2456,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
   window.NeonPhantom = Object.freeze({
     BASE, UNIQUE, catalog, state, validPilot,
-    addEctoplasm, critBonus, enterShift, finishShift, markEnemy, reap,
-    canDock, dock, undock, carrierDamageReduction, tick, renderMarks
+    addEctoplasm, critBonus, enterShift, finishShift, markEnemy, isMarked, markDamageBonus, reap,
+    canDock, dock, undock, carrierDamageReduction, tick, renderMarks, ghostStrike, sprint
   });
 })();
 
@@ -2003,48 +2661,100 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (!s?.scythes?.length || !ctx) return;
     ctx.save();
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const timeSec = now * 0.001;
+
     for (const sc of s.scythes) {
       ctx.save();
       ctx.translate(sc.x, sc.y);
       const spin = (sc.phase === 'hover') ? (now * 0.02) : (sc.angle + now * 0.012);
+
+      // 1. Ghostly Motion-Blur Slashing Arc Trails
+      const isHover = sc.phase === 'hover';
+      const trailAlpha = isHover ? 0.35 : 0.55;
+      ctx.save();
+      ctx.rotate(spin - 0.25);
+      ctx.strokeStyle = `rgba(0, 240, 255, ${trailAlpha * 0.5})`;
+      ctx.lineWidth = 4;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#00f0ff';
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 0.7);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, Math.PI, Math.PI * 1.7);
+      ctx.stroke();
+      ctx.restore();
+
       ctx.rotate(spin);
 
-      ctx.shadowBlur = 14;
+      // 2. Twin Spectral Crescent Scythe Blades
+      ctx.shadowBlur = 16;
       ctx.shadowColor = '#00f0ff';
       ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2.2;
-      ctx.fillStyle = '#180b2b';
+      ctx.lineWidth = 2.4;
+      ctx.fillStyle = '#120724';
 
-      // Twin curved scythe blades
+      // Blade 1
       ctx.beginPath();
-      ctx.arc(0, 0, 16, 0, Math.PI * 0.85);
-      ctx.lineTo(2, 2);
+      ctx.arc(0, 0, 17, 0, Math.PI * 0.88);
+      ctx.lineTo(3, 2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
+      // Blade 1 inner soul rune spine
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(0, 0, 16, Math.PI, Math.PI * 1.85);
-      ctx.lineTo(-2, -2);
+      ctx.arc(0, 0, 12, 0.15, Math.PI * 0.75);
+      ctx.stroke();
+
+      // Blade 2
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 17, Math.PI, Math.PI * 1.88);
+      ctx.lineTo(-3, -2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Glowing center eye
+      // Blade 2 inner soul rune spine
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.arc(0, 0, 12, Math.PI + 0.15, Math.PI * 1.75);
+      ctx.stroke();
+
+      // 3. Central Ocular Void Core
+      ctx.beginPath();
+      ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = '#a855f7';
+      ctx.shadowBlur = 12;
       ctx.shadowColor = '#a855f7';
-      ctx.shadowBlur = 10;
       ctx.fill();
 
-      // If hovering, draw expanding pulse ring
-      if (sc.phase === 'hover') {
-        const pulse = (now * 0.008) % 1;
+      // Slit pupil in center of scythe
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#00f0ff';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 1.2, 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. Hover Resonance Pulse Rings
+      if (isHover) {
+        const pulse = (now * 0.006) % 1;
         ctx.beginPath();
-        ctx.arc(0, 0, 14 + pulse * 20, 0, Math.PI * 2);
+        ctx.arc(0, 0, 15 + pulse * 24, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(168, 85, 247, ${1 - pulse})`;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 8 + pulse * 14, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 240, 255, ${0.8 * (1 - pulse)})`;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
       }
 
@@ -2257,34 +2967,85 @@ const NeonPhantomVisual = (() => {
 window.NeonPhantomVisual=NeonPhantomVisual;
 function drawPhantomShift(ctx, spectral) {
   if (!ctx || !spectral) return;
-  const trail = Array.isArray(spectral.shiftTrail) ? spectral.shiftTrail.slice(0,10) : [];
+  const trail = Array.isArray(spectral.shiftTrail) ? spectral.shiftTrail.slice(0, 10) : [];
   if (!trail.length && !(spectral.reapFlash > 0) && !(spectral.shiftFlash > 0)) return;
   ctx.save();
   ctx.lineCap = 'round';
-  for(let i=0;i<trail.length;i++) {
-    const point=trail[i];
-    if(!Number.isFinite(point.x)||!Number.isFinite(point.y))continue;
-    const fade=Math.min(1,Math.max(0,(point.life||0)/.42));
-    ctx.globalAlpha=fade*.48;
-    ctx.fillStyle=i%2?'#7e3ad5':'#00f0ff';
-    ctx.beginPath();
-    ctx.arc(point.x,point.y,7+fade*9,0,Math.PI*2);
-    ctx.fill();
-    if(i) {
-      const prev=trail[i-1];
-      ctx.strokeStyle='#b967ff';
-      ctx.lineWidth=2+fade*7;
-      ctx.beginPath();ctx.moveTo(prev.x,prev.y);ctx.lineTo(point.x,point.y);ctx.stroke();
+
+  // 1. Ghostly Silhouette Trail & Spatial Tear Ribbon
+  for (let i = 0; i < trail.length; i++) {
+    const point = trail[i];
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+    const fade = Math.min(1, Math.max(0, (point.life || 0) / .42));
+
+    // Spatial tear connecting ribbon
+    if (i > 0) {
+      const prev = trail[i - 1];
+      ctx.globalAlpha = fade * 0.45;
+      ctx.strokeStyle = i % 2 === 0 ? '#00f0ff' : '#a855f7';
+      ctx.lineWidth = 3 + fade * 8;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
     }
+
+    // Ghostly Hull Silhouette Echo on prominent trail nodes
+    if (i % 2 === 0) {
+      ctx.save();
+      ctx.translate(point.x, point.y);
+      ctx.globalAlpha = fade * 0.55;
+      ctx.fillStyle = 'rgba(19, 8, 38, 0.4)';
+      ctx.strokeStyle = i % 4 === 0 ? '#00f0ff' : '#c084fc';
+      ctx.lineWidth = 1.6;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = ctx.strokeStyle;
+
+      // Miniature chevron ghost silhouette
+      ctx.beginPath();
+      ctx.moveTo(12, 0);
+      ctx.lineTo(-8, -11);
+      ctx.lineTo(-4, 0);
+      ctx.lineTo(-8, 11);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Ethereal soul ember at trail point
+    ctx.globalAlpha = fade * 0.7;
+    ctx.fillStyle = i % 2 ? '#a855f7' : '#00f0ff';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 4 + fade * 6, 0, Math.PI * 2);
+    ctx.fill();
   }
-  const pulse=spectral.reapFlash>0?spectral.reapFlash:spectral.shiftFlash;
-  if(pulse>0&&Number.isFinite(spectral.x)&&Number.isFinite(spectral.y)) {
-    ctx.globalAlpha=Math.min(.9,pulse*3);
-    ctx.strokeStyle=spectral.reapFlash>0?'#d38aff':'#00f0ff';
-    ctx.shadowColor=ctx.strokeStyle;
-    ctx.shadowBlur=14;
-    ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(spectral.x,spectral.y,25+(1-pulse/.28)*65,0,Math.PI*2);ctx.stroke();
+
+  // 2. Void Phase Detonation / Reap Nova Shockwave
+  const pulse = spectral.reapFlash > 0 ? spectral.reapFlash : spectral.shiftFlash;
+  if (pulse > 0 && Number.isFinite(spectral.x) && Number.isFinite(spectral.y)) {
+    const isReap = spectral.reapFlash > 0;
+    ctx.globalAlpha = Math.min(0.95, pulse * 3.2);
+    ctx.strokeStyle = isReap ? '#ef88ff' : '#00f0ff';
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 18;
+    ctx.lineWidth = isReap ? 4.5 : 3.0;
+
+    const ringR = 25 + (1 - pulse / .28) * 75;
+    ctx.beginPath();
+    ctx.arc(spectral.x, spectral.y, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner secondary echo ring
+    ctx.strokeStyle = isReap ? '#ffffff' : '#a855f7';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(spectral.x, spectral.y, ringR * 0.65, 0, Math.PI * 2);
+    ctx.stroke();
   }
   ctx.restore();
 }

@@ -1123,23 +1123,27 @@
             this.triggerDash();
             e.preventDefault();
           }
-          if (!e.repeat && (this.state === 'playing' || this.state === 'lan-client') &&
-              (this.state === 'playing' ? this.player?.shipId === 'astra' :
-                this.lanCoop?.latest?.guest?.shipId === 'astra')) {
-            if (e.key.toLowerCase() === 'q') {
-              this.cycleAstraSpell();
-              e.preventDefault();
-            } else if (e.key.toLowerCase() === 'e') {
-              this.castAstraSpell();
-              e.preventDefault();
+          if (!e.repeat && (this.state === 'playing' || this.state === 'lan-client')) {
+            const shipId = this.state === 'playing' ? this.player?.shipId :
+              this.lanCoop?.latest?.guest?.shipId;
+            const key = e.key.toLowerCase();
+            if (shipId === 'astra') {
+              if (key === 'j' || key === 'q') {
+                this.castAstraWard();
+                e.preventDefault();
+              } else if (key === 'k' || key === 'e') {
+                this.castAstraMeteor();
+                e.preventDefault();
+              }
+            } else if (shipId === 'phantom') {
+              if (key === 'j' || key === 'q') {
+                this.triggerPhantomReap();
+                e.preventDefault();
+              } else if (key === 'k' || key === 'e') {
+                this.togglePhantomDock();
+                e.preventDefault();
+              }
             }
-          }
-          if (!e.repeat && e.key.toLowerCase() === 'q' &&
-              (this.state === 'playing' || this.state === 'lan-client') &&
-              (this.state === 'playing' ? this.player?.shipId :
-                this.lanCoop?.latest?.guest?.shipId) === 'phantom') {
-            this.togglePhantomDock();
-            e.preventDefault();
           }
           if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
             if (this.state === 'playing') this.pauseGame();
@@ -1954,6 +1958,20 @@
         `;
       }
 
+      notifySkillFeedback(text, color = '#00f3ff') {
+        if (this.player && Array.isArray(this.texts) && this.texts.length < 40) {
+          this.texts.push({
+            x: this.player.x,
+            y: this.player.y - 45,
+            text,
+            color,
+            size: 15,
+            life: 1.0,
+            maxLife: 1.0
+          });
+        }
+      }
+
       cycleAstraSpell() {
         if (this.state !== 'playing' && this.state !== 'lan-client') return false;
         const id = this.state === 'lan-client' ? this.lanCoop?.latest?.guest?.shipId :
@@ -1963,15 +1981,103 @@
         return true;
       }
 
-      castAstraSpell() {
+      castAstraWard() {
         if (this.state === 'lan-client') {
           if (this.settingsOpen || this.lanCoop?.latest?.guest?.downed) return false;
-          return this.lanCoop?.requestGuestSpell(this.selectedAstraSpell || 'meteor') === true;
+          return this.lanCoop?.requestGuestSpell('ward') === true;
         }
         if (this.state !== 'playing' || this.player?.shipId !== 'astra' ||
             this.settingsOpen || this.player?.downed) return false;
-        return window.NeonShips?.runAbility?.(this.player, 'onAction', this,
-          this.selectedAstraSpell || 'meteor') === true;
+        const astraState = window.NeonAstra?.state(this.player);
+        if (astraState) {
+          if (astraState.cooldowns?.ward > 0) {
+            this.notifySkillFeedback(`⏳ 结界冷却中 (${Math.ceil(astraState.cooldowns.ward)}s)`, '#f43f5e');
+            return false;
+          }
+          if (astraState.mana < 60) {
+            this.notifySkillFeedback(`⚠️ 星能不足 (需60/当前${Math.floor(astraState.mana)})`, '#c084fc');
+            try { this.sound?.playLaser?.(240, 'triangle'); } catch (_) {}
+            return false;
+          }
+        }
+        const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'ward') === true;
+        if (ok) {
+          this.notifySkillFeedback('🛡️ 天界结界已展开 (-25% 伤害)!', '#a78bfa');
+          try { this.sound?.playBeam?.(); } catch (_) {}
+        }
+        return ok;
+      }
+
+      castAstraMeteor() {
+        if (this.state === 'lan-client') {
+          if (this.settingsOpen || this.lanCoop?.latest?.guest?.downed) return false;
+          return this.lanCoop?.requestGuestSpell('meteor') === true;
+        }
+        if (this.state !== 'playing' || this.player?.shipId !== 'astra' ||
+            this.settingsOpen || this.player?.downed) return false;
+        const astraState = window.NeonAstra?.state(this.player);
+        if (astraState) {
+          if (astraState.cooldowns?.meteor > 0) {
+            this.notifySkillFeedback(`⏳ 星陨冷却中 (${astraState.cooldowns.meteor.toFixed(1)}s)`, '#f43f5e');
+            return false;
+          }
+          if (astraState.mana < 22) {
+            this.notifySkillFeedback(`⚠️ 星能不足 (需22/当前${Math.floor(astraState.mana)})`, '#c084fc');
+            try { this.sound?.playLaser?.(240, 'triangle'); } catch (_) {}
+            return false;
+          }
+        }
+        const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'meteor') === true;
+        if (ok) {
+          this.notifySkillFeedback('☄️ 苍穹星陨！(定点轰炸与击晕)', '#d8b4fe');
+          try { this.sound?.playExplosion?.('large'); } catch (_) {}
+        }
+        return ok;
+      }
+
+      castAstraSpell() {
+        if (this.selectedAstraSpell === 'ward') return this.castAstraWard();
+        return this.castAstraMeteor();
+      }
+
+      triggerPhantomStrike() {
+        if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
+            this.settingsOpen || this.player?.downed) return false;
+        const ghost = this.player.phantom;
+        if ((ghost?.strikeCooldown || 0) > 0) {
+          this.notifySkillFeedback(`⏳ 死印斩击冷却中 (${ghost.strikeCooldown.toFixed(1)}s)`, '#f43f5e');
+          return false;
+        }
+        const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'strike') === true;
+        if (ok) {
+          this.notifySkillFeedback('🗡️ 幽魂死印斩！范围减速并施加死印 (+25%易伤)', '#00f0ff');
+          try { this.sound?.playZap?.(); } catch (_) {}
+        }
+        return ok;
+      }
+
+      triggerPhantomReap() {
+        return this.triggerPhantomStrike();
+      }
+
+      triggerPhantomSprint() {
+        if (!this.player || this.player.shipId !== 'phantom' || this.state !== 'playing' ||
+            this.player.downed || this.player.hp <= 0) return false;
+        const ghost = this.player.phantom;
+        if ((ghost?.sprintCooldown || 0) > 0) {
+          this.notifySkillFeedback(`⏳ 幽影疾行冷却中 (${ghost.sprintCooldown.toFixed(1)}s)`, '#f43f5e');
+          return false;
+        }
+        const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'sprint') === true;
+        if (ok) {
+          this.notifySkillFeedback('💨 幽影疾行！移速爆发+80% (逐渐衰减)', '#00f0ff');
+          try { this.sound?.playDash?.(); } catch (_) {}
+        }
+        return ok;
+      }
+
+      triggerPhantomSurge() {
+        return this.triggerPhantomSprint();
       }
 
       togglePhantomDock() {
@@ -1983,13 +2089,22 @@
         if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
             this.player.downed || this.player.hp <= 0) return false;
         if (this.player.phantom?.docked) {
-          return window.NeonShips?.runAbility?.(this.player, 'onAction', this,
+          const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this,
             { kind:'undock', eject:true }) === true;
+          if (ok) this.notifySkillFeedback('⚡ 脱离共生挂载', '#00f0ff');
+          return ok;
         }
         const carrier = this.lanCoop?.ally;
-        if (!carrier || !this.lanCoop?.rtc?.connected) return false;
-        return window.NeonShips?.runAbility?.(this.player, 'onAction', this,
+        if (!carrier || !this.lanCoop?.rtc?.connected) {
+          // Solo mode: Trigger no-cost decaying speed boost!
+          this.triggerPhantomSprint();
+          return false;
+        }
+        const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this,
           { kind:'dock', carrier }) === true;
+        if (ok) this.notifySkillFeedback('🔗 战术共生挂载成功!', '#00f0ff');
+        else this.notifySkillFeedback('⚠️ 需靠近队友 150px 方可共生', '#f43f5e');
+        return ok;
       }
 
       getWarpDirection() {
@@ -2025,11 +2140,30 @@
         // controller neither knows its action names nor computes its damage.
         if (this.state === 'playing' && this.player?.shipId &&
             this.player.shipId !== 'riftblade') {
-          if (!this.player.downed && this.player.hp > 0 &&
-              window.NeonShips?.runAbility?.(this.player,'onAction',this,
+          if (!this.player.downed && this.player.hp > 0) {
+            const isPhantom = this.player.shipId === 'phantom';
+            const ghost = isPhantom ? window.NeonPhantom?.state(this.player) : null;
+            if (ghost && !ghost.shiftActive) {
+              const minEcto = (ghost.warpUpgrades?.charge_overflow || 0) > 0 ? 10 : 15;
+              if (ghost.dashCharges < 1 && ghost.ectoplasm < minEcto) {
+                this.notifySkillFeedback(`⚠️ 灵质不足 (需${minEcto}/当前${Math.floor(ghost.ectoplasm)})`, '#a855f7');
+                try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
+                return;
+              }
+            }
+            const wasShiftActive = isPhantom ? Boolean(ghost?.shiftActive) : false;
+            if (window.NeonShips?.runAbility?.(this.player,'onAction',this,
                 {kind:'warp',direction:this.getWarpDirection()}) === true) {
-            this.sound?.playDash?.();
-            this.lanCoop?.onHostDash();
+              if (isPhantom) {
+                if (!wasShiftActive) {
+                  this.notifySkillFeedback('👻 进入幽灵化身！(持续消耗灵质 · 穿透无敌)', '#00f0ff');
+                } else {
+                  this.notifySkillFeedback('💥 退出幽灵化身并引爆死印！', '#a855f7');
+                }
+              }
+              this.sound?.playDash?.();
+              this.lanCoop?.onHostDash();
+            }
           }
           return;
         }
@@ -2980,7 +3114,7 @@
             }
           }
         }
-        this.hudLevel.textContent = `LV ${this.player.level}`;
+        this.hudLevel.textContent = `${this.player.level} 级`;
         const hpPct = Math.max(0, Math.min(100, (this.player.hp / this.player.maxHp) * 100));
         this.hudHp.style.width = `${hpPct}%`;
         if (this.hudHp.parentElement) {
@@ -3025,15 +3159,28 @@
 
         const touchDashBtn = document.getElementById('touch-dash-btn');
         if (touchDashBtn) {
+          const dashLabel = touchDashBtn.querySelector('.dash-key-label');
           const dashCount = touchDashBtn.querySelector('.dash-key-count');
-          if (dashCount) {
-            const countText = `${charges}/${maxCharges}`;
-            if (dashCount.textContent !== countText) dashCount.textContent = countText;
+          if (this.player.shipId === 'phantom') {
+            const ghost = this.player.phantom;
+            const shiftActive = Boolean(ghost?.shiftActive);
+            const ecto = Math.floor(ghost?.ectoplasm || 0);
+            if (dashLabel) dashLabel.textContent = shiftActive ? '引爆' : '化身';
+            if (dashCount) dashCount.textContent = `${ecto}`;
+            touchDashBtn.style.setProperty('--dash-fill', `${Math.min(100, ecto)}%`);
+            touchDashBtn.classList.toggle('dash-empty', ecto < 15 && !shiftActive);
+            touchDashBtn.setAttribute('aria-label', shiftActive ? '退出化身引爆死印' : `幽灵化身：灵质${ecto}/100`);
+          } else {
+            if (dashLabel && dashLabel.textContent !== '折跃') dashLabel.textContent = '折跃';
+            if (dashCount) {
+              const countText = `${charges}/${maxCharges}`;
+              if (dashCount.textContent !== countText) dashCount.textContent = countText;
+            }
+            const fraction = Math.max(0, Math.min(1, charges / Math.max(1, maxCharges)));
+            touchDashBtn.style.setProperty('--dash-fill', `${Math.round(fraction * 100)}%`);
+            touchDashBtn.classList.toggle('dash-empty', charges === 0);
+            touchDashBtn.setAttribute('aria-label', `折跃冲刺：${charges}/${maxCharges}段可用`);
           }
-          const fraction = Math.max(0, Math.min(1, charges / Math.max(1, maxCharges)));
-          touchDashBtn.style.setProperty('--dash-fill', `${Math.round(fraction * 100)}%`);
-          touchDashBtn.classList.toggle('dash-empty', charges === 0);
-          touchDashBtn.setAttribute('aria-label', `折跃冲刺：${charges}/${maxCharges}段可用`);
         }
 
         const statTextEl = document.getElementById('dash-stat-text');
@@ -3071,6 +3218,314 @@
           this.bossHpFill.style.width = `${Math.max(0, bossPct)}%`;
         } else {
           this.bossHud.style.display = 'none';
+        }
+
+        // Update real-time tactical skills & ship status HUD
+        this.updateCombatSkillsDock();
+      }
+
+      updateCombatSkillsDock() {
+        const dock = document.getElementById('combat-hud-dock');
+        if (!dock) return;
+        const isPlaying = (this.state === 'playing') ||
+          (this.state === 'lan-client' && this.lanCoop?.latest?.phase === 'playing');
+        if (!isPlaying || this.settingsOpen) {
+          dock.style.display = 'none';
+          return;
+        }
+        dock.style.display = 'flex';
+
+        const shipId = this.state === 'lan-client' ?
+          this.lanCoop?.latest?.guest?.shipId : this.player?.shipId;
+        const skillsBar = document.getElementById('ship-skills-bar');
+        const statusText = document.getElementById('ship-status-text');
+        const statusDot = document.getElementById('ship-status-dot');
+
+        // 1. Render buttons for current ship if not already mounted
+        if (skillsBar && skillsBar.getAttribute('data-ship') !== shipId) {
+          skillsBar.setAttribute('data-ship', shipId || 'riftblade');
+          skillsBar.replaceChildren();
+
+          if (shipId === 'astra') {
+            skillsBar.innerHTML = `
+              <button type="button" class="combat-skill-btn" id="btn-skill-ward" title="天界结界 [J]：展开神圣圣域，友方减伤60%消弹，圈内敌方易伤+40%并减速">
+                <span class="skill-hotkey">J</span>
+                <span class="skill-icon">🛡️</span>
+                <span class="skill-name">天界结界</span>
+                <span class="skill-cost" id="cost-skill-ward">60星能</span>
+                <div class="skill-cd-mask" id="mask-skill-ward"></div>
+              </button>
+              <button type="button" class="combat-skill-btn" id="btn-skill-meteor" title="苍穹星陨 [K]：低能耗高频定点轰炸，范围伤害与群体击晕">
+                <span class="skill-hotkey">K</span>
+                <span class="skill-icon">☄️</span>
+                <span class="skill-name">苍穹星陨</span>
+                <span class="skill-cost" id="cost-skill-meteor">22星能</span>
+                <div class="skill-cd-mask" id="mask-skill-meteor"></div>
+              </button>
+              <button type="button" class="combat-skill-btn" id="btn-skill-blink" title="相位闪现 [空格]：超维闪现，附带落地移速爆发">
+                <span class="skill-hotkey">空格</span>
+                <span class="skill-icon">⚡</span>
+                <span class="skill-name">相位闪现</span>
+                <span class="skill-cost" id="cost-skill-blink">折跃充能</span>
+                <div class="skill-cd-mask" id="mask-skill-blink"></div>
+              </button>`;
+
+            skillsBar.querySelector('#btn-skill-ward')?.addEventListener('click', (e) => {
+              e.stopPropagation(); this.castAstraWard();
+            });
+            skillsBar.querySelector('#btn-skill-meteor')?.addEventListener('click', (e) => {
+              e.stopPropagation(); this.castAstraMeteor();
+            });
+            skillsBar.querySelector('#btn-skill-blink')?.addEventListener('click', (e) => {
+              e.stopPropagation(); this.triggerDash();
+            });
+          } else if (shipId === 'phantom') {
+            skillsBar.innerHTML = `
+              <button type="button" class="combat-skill-btn" id="btn-skill-reap" title="死印斩击 [J]：朝前方扇面释放幽能波，范围减速并施加死印（使目标承受伤害+25%）">
+                <span class="skill-hotkey">J</span>
+                <span class="skill-icon">🗡️</span>
+                <span class="skill-name">死印斩击</span>
+                <span class="skill-cost" id="cost-skill-reap">减速施印</span>
+                <div class="skill-cd-mask" id="mask-skill-reap"></div>
+              </button>
+              <button type="button" class="combat-skill-btn" id="btn-skill-dock" title="战术共生 / 幽影疾行 [K]：联机靠近队友挂载 / 单人无消耗移速爆发冲刺">
+                <span class="skill-hotkey">K</span>
+                <span class="skill-icon" id="icon-skill-dock">🔗</span>
+                <span class="skill-name" id="name-skill-dock">战术共生</span>
+                <span class="skill-cost" id="cost-skill-dock">需队友</span>
+                <div class="skill-cd-mask" id="mask-skill-dock"></div>
+              </button>
+              <button type="button" class="combat-skill-btn" id="btn-skill-shift" title="幽灵化身 / 退出引爆 [空格]：灵质驱动虚无形态，穿透无敌并在脱离时引爆死印">
+                <span class="skill-hotkey">空格</span>
+                <span class="skill-icon" id="icon-skill-shift">👻</span>
+                <span class="skill-name" id="name-skill-shift">幽灵化身</span>
+                <span class="skill-cost" id="cost-skill-shift">灵质驱动</span>
+                <div class="skill-cd-mask" id="mask-skill-shift"></div>
+              </button>`;
+
+            skillsBar.querySelector('#btn-skill-reap')?.addEventListener('click', (e) => {
+              e.stopPropagation(); this.triggerPhantomStrike();
+            });
+            skillsBar.querySelector('#btn-skill-dock')?.addEventListener('click', (e) => {
+              e.stopPropagation(); this.togglePhantomDock();
+            });
+            skillsBar.querySelector('#btn-skill-shift')?.addEventListener('click', (e) => {
+              e.stopPropagation(); this.triggerDash();
+            });
+          } else {
+            // Riftblade
+            skillsBar.innerHTML = `
+              <button type="button" class="combat-skill-btn" id="btn-skill-dash" title="折跃瞬移斩 [空格 / 右键]：超空间切割冲刺">
+                <span class="skill-hotkey">空格</span>
+                <span class="skill-icon">⚡</span>
+                <span class="skill-name">瞬影斩</span>
+                <span class="skill-cost" id="cost-skill-dash">${this.player?.dashCharges || 3}段就绪</span>
+                <div class="skill-cd-mask" id="mask-skill-dash"></div>
+              </button>`;
+            skillsBar.querySelector('#btn-skill-dash')?.addEventListener('click', (e) => {
+              e.stopPropagation(); this.triggerDash();
+            });
+          }
+        }
+
+        // 2. Real-time updates for buttons & status banner
+        if (shipId === 'astra') {
+          const astraState = window.NeonAstra?.state(this.player);
+          const wardRemaining = astraState?.wardRemaining || 0;
+          const wardCd = astraState?.cooldowns?.ward || 0;
+          const meteorCd = astraState?.cooldowns?.meteor || 0;
+          const mana = Math.floor(astraState?.mana || 0);
+
+          const wardBtn = document.getElementById('btn-skill-ward');
+          const wardMask = document.getElementById('mask-skill-ward');
+          if (wardBtn && wardMask) {
+            if (wardRemaining > 0) {
+              wardBtn.classList.add('active-state');
+              wardMask.style.height = '100%';
+              wardMask.style.background = 'rgba(168, 85, 247, 0.45)';
+              wardMask.textContent = wardRemaining.toFixed(1) + 's';
+            } else if (wardCd > 0) {
+              wardBtn.classList.remove('active-state');
+              wardMask.style.height = `${Math.min(100, (wardCd / 16) * 100)}%`;
+              wardMask.style.background = 'rgba(0, 0, 0, 0.76)';
+              wardMask.textContent = Math.ceil(wardCd) + 's';
+            } else {
+              wardBtn.classList.remove('active-state');
+              wardMask.style.height = '0%';
+              wardMask.textContent = '';
+            }
+          }
+
+          const meteorBtn = document.getElementById('btn-skill-meteor');
+          const meteorMask = document.getElementById('mask-skill-meteor');
+          if (meteorBtn && meteorMask) {
+            if (meteorCd > 0) {
+              meteorMask.style.height = `${Math.min(100, (meteorCd / 3.2) * 100)}%`;
+              meteorMask.textContent = meteorCd.toFixed(1) + 's';
+            } else {
+              meteorMask.style.height = '0%';
+              meteorMask.textContent = '';
+            }
+          }
+
+          if (statusText) {
+            if (wardRemaining > 0) {
+              if (statusDot) statusDot.style.background = '#c084fc';
+              statusText.textContent = `🛡️ 天界圣域运转中 · 友方减伤60%消弹 · 敌方易伤+40%减速 (剩余 ${wardRemaining.toFixed(1)}s)`;
+            } else if (mana >= 60) {
+              if (statusDot) statusDot.style.background = '#00f3ff';
+              statusText.textContent = `🔮 星能充盈 (${mana}/100) · [J]结界 / [K]星陨已就绪`;
+            } else if (mana >= 22) {
+              if (statusDot) statusDot.style.background = '#38bdf8';
+              statusText.textContent = `🔮 星能充沛 (${mana}/100) · [K]星陨轰炸已就绪 (低耗控场)`;
+            } else {
+              if (statusDot) statusDot.style.background = '#f59e0b';
+              statusText.textContent = `⚡ 星能回复中 (${mana}/100) · 自动追踪星梭持续集能`;
+            }
+          }
+        } else if (shipId === 'phantom') {
+          const ghostState = window.NeonPhantom?.state(this.player);
+          const marks = ghostState?.marks?.size || 0;
+          const shiftActive = Boolean(ghostState?.shiftActive);
+          const docked = Boolean(ghostState?.docked);
+          const ecto = Math.floor(ghostState?.ectoplasm || 0);
+
+          const reapCost = document.getElementById('cost-skill-reap');
+          const reapBtn = document.getElementById('btn-skill-reap');
+          const reapMask = document.getElementById('mask-skill-reap');
+          const strikeCd = ghostState?.strikeCooldown || 0;
+          if (reapCost && reapBtn) {
+            if (strikeCd > 0) {
+              reapBtn.classList.remove('active-state');
+              reapCost.textContent = '冷却中';
+              if (reapMask) {
+                reapMask.style.height = `${Math.min(100, (strikeCd / 4.5) * 100)}%`;
+                reapMask.style.background = 'rgba(0, 0, 0, 0.76)';
+                reapMask.textContent = strikeCd.toFixed(1) + 's';
+              }
+            } else {
+              reapCost.textContent = marks > 0 ? `已标记 ${marks} 敌` : '按J斩击施印';
+              if (reapMask) {
+                reapMask.style.height = '0%';
+                reapMask.textContent = '';
+              }
+            }
+          }
+
+          const dockIcon = document.getElementById('icon-skill-dock');
+          const dockName = document.getElementById('name-skill-dock');
+          const dockCost = document.getElementById('cost-skill-dock');
+          const dockBtn = document.getElementById('btn-skill-dock');
+          const dockMask = document.getElementById('mask-skill-dock');
+          if (dockName && dockCost) {
+            if (docked) {
+              dockBtn?.classList.add('active-state');
+              if (dockIcon) dockIcon.textContent = '⚡';
+              dockName.textContent = '脱离共生';
+              dockCost.textContent = '按E脱离';
+              if (dockMask) { dockMask.style.height = '0%'; dockMask.textContent = ''; }
+            } else if (this.lanCoop?.ally) {
+              dockBtn?.classList.remove('active-state');
+              if (dockIcon) dockIcon.textContent = '🔗';
+              dockName.textContent = '战术共生';
+              dockCost.textContent = '靠近队友';
+              if (dockMask) { dockMask.style.height = '0%'; dockMask.textContent = ''; }
+            } else {
+              // Solo mode: 幽影疾行 (移速爆发，逐渐衰减，无能量消耗，仅5s CD)
+              const sprint = ghostState?.sprintTimer || 0;
+              const sprintCd = ghostState?.sprintCooldown || 0;
+              if (dockIcon) dockIcon.textContent = '💨';
+              dockName.textContent = '幽影疾行';
+              if (sprint > 0) {
+                dockBtn?.classList.add('active-state');
+                dockCost.textContent = `疾速+${Math.round((sprint / 3.0) * 80)}% (${sprint.toFixed(1)}s)`;
+                if (dockMask) {
+                  dockMask.style.height = '100%';
+                  dockMask.style.background = 'rgba(0, 240, 255, 0.35)';
+                  dockMask.textContent = sprint.toFixed(1) + 's';
+                }
+              } else if (sprintCd > 0) {
+                dockBtn?.classList.remove('active-state');
+                dockCost.textContent = '冷却中';
+                if (dockMask) {
+                  dockMask.style.height = `${Math.min(100, (sprintCd / 5.0) * 100)}%`;
+                  dockMask.style.background = 'rgba(0, 0, 0, 0.76)';
+                  dockMask.textContent = sprintCd.toFixed(1) + 's';
+                }
+              } else {
+                dockBtn?.classList.remove('active-state');
+                dockCost.textContent = '按E极速 (无消耗)';
+                if (dockMask) {
+                  dockMask.style.height = '0%';
+                  dockMask.textContent = '';
+                }
+              }
+            }
+          }
+
+          const shiftIcon = document.getElementById('icon-skill-shift');
+          const shiftName = document.getElementById('name-skill-shift');
+          const shiftCost = document.getElementById('cost-skill-shift');
+          const shiftBtn = document.getElementById('btn-skill-shift');
+          const shiftMask = document.getElementById('mask-skill-shift');
+          if (shiftName && shiftCost) {
+            if (shiftActive) {
+              shiftBtn?.classList.add('active-state');
+              if (shiftIcon) shiftIcon.textContent = '💥';
+              shiftName.textContent = '退出引爆';
+              shiftCost.textContent = `剩余 ${ecto} 灵质`;
+              if (shiftMask) {
+                shiftMask.style.height = '100%';
+                shiftMask.style.background = 'rgba(0, 240, 255, 0.3)';
+                shiftMask.textContent = '消耗中';
+              }
+            } else {
+              shiftBtn?.classList.remove('active-state');
+              if (shiftIcon) shiftIcon.textContent = '👻';
+              shiftName.textContent = '幽灵化身';
+              shiftCost.textContent = ecto >= 15 ? `按空格 (${ecto}/100)` : `需15灵质 (${ecto}/100)`;
+              if (shiftMask) {
+                shiftMask.style.height = '0%';
+                shiftMask.textContent = '';
+              }
+            }
+          }
+
+          if (statusText) {
+            if (shiftActive) {
+              if (statusDot) statusDot.style.background = '#00f0ff';
+              statusText.textContent = `👻 幽灵化身激活中 · 持续消耗灵质 (${ecto}/100) · 穿透免撞 · 再次按空格/J殉爆!`;
+            } else if (docked) {
+              if (statusDot) statusDot.style.background = '#a855f7';
+              statusText.textContent = '🔗 战术共生挂载中 · 宿主后方减伤 40% · 持续输送自愈';
+            } else if (marks > 0) {
+              if (statusDot) statusDot.style.background = '#ef4444';
+              statusText.textContent = `💀 灵魂死印已锁定 ${marks} 个敌机 · 点击按J死印斩击引爆殉爆!`;
+            } else {
+              if (statusDot) statusDot.style.background = '#00f0ff';
+              const soloAction = this.lanCoop?.ally ? '[K]战术共生' : '[K]幽影疾行';
+              statusText.textContent = `⚡ 幽灵刺客就绪 · 灵质 ${ecto}/100 · [J]死印斩击 / ${soloAction} / [空格]幽灵化身`;
+            }
+          }
+        } else {
+          const combo = this.player?.dashCombo || 0;
+          const charges = this.player?.dashCharges || 0;
+          const maxCharges = this.player?.maxDashCharges || 3;
+          const costDash = document.getElementById('cost-skill-dash');
+          if (costDash) costDash.textContent = `${charges}/${maxCharges}段就绪`;
+
+          if (statusText) {
+            if (combo > 0) {
+              if (statusDot) statusDot.style.background = '#00f3ff';
+              statusText.textContent = `⚡ 精准瞬斩连击 ×${combo} · 斩击伤害 +${combo * 8}%`;
+            } else if (this.player?.hasAegis && (this.player?.invulnTimer || 0) > 0) {
+              if (statusDot) statusDot.style.background = '#38bdf8';
+              statusText.textContent = '🛡️ 时空相位无敌光环激活中';
+            } else {
+              if (statusDot) statusDot.style.background = '#00f3ff';
+              statusText.textContent = `⚔️ 虚空突击先锋 · ${charges}段折跃就绪`;
+            }
+          }
         }
       }
 
@@ -3416,6 +3871,44 @@
         }
         if (target.isBoss && target.rogueAffixes?.includes('armored')) finalDamage *= 0.83;
         finalDamage = window.NeonLanEncounters?.modifyBossDamage(this, target, finalDamage) ?? finalDamage;
+
+        // Celestial Ward amplification: enemies caught within Astra's ward take +40% extra damage!
+        if (window.NeonAstra?.wardDamageBonus) {
+          const wardBonus = window.NeonAstra.wardDamageBonus(this, target);
+          if (wardBonus > 1.0) {
+            finalDamage *= wardBonus;
+            if (this.texts.length < 28 && Math.random() < 0.2) {
+              this.texts.push({
+                x: target.x,
+                y: target.y - 24,
+                text: '✨结界易伤+40%',
+                color: '#d8b4fe',
+                size: 11,
+                life: 0.4,
+                maxLife: 0.4
+              });
+            }
+          }
+        }
+
+        // Spectral Mark amplification: enemies branded with Phantom's mark take +25% extra damage from Phantom!
+        if (attacker?.shipId === 'phantom' && window.NeonPhantom?.markDamageBonus) {
+          const markAmp = window.NeonPhantom.markDamageBonus(attacker, target, this.survivalTime || 0);
+          if (markAmp > 1.0) {
+            finalDamage *= markAmp;
+            if (this.texts.length < 28 && Math.random() < 0.22) {
+              this.texts.push({
+                x: target.x,
+                y: target.y - 24,
+                text: '💀死印易伤+25%',
+                color: '#67e8f9',
+                size: 11,
+                life: 0.4,
+                maxLife: 0.4
+              });
+            }
+          }
+        }
 
         target.hp -= finalDamage;
         this.totalDamageDealt += finalDamage;
@@ -4456,9 +4949,14 @@
             const normX = moveX / moveLen;
             const normY = moveY / moveLen;
             const phaseSpeed = this.player.shipId === 'phantom' &&
-              this.player.phantom?.shiftActive ? window.NeonPhantom?.BASE?.shiftSpeedMultiplier || 1.4 : 1;
-            this.player.vx = normX * this.player.baseSpeed * phaseSpeed;
-            this.player.vy = normY * this.player.baseSpeed * phaseSpeed;
+              this.player.phantom?.shiftActive ? window.NeonPhantom?.BASE?.shiftSpeedMultiplier || 1.45 : 1;
+            const astraKite = this.player.shipId === 'astra' &&
+              ((this.player.astra?.kiteSpeedTimer || 0) > 0) ? 1.5 : 1;
+            const phantomSprint = this.player.shipId === 'phantom' &&
+              ((this.player.phantom?.sprintTimer || 0) > 0) ?
+              1.0 + ((this.player.phantom.sprintTimer / 3.0) * 0.8) : 1;
+            this.player.vx = normX * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint;
+            this.player.vy = normY * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint;
           } else {
             this.player.vx *= 0.8;
             this.player.vy *= 0.8;
@@ -5380,8 +5878,9 @@
           e.x += e.vx * dt;
           e.y += e.vy * dt;
 
-          // Melee collision with player
+          // Melee collision with player: Ghost Form phases straight through without collision damage
           if (!this.player.downed && this.player.invulnTimer <= 0 &&
+              !(this.player.shipId === 'phantom' && this.player.phantom?.shiftActive) &&
               Vec.dist(e.x, e.y, this.player.x, this.player.y) < e.radius + this.player.radius) {
             this.hitPlayer(e.damage);
           }
@@ -5545,7 +6044,29 @@
       hitPlayer(dmg) {
         if (this.player.downed) return;
         if (this.player.invulnTimer > 0) return;
-        if (this.player.shipId === 'phantom' && this.player.phantom?.shiftActive) return;
+        if (this.player.shipId === 'phantom' && this.player.phantom?.shiftActive) {
+          // Targeted Ghost Form limitation:
+          // Hull HP is shielded, but ranged bullets & explosions destabilize the spectral state by draining ectoplasm!
+          const ghost = this.player.phantom;
+          const ectoDrain = Math.max(8, Math.min(18, Math.round(dmg * 0.35)));
+          ghost.ectoplasm = Math.max(0, ghost.ectoplasm - ectoDrain);
+          this.texts.push({
+            x: this.player.x,
+            y: this.player.y - 22,
+            text: `灵质 -${ectoDrain}`,
+            color: '#c084fc',
+            size: 14,
+            life: 0.65,
+            maxLife: 0.65
+          });
+          try { this.sound?.playLaser?.(180, 'sine'); } catch (_) {}
+          if (ghost.ectoplasm <= 0) {
+            window.NeonPhantom?.finishShift(this.player, this, false);
+            this.notifySkillFeedback('⚠️ 灵质被密集火力击溃！化身瓦解并殉爆', '#f43f5e');
+          }
+          this.player.invulnTimer = 0.18; // Short grace window against simultaneous bullet impacts
+          return;
+        }
         window.NeonRogueEndless?.onDamageTaken(this);
         dmg *= this.getDifficultyRules().enemyDamage *
           (window.NeonLanEncounters?.active(this) ? window.NeonLanEncounters.TUNING.enemyDamage : 1);

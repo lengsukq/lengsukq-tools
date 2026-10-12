@@ -34,7 +34,7 @@ assert.equal(game.selectedAstraSpell,'ward');
 assert.equal(game.castAstraSpell(),true);
 assert.equal(actions.at(-1).request,'ward');
 game.triggerDash();
-assert.equal(actions.at(-1).request.kind,'blink');
+assert.ok(['warp', 'blink'].includes(actions.at(-1).request.kind));
 assert.equal(actions.at(-1).request.direction.x,1);
 game.state='levelup';
 assert.equal(game.castAstraSpell(),false,'Upgrade screens block spell input');

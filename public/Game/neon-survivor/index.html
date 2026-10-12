@@ -88,6 +88,17 @@
     <!-- Populated via JS -->
   </div>
 
+  <!-- In-Game Tactical Skills & Ship Status Dock -->
+  <div id="combat-hud-dock">
+    <div id="ship-status-banner" class="ship-status-banner">
+      <span class="status-indicator-dot" id="ship-status-dot"></span>
+      <span id="ship-status-text">系统正常 · 待命中</span>
+    </div>
+    <div id="ship-skills-bar" class="ship-skills-bar">
+      <!-- Populated via JS depending on active ship -->
+    </div>
+  </div>
+
   <!-- Touch Controls -->
   <div id="touch-controls">
     <div class="joystick-base" id="joystickBase">
@@ -95,7 +106,7 @@
     </div>
     <div id="touch-dash-btn" role="button" tabindex="0" aria-label="折跃冲刺：3段可用">
       <span class="dash-key-glyph" aria-hidden="true">⟐</span>
-      <span class="dash-key-label">DASH</span>
+      <span class="dash-key-label">折跃</span>
       <span class="dash-key-count" aria-hidden="true">3/3</span>
     </div>
     <div id="astra-touch-actions" hidden>
@@ -109,32 +120,26 @@
 
   <!-- START GAME MODAL -->
   <div class="modal-overlay active" id="modal-start">
-    <div class="modal-card">
-      <div class="modal-title">霓虹幸存者：深空裂变</div>
-      <div class="modal-sub">NEON SURVIVOR: CYBER RESISTANCE</div>
-
-      <p style="font-size: 14px; line-height: 1.6; color: #b8c8e2; margin-bottom: 16px;">
-        在赛博虚空中迎击汹涌的异星机甲集群！<br>
-        消灭敌人收集能量核心，合成升级强力武器与模块，撑过狂暴潮水，击败终极机械领主！
-      </p>
+    <div class="modal-card modal-start-card">
+      <div class="hangar-banner">
+        <div class="modal-title hangar-main-title">霓虹幸存者：深空裂变</div>
+        <div class="modal-sub hangar-sub-title">赛博虚空抵抗组织 · 战术机库作战整备</div>
+      </div>
 
       <div class="start-features">
-        <span><span class="keyboard-hint">🎮 手柄</span> 即插即用 (左摇杆移动+A/RB折跃，自动锁敌)</span>
-        <span><span class="keyboard-hint">WASD / 方向键</span> 键盘移动</span>
-        <span><span class="keyboard-hint">空格 / 右键</span> 折跃冲刺</span>
-        <span><span class="keyboard-hint">F</span> 一键全屏</span>
+        <span><span class="keyboard-hint">⌨️ WASD</span> 战机机动</span>
+        <span><span class="keyboard-hint">🗡️ J / K</span> 专属战术技能</span>
+        <span><span class="keyboard-hint">⚡ 空格 / 右键</span> 折跃 / 幽灵化身</span>
+        <span><span class="keyboard-hint">🎮 手柄</span> 即插即用 (支持震动)</span>
       </div>
 
-      <div style="font-size: 12px; color: #7383a0; margin-bottom: 20px;">
-        全面支持 Xbox / PS / Switch / PC 手柄 + 键鼠 + 触控双摇杆；支持自动/手动瞄准！
-      </div>
-      <div id="neon-difficulty-selector" style="margin:0 auto 20px;max-width:550px;text-align:left;"></div>
-      <div id="neon-ship-selector" style="margin:0 auto 20px;max-width:550px;text-align:left;"></div>
+      <div id="neon-ship-selector" class="hangar-ship-selector"></div>
+      <div id="neon-difficulty-selector" class="hangar-difficulty-selector"></div>
 
-      <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
-        <button class="cyber-btn" id="btn-start-game">立即出击 (START MISSION)</button>
-        <button class="cyber-btn" id="btn-lan-coop" style="border-color:#54bc95;color:#9affd5">多人联机（2–4人）</button>
-        <button class="cyber-btn" id="btn-start-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明 (MANUAL)</button>
+      <div class="hangar-actions-bar">
+        <button class="cyber-btn cyber-btn-launch" id="btn-start-game">🚀 立即出击</button>
+        <button class="cyber-btn" id="btn-lan-coop" style="border-color:#54bc95;color:#9affd5">👥 多人联机（2–4人）</button>
+        <button class="cyber-btn" id="btn-start-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明</button>
         <button class="cyber-btn" id="btn-start-settings">⚙ 游戏设置</button>
       </div>
     </div>
@@ -155,7 +160,7 @@
   <!-- PAUSE MODAL -->
   <div class="modal-overlay" id="modal-pause">
     <div class="modal-card">
-      <div class="modal-title">系统暂停 (SYSTEM PAUSED)</div>
+      <div class="modal-title">系统暂停</div>
       <div class="modal-sub">战机进入悬停巡航状态</div>
 
       <div class="stats-table" id="pause-stats">
@@ -163,7 +168,7 @@
       </div>
 
       <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
-        <button class="cyber-btn" id="btn-resume">继续战斗 (RESUME)</button>
+        <button class="cyber-btn" id="btn-resume">继续战斗</button>
         <button class="cyber-btn" id="btn-pause-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明</button>
         <button class="cyber-btn" id="btn-pause-settings">⚙ 游戏设置</button>
         <button class="cyber-btn danger" id="btn-restart-pause">重新开始</button>
@@ -175,12 +180,13 @@
   <div class="modal-overlay" id="modal-help">
     <div class="modal-card modal-help-card">
       <div class="help-header">
-        <div class="modal-title" style="background: linear-gradient(135deg, #00f3ff, #ff00ea); -webkit-background-clip: text;">📖 深空战术指挥手册 (GAME MANUAL)</div>
+        <div class="modal-title" style="background: linear-gradient(135deg, #00f3ff, #ff00ea); -webkit-background-clip: text;">📖 深空战术指挥手册</div>
         <div class="modal-sub">霓虹幸存者：深空裂变 全平台操作指南与作战机制说明</div>
       </div>
 
       <div class="help-tabs">
         <button class="help-tab-btn active" data-tab="help-controls">🕹️ 全平台操控</button>
+        <button class="help-tab-btn" data-tab="help-ships">🛸 三大战舰档案与专属技能</button>
         <button class="help-tab-btn" data-tab="help-mechanics">🚀 核心机体机制</button>
         <button class="help-tab-btn" data-tab="help-weapons">💥 对群爆炸与控制</button>
         <button class="help-tab-btn" data-tab="help-bosses">👾 敌机与首领</button>
@@ -227,6 +233,70 @@
                 <li><b>双指联动</b>：左手持续按住摇杆移动，右手点击或松开 DASH 均不会打断左手方向控制；仅松开左手摇杆时停止控制</li>
                 <li><b>顶部状态栏</b>：轻触右上角全屏、设置与说明按钮；房主可暂停游戏</li>
               </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: SHIPS ARCHETYPES & UNIQUE MECHANICS -->
+        <div class="help-section" id="help-ships">
+          <div class="help-box" style="margin-bottom: 14px; background: rgba(10, 24, 48, 0.85); border-color: rgba(0, 243, 255, 0.4);">
+            <div class="help-box-title" style="font-size: 15px; color: #67e8f9;">🛸 舰队编制与独立机制总览 (FLEET ARCHETYPES)</div>
+            <p style="margin-bottom: 6px;">深空防线现已列装三型特化作战战舰，每艘战舰拥有完全独立的<b>基础属性、初始专属武器、独有主动战术技能、折跃进化树及专属升级卡池</b>（裂锋使用通用科技池，星织与幽灵各自拥有 24 张专属战术卡牌）：</p>
+            <ul style="margin-bottom: 4px;">
+              <li><b>装备槽位</b>：三舰均为 4 个武器槽（初始武器占 1 格）、4 个被动模组槽（进阶V~VI为 3 槽）、最多 7 种折跃强化卡牌。</li>
+              <li><b>局内绑定</b>：开局选定战舰后整局生效不可更换；联机模式中各玩家战舰互不冲突、独立运算与结算。</li>
+            </ul>
+          </div>
+
+          <div class="help-card-grid">
+            <!-- SHIP 1: RIFTBLADE -->
+            <div class="help-box" style="border-left: 3px solid #00f3ff;">
+              <div class="help-box-title" style="color: #00f3ff;">⚡ 裂锋·虚空突击者 (RIFTBLADE) · 突击先锋</div>
+              <p><b>机体规格</b>：生命 100 · 航速 240 · 常驻纳米自愈 0.8 HP/s · 折跃 3段（上限9段）</p>
+              <p><b>初始主武</b>：<b>脉冲歼灭炮 (Blaster)</b> — 高频向前倾泻高能脉冲等离子弹，射速极快，正面撕裂突击路径上的敌军。</p>
+              <p><b>独有战术机制与技能</b>：</p>
+              <ul>
+                <li><b>三段瞬影折跃斩 (Rift Dash)</b>：默认消耗 1 格能量超空间突刺，穿透敌人造成高额物理/能量切割穿甲伤害。</li>
+                <li><b>精准折跃连击 (Precision Streak)</b>：贴近敌人核心完成斩击可累积最多 5 层精准奖励（每层斩击伤害 +8%），超时或空斩中断。</li>
+                <li><b>时空相位无敌光环 (Temporal Aegis)</b>：折跃触发 0.15~0.40 秒伤害免疫力场与击退，满级结束释放八向强力歼灭激光。</li>
+                <li><b>突击元素进化树</b>：可升级「落点超新星爆轰（引力聚怪）」、「离子火墙隔离带」与「极光绝对零度冻结」。</li>
+              </ul>
+              <p style="margin-top: 6px; color: #7dd3fc;"><b>推荐打法</b>：高爆发、高机动穿插，贴脸瞬杀核心菁英机甲，适合操作敏捷的先锋突击手。</p>
+            </div>
+
+            <!-- SHIP 2: ASTRA -->
+            <div class="help-box" style="border-left: 3px solid #c084fc;">
+              <div class="help-box-title" style="color: #c084fc;">🔮 星织·织界术师 (ASTRA) · 秘术星穹</div>
+              <p><b>机体规格</b>：生命 95 · 航速 235 · 自愈 0.8 HP/s · 相位闪现 2段（上限4段）</p>
+              <p><b>核心资源</b>：<b>星能 (Mana 60/100)</b> — 战机恒定自然恢复，武器命中时可高效汲取星能反馈。</p>
+              <p><b>初始主武</b>：<b>星梭织阵 (Star Weave · 自导追踪飞弹)</b></p>
+              <ul>
+                <li><b>自导追踪飞弹</b>：发射自导星梭（Lv1单体追踪 -> Lv2双发 -> Lv3三发 -> Lv4四发 -> Lv5五发集束群攻），智能搜寻锁定大角度追击敌群。</li>
+                <li><b>星锚极光连线</b>：命中后在地面部署星锚节点（最多 3 处），节点间生成高频极光连线切割穿行敌群。</li>
+                <li><b>三角星网坍缩大爆发</b>：布置 3 个星锚构成完整三角星网，每 6 秒触发一次全网星能坍缩大爆炸！</li>
+              </ul>
+              <p><b>独有主动技能与放风筝机制</b>：</p>
+              <ul>
+                <li><b>天界织界神圣结界 (Ward)</b>：快捷键 <b>J</b>（手机/界面直接点击）。消耗 60 星能，展开神圣符文结界持续 7.5 秒：处于法阵内<b>友方减免 60% 所受伤害</b>且持续消解敌机子弹；<b>踏入法阵的敌人受到强力减速 45% 且承受全额伤害提升 +40%（攻守兼备的圣域主场）</b>，离开法阵保留 3 秒虚相护盾！</li>
+                <li><b>苍穹星陨 (Meteor)</b>：快捷键 <b>K</b>（手机/界面直接点击）。<b>超低能耗（22星能）与超短冷却（3.2秒）高频小技能</b>，呼唤天外流星定点轰炸，造成范围伤害与 <b>1.2 秒群体击晕</b>，极度适合频繁轰炸进行伤害补刀与控场断节奏！</li>
+                <li><b>相位闪现 (Phase Blink)</b>：按<b>空格 / 折跃键</b>超维闪现 190px，释放斥力波将周围敌群强力推开，且闪现落地后立即获得 <b>2 秒内 +50% 移动速度爆发</b>，专为拉开距离远程放风筝设计！</li>
+              </ul>
+              <p style="margin-top: 6px; color: #d8b4fe;"><b>专属升级</b>：24 张星界专属卡牌（棱镜分光、时序束缚、月蚀法印、奇点咏唱、星能护符等）。极致放风筝与神圣结界阵地战核心！</p>
+            </div>
+
+            <!-- SHIP 3: PHANTOM -->
+            <div class="help-box" style="border-left: 3px solid #00f0ff;">
+              <div class="help-box-title" style="color: #00f0ff;">👻 幽灵·共生拟态 (PHANTOM) · 虚无刺客</div>
+              <p><b>机体规格</b>：生命 85 · 航速 260（全舰最快） · 自愈 0.5 HP/s · <b>摒弃传统折跃充能，改由纯灵质驱动幽灵化身</b></p>
+              <p><b>核心资源</b>：<b>灵质 (Ectoplasm 0/100)</b> — 战镰攻击收割、J键斩击命中或共生挂载时汲取灵质。</p>
+              <p><b>初始主武</b>：<b>幽魂之镰 (Phantom Scythe)</b> — 掷出双刃死神回旋战镰贯穿切割；最远端悬停旋转为灵魂黑洞漩涡撕裂聚集敌群，随后二次收割吸附返航。</p>
+              <p><b>独有战术机制与技能</b>：</p>
+              <ul>
+                <li><b>死印斩击 (Spectral Strike)</b>：快捷键 <b>J</b>（手机/界面直接点击）。<b>范围减速与死印标记战术技（4.5秒CD）</b>：向准星前方 300px 扇面斩出幽能波，对最多 10 名敌人造成适度伤害、<b>强力减速 40% (持续1.6秒)</b> 并植入「灵魂死印」；被死印标记的敌人在此期间<b>受到幽灵战舰的所有攻击伤害提升 +25%（死印易伤加深）</b>！命中还可稳定汲取灵质，绝佳的起手增伤技。</li>
+                <li><b>战术共生 / 幽影疾行 (Dock Link / Phantom Sprint)</b>：快捷键 <b>K</b>。<b>联机模式</b>靠近队友挂载共生，提供后方 40% 减伤与自愈；<b>单人模式切换为幽影疾行</b>：<b>无任何能量消耗（仅5秒CD）</b>，启动瞬间获得<b>+80% 移速爆发</b>并在 3 秒内平滑衰减，绝佳的拉扯脱困技！</li>
+                <li><b>幽灵化身 / 退出引爆 (Ghost Form / Spectral Phasing)</b>：快捷键 <b>空格 / 界面点击</b>。彻底摒弃折跃充能，<b>根据持续消耗灵质进入幽灵状态</b>（需 ≥15 灵质开启，每秒消耗 20 灵质）：幽灵状态下<b>无实体穿透免撞</b>（穿行怪群免受肉身碰撞伤害），穿透敌群自动施加死印；若承受远程弹幕或范围轰击，<b>受击震荡损耗灵质代扣</b>（承受过多火力时灵质耗尽提前瓦解引爆）；<b>随时再次按空格或灵质耗尽时退出引爆</b>！</li>
+              </ul>
+              <p style="margin-top: 6px; color: #67e8f9;"><b>专属升级</b>：24 张虚空专属卡牌（幽魂飞镖、深渊拟态、灵魂图腾、虚无天谴、拟态重构等）。单人强力死印收割，联机最强共生挂载！</p>
             </div>
           </div>
         </div>
@@ -353,7 +423,7 @@
       </div>
 
       <div style="display: flex; justify-content: center;">
-        <button class="cyber-btn" id="btn-close-help">确认并返回战场 (CONFIRM & CLOSE)</button>
+        <button class="cyber-btn" id="btn-close-help">确认并返回战场</button>
       </div>
     </div>
   </div>
@@ -361,12 +431,12 @@
   <!-- GAME OVER MODAL -->
   <div class="modal-overlay" id="modal-gameover">
     <div class="modal-card">
-      <div class="modal-title" style="background: linear-gradient(135deg, #ff0055, #ffaa00); -webkit-background-clip: text;">战机坠毁 (MISSION FAILED)</div>
+      <div class="modal-title" style="background: linear-gradient(135deg, #ff0055, #ffaa00); -webkit-background-clip: text;">战机坠毁</div>
       <div class="modal-sub">你的能源核心已被撕裂，但数据已被记录...</div>
 
       <div class="stats-table" id="gameover-stats"></div>
 
-      <button class="cyber-btn" id="btn-restart-over">重新部署 (REDEPLOY)</button>
+      <button class="cyber-btn" id="btn-restart-over">重新部署</button>
     </div>
   </div>
 
@@ -379,7 +449,7 @@
       <div class="stats-table" id="victory-stats"></div>
 
       <div style="display: flex; justify-content: center; gap: 16px;">
-        <button class="cyber-btn" id="btn-endless">进入无尽炼狱 (ENDLESS)</button>
+        <button class="cyber-btn" id="btn-endless">进入无尽炼狱</button>
         <button class="cyber-btn danger" id="btn-restart-vic">重开新局</button>
       </div>
     </div>

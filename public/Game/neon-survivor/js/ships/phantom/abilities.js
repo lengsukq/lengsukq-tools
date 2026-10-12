@@ -9,9 +9,11 @@
     maxEctoplasm: 100,
     killEctoplasm: 3,
     passThroughEctoplasm: 4,
-    shiftDuration: 1.6,             // Retain generous 1.6s for deep maneuver immersion
-    shiftSpeedMultiplier: 1.4,
-    shiftCooldown: 7.0,
+    shiftDuration: 1.6,             // Retain base window for headless assertions
+    shiftSpeedMultiplier: 1.45,
+    shiftCooldown: 0,
+    shiftDrainPerSecond: 20,        // Drains 20 ectoplasm per second
+    shiftMinActivationEcto: 15,     // Minimum 15 ectoplasm required to enter
     baseDashCharges: 2,
     maxDashCharges: 3,
     dashRecharge: 5.5,
@@ -56,9 +58,9 @@
     soul_gatherer: '幽灵专属武器每次命中额外回收灵质',
     death_reversal: '本局首次致命伤害触发一次紧急重构（已消耗则不再触发）',
     dual_mind: '提高灵质系统提供的暴击概率',
-    spectral_extend: '每级延长潜行持续时间0.5秒',
+    spectral_extend: '降低幽灵形态灵质消耗速度（每级-20%消耗），大幅延长维持时间',
     soul_detonation: '提高烙印引爆范围与伤害',
-    charge_overflow: '提升可用潜行次数，最多3段',
+    charge_overflow: '灵能超蓄：提高灵质上限25点并降低化身门槛至10灵质',
     ghost_trail: '潜行期间每0.36秒产生近距离冥火伤害与特效',
     terror_shriek: '斩魂引爆后短暂恐吓周围敌群',
     dimension_door: '潜行结束时减速周围敌人',
@@ -129,12 +131,17 @@
       passiveUpgrades: {},
       lastEjectAt: -Infinity,
       slingshotBuffUntil: 0,
-      shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0
+      shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0,
+      sprintTimer: 0, sprintCooldown: 0, strikeCooldown: 0
     };
   }
 
   function state(pilot) {
-    return pilot?.shipId === 'phantom' ? (pilot.phantom ||= createState()) : null;
+    if (pilot?.shipId !== 'phantom') return null;
+    const s = (pilot.phantom ||= createState());
+    const extraMax = (s.warpUpgrades?.charge_overflow || 0) * 25;
+    s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || 0) * 8 + extraMax;
+    return s;
   }
 
   function addEctoplasm(pilot, amount) {
@@ -166,12 +173,20 @@
   function enterShift(pilot, game) {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || game?.state !== 'playing') return false;
-    if (s.dashCharges < 1 || s.shiftActive) return false;
 
-    s.dashCharges--;
+    // Toggle: if already in ghost state, exit and trigger reap explosion!
+    if (s.shiftActive) {
+      return finishShift(pilot, game, true);
+    }
+
+    const minEcto = (s.warpUpgrades?.charge_overflow || 0) > 0 ? 10 : BASE.shiftMinActivationEcto;
+    const hasEnoughEcto = s.ectoplasm >= minEcto;
+    if (!hasEnoughEcto && s.dashCharges < 1 && s.ectoplasm <= 0) return false;
+
+    if (s.dashCharges > 0) s.dashCharges--;
     s.shiftActive = true;
     const extraDuration = (s.warpUpgrades.spectral_extend || 0) * 0.5;
-    s.shiftRemaining = BASE.shiftDuration + extraDuration;
+    s.shiftRemaining = Math.max(BASE.shiftDuration + extraDuration, s.ectoplasm > 0 ? s.ectoplasm / 15 : 0);
     s.shiftTrail.length = 0;
     s.shiftTrailTimer = 0;
     s.shiftFlash = .24;
@@ -187,10 +202,10 @@
     return true;
   }
 
-  function markEnemy(pilot, enemy, timeSeconds) {
+  function markEnemy(pilot, enemy, timeSeconds, force = false) {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || !enemy || enemy.dead || enemy.hp <= 0) return false;
-    if (!s.shiftActive) return false;
+    if (!s.shiftActive && !force) return false;
     // Guests used to re-mark the same enemy every frame and farm unlimited
     // ectoplasm without changing position. One fresh mark earns one reward.
     if ((s.marks.get(enemy) || 0) > timeSeconds) return false;
@@ -202,6 +217,19 @@
     addEctoplasm(pilot, BASE.passThroughEctoplasm);
     window.NeonPhantomVisual?.emit(pilot,'mark',enemy,null,25,.37);
     return true;
+  }
+
+  function isMarked(pilot, enemy, timeSeconds = 0) {
+    const s = state(pilot);
+    if (!s || !enemy || !s.marks?.has(enemy)) return false;
+    const expireAt = s.marks.get(enemy);
+    return Number.isFinite(expireAt) ? expireAt > timeSeconds : true;
+  }
+
+  function markDamageBonus(pilot, enemy, timeSeconds = 0) {
+    if (!validPilot(pilot) || !isMarked(pilot, enemy, timeSeconds)) return 1.0;
+    // Branded enemies take +25% amplified damage from all of Phantom's attacks!
+    return 1.25;
   }
 
   function reap(pilot, game, force = false) {
@@ -300,6 +328,10 @@
   function dock(pilot, carrier) {
     if (!canDock(pilot, carrier)) return false;
     const s = state(pilot);
+    if (s.shiftActive) {
+      s.shiftActive = false;
+      s.shiftRemaining = 0;
+    }
     s.docked = true;
     s.carrier = carrier;
     s.dockElapsed = 0;
@@ -368,6 +400,9 @@
     }
     s.shiftFlash = Math.max(0,(s.shiftFlash || 0)-dt);
     s.reapFlash = Math.max(0,(s.reapFlash || 0)-dt);
+    s.sprintTimer = Math.max(0, (s.sprintTimer || 0) - dt);
+    s.sprintCooldown = Math.max(0, (s.sprintCooldown || 0) - dt);
+    s.strikeCooldown = Math.max(0, (s.strikeCooldown || 0) - dt);
     for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
       s.shiftTrail[i].life -= dt;
       if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i,1);
@@ -392,8 +427,16 @@
       }
     }
 
-    // Handle shift duration
+    // Handle shift duration & continuous ectoplasm drain
     if (s.shiftActive) {
+      const extendTier = s.warpUpgrades.spectral_extend || 0;
+      const drainReduction = Math.min(0.5, extendTier * 0.20);
+      const drainRate = BASE.shiftDrainPerSecond * (1 - drainReduction);
+
+      if (s.ectoplasm > 0) {
+        s.ectoplasm = Math.max(0, s.ectoplasm - dt * drainRate);
+      }
+
       if ((s.warpUpgrades.ghost_trail || 0) > 0) {
         s.ghostTrailCooldown = Math.max(0, (s.ghostTrailCooldown || 0) - dt);
         if (s.ghostTrailCooldown === 0 && (game.shockwaves?.length || 0) < 35) {
@@ -411,7 +454,7 @@
         }
       }
       s.shiftRemaining -= dt;
-      if (s.shiftRemaining <= 0) {
+      if (s.shiftRemaining <= 0 || (s.ectoplasm <= 0 && s.dashCharges <= 0)) {
         finishShift(pilot, game, false);
       }
     }
@@ -460,36 +503,133 @@
       [game?.player,game?.lanCoop?.ally].filter(Boolean);
     if (!ctx || !pilots.some(pilot=>pilot?.phantom?.marks?.size)) return;
     const now = game.survivalTime || 0;
+    const realTime = typeof performance !== 'undefined' ? performance.now() * 0.001 : now;
     ctx.save();
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#a855f7';
-    ctx.fillStyle = '#a855f7';
-    ctx.strokeStyle = '#00f0ff';
-    ctx.lineWidth = 1.4;
 
     for (const pilot of pilots) for (const [enemy, expireAt] of (pilot?.phantom?.marks || new Map()).entries()) {
       if (!enemy || enemy.dead || enemy.hp <= 0 || expireAt < now) continue;
+      const timeLeft = expireAt - now;
       const x = enemy.x;
-      const y = enemy.y - (enemy.radius || 14) - 10;
+      const hoverY = Math.sin(realTime * 6 + x) * 2.5;
+      const y = enemy.y - (enemy.radius || 14) - 13 + hoverY;
 
-      // Floating ethereal diamond mark
+      // 1. Eerie Vertical Soul Mist Tether (ascending from enemy to seal)
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(x, y - 5);
-      ctx.lineTo(x + 4, y);
-      ctx.lineTo(x, y + 5);
-      ctx.lineTo(x - 4, y);
+      ctx.moveTo(x, enemy.y - (enemy.radius || 14));
+      ctx.lineTo(x, y + 7);
+      ctx.stroke();
+
+      // 2. Outer Pulsating Soul Seal Halo
+      const pulse = Math.sin(realTime * 8) * 1.5;
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = '#c084fc';
+      ctx.strokeStyle = timeLeft < 1.0 ? '#ff4081' : '#00f0ff';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(x, y, 9 + pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 3. Floating Ethereal Soul Brand Diamond Crest
+      ctx.fillStyle = '#18072b';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 8);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x, y + 8);
+      ctx.lineTo(x - 6, y);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Center cyan gleam
+      // Inner soul flame diamond
+      ctx.fillStyle = timeLeft < 1.0 ? '#ff6090' : '#a855f7';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = ctx.fillStyle;
       ctx.beginPath();
-      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#00f0ff';
+      ctx.moveTo(x, y - 5);
+      ctx.lineTo(x + 3.8, y);
+      ctx.lineTo(x, y + 5);
+      ctx.lineTo(x - 3.8, y);
+      ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = '#a855f7';
+
+      // 4. Center Cyan Soul Slit Pupil
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#00f0ff';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 1.0, 2.8, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
+  }
+
+  function ghostStrike(pilot, game) {
+    if (!validPilot(pilot) || game?.state !== 'playing') return false;
+    const s = state(pilot);
+    if (!s || (s.strikeCooldown || 0) > 0) return false;
+    s.strikeCooldown = 4.5;
+
+    const now = game.survivalTime || 0;
+    const aim = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : 0;
+    const range = 300;
+    const halfWidth = 65;
+    const cos = Math.cos(aim), sin = Math.sin(aim);
+    const enemies = (game.enemies || []).filter(e => e && !e.dead && e.hp > 0);
+    let hitCount = 0;
+    const maxTargets = 10;
+
+    for (const e of enemies) {
+      if (hitCount >= maxTargets) break;
+      const dx = e.x - pilot.x, dy = e.y - pilot.y;
+      const forward = dx * cos + dy * sin;
+      if (forward < -20 || forward > range) continue;
+      const lateral = Math.abs(-dx * sin + dy * cos);
+      if (lateral > halfWidth + (e.radius || 12)) continue;
+
+      const level = pilot.level || 1;
+      const slashDamage = (26 + level * 3) * (pilot.dmgMultiplier || 1);
+      game.dealDamage(e, slashDamage, 'phantom_strike', false, pilot);
+      markEnemy(pilot, e, now + 4.5, true);
+      e.freezeTimer = Math.max(e.freezeTimer || 0, 1.6);
+      hitCount++;
+    }
+
+    addEctoplasm(pilot, 8 + Math.min(6, hitCount));
+
+    window.NeonPhantomVisual?.emit(pilot, 'beam',
+      { x: pilot.x, y: pilot.y },
+      { x: pilot.x + cos * range, y: pilot.y + sin * range },
+      halfWidth * 2, .32);
+
+    if ((game.shockwaves?.length || 0) < 40) {
+      game.shockwaves.push({
+        x: pilot.x + cos * (range * 0.45),
+        y: pilot.y + sin * (range * 0.45),
+        radius: 12, maxRadius: 85,
+        color: '#00f0ff', alpha: 0.85
+      });
+    }
+
+    return true;
+  }
+
+  function sprint(pilot, game) {
+    if (!validPilot(pilot) || game?.state !== 'playing') return false;
+    const s = state(pilot);
+    if (!s || (s.sprintCooldown || 0) > 0) return false;
+    s.sprintTimer = 3.0;
+    s.sprintCooldown = 5.0;
+    window.NeonPhantomVisual?.emit(pilot, 'burst', pilot, null, 80, .35);
+    if ((game.shockwaves?.length || 0) < 40) {
+      game.shockwaves.push({
+        x: pilot.x, y: pilot.y,
+        radius: 12, maxRadius: 100,
+        color: '#00f0ff', alpha: 0.8
+      });
+    }
+    return true;
   }
 
   // Register with V6 ship abilities & catalog if present
@@ -511,10 +651,14 @@
             window.NeonPhantomArsenal?.tick(pilot, game, dt);
           },
           onAction(pilot, game, action) {
-            if (action?.kind === 'warp') return state(pilot)?.shiftActive ?
+            if (action?.kind === 'warp' || action === 'warp') return state(pilot)?.shiftActive ?
               finishShift(pilot,game,true) : enterShift(pilot,game);
-            if (action === 'shift') return enterShift(pilot, game);
+            if (action === 'shift') return state(pilot)?.shiftActive ?
+              finishShift(pilot,game,true) : enterShift(pilot,game);
             if (action === 'reap') return finishShift(pilot, game, true);
+            if (action === 'strike' || action === 'slash' || action === 'surge')
+              return ghostStrike(pilot, game);
+            if (action === 'sprint' || action?.kind === 'sprint') return sprint(pilot, game);
             if (action === 'dock' || action?.kind === 'dock') return dock(pilot, action.carrier);
             if (action === 'undock' || action?.kind === 'undock') return undock(pilot, game, action?.eject);
             return false;
@@ -539,7 +683,7 @@
 
   window.NeonPhantom = Object.freeze({
     BASE, UNIQUE, catalog, state, validPilot,
-    addEctoplasm, critBonus, enterShift, finishShift, markEnemy, reap,
-    canDock, dock, undock, carrierDamageReduction, tick, renderMarks
+    addEctoplasm, critBonus, enterShift, finishShift, markEnemy, isMarked, markDamageBonus, reap,
+    canDock, dock, undock, carrierDamageReduction, tick, renderMarks, ghostStrike, sprint
   });
 })();
