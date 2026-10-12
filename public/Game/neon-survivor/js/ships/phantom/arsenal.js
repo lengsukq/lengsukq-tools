@@ -13,6 +13,8 @@
   const alive = e => e && !e.dead && e.hp > 0;
   const distance = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
   const rank = (p,id) => Math.min(5, Math.max(0, p.passives?.[id] || 0));
+  const fx=(pilot,kind,from,to,radius,life)=>
+    window.NeonPhantomVisual?.emit(pilot,kind,from,to,radius,life);
   const state = pilot => pilot.phantomArsenal ||= { timers: {}, delayed: [] };
   function targets(game,pilot,reach=750) {
     return (game.enemies || []).filter(e => alive(e) && distance(e,pilot) <= reach)
@@ -25,8 +27,9 @@
     const ecto = window.NeonPhantom?.state(pilot)?.ectoplasm || 0;
     const bonus = Math.min(.35, ecto / 500) + execute;
     game.dealDamage(enemy,base * (1 + bonus) * (pilot.dmgMultiplier || 1),source,
-      Math.random() < Math.min(.75, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0),pilot);
+      Math.random() < Math.min(1, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0),pilot);
     window.NeonPhantom?.addEctoplasm(pilot,1 + rank(pilot,'soul_gatherer'));
+    fx(pilot,'soul',pilot,enemy,15,.2);
     return true;
   }
   function pulse(pilot,game,center,radius,amount,source,limit=10) {
@@ -39,6 +42,7 @@
     if ((game.shockwaves?.length || 0)<35)game.shockwaves?.push({
       x:center.x,y:center.y,radius:8,maxRadius:radius,color:'#a855f7',alpha:.7
     });
+    fx(pilot,'burst',center,null,radius,.37);
     return count;
   }
   function queue(pilot,event){const s=state(pilot);if(s.delayed.length>=18)s.delayed.shift();s.delayed.push(event);}
@@ -50,37 +54,48 @@
     switch(id) {
       case 'spectral_dart':
         enemyList.slice(0,Math.min(5,1+level)).forEach(e=>damage(pilot,game,e,19*levelDamage,'phantom_dart'));
+        for(const e of enemyList.slice(0,Math.min(5,1+level)))fx(pilot,'dart',pilot,e,22,.23);
         break;
       case 'soul_reap_orb': {
         for(const e of enemyList.slice(0,Math.min(7,2+level))){
           damage(pilot,game,e,23*levelDamage,'phantom_orb');
+          fx(pilot,'orb',pilot,e,24,.36);
           window.NeonPhantom?.addEctoplasm(pilot,2);
         }
         break;
       }
       case 'void_rift_mine':
+        fx(pilot,'telegraph',first,null,75+level*13,.55);
         queue(pilot,{x:first.x,y:first.y,delay:.55,radius:75+level*13,
           amount:45*levelDamage,id:'phantom_mine',limit:10});
         break;
       case 'symbiote_beam':
         enemyList.slice(0,Math.min(5,1+level)).forEach(e=>damage(pilot,game,e,28*levelDamage,'phantom_beam'));
+        for(const e of enemyList.slice(0,Math.min(5,1+level)))fx(pilot,'beam',pilot,e,38,.31);
         if(pilot.phantom?.docked && pilot.phantom.carrier)
           pilot.phantom.carrier.hp=Math.min(pilot.phantom.carrier.maxHp,pilot.phantom.carrier.hp+1+level*.4);
+        if(pilot.phantom?.docked&&pilot.phantom.carrier)fx(pilot,'heal',pilot.phantom.carrier,null,32,.45);
         break;
       case 'haunt_clones':
-        enemyList.slice(0,Math.min(6,1+Math.ceil(level/2))).forEach((e,i)=>queue(pilot,{
+        enemyList.slice(0,Math.min(6,1+Math.ceil(level/2))).forEach((e,i)=>{
+          fx(pilot,'clone',pilot,e,42,.45+i*.11);
+          queue(pilot,{
           x:e.x,y:e.y,delay:.18+i*.11,radius:45+level*4,
           amount:32*levelDamage,id:'phantom_clone',limit:5
-        }));
+          });
+        });
         break;
       case 'curse_totem':
+        fx(pilot,'telegraph',first,null,110+level*15,.45);
         queue(pilot,{x:first.x,y:first.y,delay:.45,radius:110+level*15,
           amount:27*levelDamage,id:'phantom_totem',limit:14,mark:true});
         break;
       case 'apocalypse_scythe':
+        fx(pilot,'burst',pilot,null,175+level*25,.45);
         pulse(pilot,game,pilot,175+level*25,70*levelDamage,'phantom_apocalypse',16);
         break;
       case 'abyssal_possession':
+        fx(pilot,'soul',pilot,first,75,.55);
         damage(pilot,game,first,Math.min(210,90+level*22+Math.min(80,
           (first.maxHp || first.hp)*.012)),'phantom_possession');
         if(first.hp > 0 && !first.isBoss)first.freezeTimer=Math.max(first.freezeTimer || 0,.2+level*.1);
@@ -97,8 +112,11 @@
       // Passive effects apply to the class itself, not global Riftblade slots.
       p.maxEctoplasm=100+rank(pilot,'phantom_core')*8;
       if(rank(pilot,'death_reversal')>=1 && !pilot.cheatDeathUsed)pilot.hasCheatDeath=true;
-      if(pilot.hp < pilot.maxHp*.45 && rank(pilot,'stealth_armor'))
-        pilot.regen=Math.max(pilot.regen || .5,.5+rank(pilot,'stealth_armor')*.12);
+      // Recompute from registered base each tick; no permanent low-HP stacking.
+      const base=(window.NeonShips?.get('phantom')?.baseStats.regen ?? .5) +
+        (pilot.passives?.armor || 0)*1.8;
+      const extra=pilot.hp < pilot.maxHp*.45 ? rank(pilot,'stealth_armor')*.12 : 0;
+      pilot.regen=base+extra;
     }
     let fired=0;
     for(const [id,[period,min]] of Object.entries(RULES)){

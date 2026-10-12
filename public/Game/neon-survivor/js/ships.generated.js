@@ -108,10 +108,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   });
 
 // Source: ships/astra/abilities.js
-/* ASTRA / 星织·织界术师 — headless, host-authoritative ability foundation.
- * NOT enabled in the live character selector yet: the full 9+8+7 ability
- * implementations, platform controls and LAN protocol belong to V5/V6.
- * This file supplies pure combat rules that can be tested before wiring UI.
+/* ASTRA / 星织·织界术师 — host-authoritative abilities and transient warp FX.
  */
 (() => {
   'use strict';
@@ -264,7 +261,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       warpUpgrades: {}, lastFoldAt: -Infinity,
       wardHarmonyBonus: 0,
       phaseVeilRemaining: 0, mirrorEchoPending: false,
-      lastBrandAt: -Infinity
+      lastBrandAt: -Infinity, blinkFx: null
     };
   }
   function state(pilot) {
@@ -298,6 +295,11 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         game?.state !== 'playing') return;
     const level = pilot.level || 1;
     const m = modifiers(pilot);
+    const dangerActive = (pilot.passives?.danger_resonance || 0) > 0 &&
+      pilot.hp <= (pilot.maxHp || 95) * .4;
+    if (dangerActive && !s.dangerVisualActive)
+      window.NeonAstraVisual?.emit(pilot,'danger',pilot,null,72,.7);
+    s.dangerVisualActive = dangerActive;
     s.talentLevel = level >= 12 ? 3 : level >= 6 ? 2 : 1;
     s.maxMana = m.maxMana;
     s.mana = Math.min(s.maxMana, s.mana + m.manaRegen * dt);
@@ -307,6 +309,10 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     s.wardRemaining = Math.max(0, s.wardRemaining - dt);
     if (s.wardRemaining <= 0) s.wardHarmonyBonus = 0;
     s.phaseVeilRemaining = Math.max(0, s.phaseVeilRemaining - dt);
+    if (s.blinkFx) {
+      s.blinkFx.life -= dt;
+      if (s.blinkFx.life <= 0) s.blinkFx = null;
+    }
     const maxCharges = Math.min(BASE.maxCharges, 2 + (s.warpUpgrades.star_gate || 0));
     s.blinkCharges = Math.min(maxCharges, s.blinkCharges);
     if (s.blinkCharges < maxCharges) {
@@ -346,6 +352,8 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
           'astra_meteor', false, pilot);
         regenOnHit(pilot, enemy, game.survivalTime || 0);
       }
+      window.NeonAstraVisual?.emit(pilot,'burst',focus,null,
+        BASE.meteorRadius * m.areaFactor,.6);
       if ((game.shockwaves?.length || 0) < 40) game.shockwaves?.push({
         x: focus.x, y: focus.y, radius: 12, maxRadius: BASE.meteorRadius,
         color: '#b38dff', alpha: .95
@@ -356,7 +364,11 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       s.wardX = pilot.x;
       s.wardY = pilot.y;
       s.wardHarmonyBonus = alternating ? m.harmony * .012 : 0;
+      window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,
+        BASE.wardRadius * m.areaFactor,.8);
     }
+    if (alternating && m.harmony > 0)
+      window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.7);
     if (arcane) arcane.harmonyLast = spell;
     s.cooldowns[spell] = (spell === SPELLS.meteor ? BASE.meteorCooldown :
       BASE.wardCooldown) * m.cooldownFactor;
@@ -388,6 +400,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     const amount = tier >= 2 ? 20 : 12;
     if (!pilot.astraTempShield || pilot.astraTempShield.value < amount) {
       pilot.astraTempShield = { value: amount, remaining: BASE.foldDuration };
+      window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.55);
       return 1;
     }
     return 0;
@@ -428,9 +441,18 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     const dx = Number(direction?.x), dy = Number(direction?.y);
     const length = Math.hypot(dx, dy);
     if (!Number.isFinite(length) || length <= 0) return false;
+    const fromX = pilot.x, fromY = pilot.y;
     s.blinkCharges--;
     pilot.x += dx / length * BASE.blinkDistance;
     pilot.y += dy / length * BASE.blinkDistance;
+    // Fixed-size transient effect state; renderer has no allocations or damage
+    // responsibilities, and the FX expires on simulated time (not wall time).
+    s.blinkFx = { x1: fromX, y1: fromY, x2: pilot.x, y2: pilot.y,
+      life: .32, maxLife: .32 };
+    if ((game.shockwaves?.length || 0) < 36) {
+      game.shockwaves.push({ x: pilot.x, y: pilot.y,
+        radius: 8, maxRadius: 65, alpha: .8, color: '#b38dff' });
+    }
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, BASE.blinkInvulnerability);
     foldShield(pilot, game, timeSeconds);
     window.NeonAstraArsenal?.onBlink(pilot, game, timeSeconds);
@@ -530,6 +552,10 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       const target = closest(enemies, pilot);
       if (target) {
         applyDamage(game, pilot, target, 28, 'astra_weave_bolt', true);
+        // The signature weapon must activate the class's marked-target passive
+        // without requiring a second specific weapon (star_fragments).
+        if ((pilot.passives?.star_mark_hunt || 0) > 0)
+          window.NeonAstraArsenal?.markEnemy(pilot,target,(game.survivalTime||0)+3);
         const angle = s.serial++ * 2.3999632;
         const newAnchor = { x: target.x + Math.cos(angle) * 25,
           y: target.y + Math.sin(angle) * 25, life: level >= 4 ? 5 : 4 };
@@ -623,6 +649,8 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   const safe = p => p?.shipId === 'astra' && p.hp > 0 && !p.downed;
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const active = enemy => enemy && !enemy.dead && enemy.hp > 0;
+  const fx = (pilot,kind,from,to,radius,life) =>
+    window.NeonAstraVisual?.emit(pilot,kind,from,to,radius,life);
 
   function modifiers(pilot) {
     const talisman = rank(pilot, 'star_talisman');
@@ -677,6 +705,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       s.marks.delete(s.marks.keys().next().value);
     }
     s.marks.set(enemy, until);
+    fx(pilot,'mark',enemy,null,24,.32);
   }
   function hit(pilot, game, enemy, base, source, mana = true) {
     if (!active(enemy) || !safe(pilot)) return false;
@@ -688,6 +717,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       ? 1 + Math.min(2, pilot.dashUpgrades?.mirror_echo || 1) * .15 : 1;
     if (s.mirrorEchoPending) s.mirrorEchoPending = false;
     const damage = base * (pilot.dmgMultiplier || 1) * m.dangerBonus * bonus * echo;
+    if (echo > 1) fx(pilot,'echo',pilot,enemy,38,.32);
     game.dealDamage(enemy, damage, source, false, pilot);
     if (mana) window.NeonAstra?.regenOnHit(pilot, enemy, game.survivalTime || 0);
     return true;
@@ -717,6 +747,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     switch (id) {
       case 'star_fragments': // Delayed skyfall locks the enemy's old position.
         markEnemy(pilot, focus, now + 3);
+        fx(pilot,'telegraph',focus,null,(60+level*10)*radius,.5);
         schedule(pilot, { kind: 'burst', delay: .5,
           x: focus.x, y: focus.y, radius: (60 + level * 10) * radius,
           damage: 38 + level * 18, source: 'astra_fragments', targets: 10 });
@@ -728,21 +759,26 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
           if (!e || seen.has(e)) break;
           seen.add(e);
           hit(pilot, game, e, 32 + level * 13, 'astra_prism');
-          e = nearest(list.filter(other => !seen.has(other)), e, 150 + level * 12);
+          const next = nearest(list.filter(other => !seen.has(other)), e, 150 + level * 12);
+          fx(pilot,'chain',seen.size===1?pilot:e,next||e,55,.3);
+          e=next;
         }
         break;
       }
+      fx(pilot,'burst',pilot,null,radius,.28);
       case 'chrono_bind': { // Slow several linked enemies, bosses less.
         let n = 0;
         for (const e of list) {
           if (distance(e, focus) > (115 + level * 10) * radius) continue;
           hit(pilot, game, e, 22 + level * 9, 'astra_chrono');
           e.freezeTimer = Math.max(e.freezeTimer || 0, e.isBoss ? .18 : .45 + level * .12);
+          fx(pilot,'shield',e,null,32,.42);
           if (++n >= 3 + level) break;
         }
         break;
       }
       case 'eclipse_seal': // Visible delayed seal; high positional payout.
+        fx(pilot,'telegraph',focus,null,(100+level*10)*radius,1);
         schedule(pilot, { kind: 'burst', delay: 1,
           x: focus.x, y: focus.y, radius: (100 + level * 10) * radius,
           damage: 60 + level * 25, source: 'astra_eclipse', targets: 12 });
@@ -758,10 +794,12 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         schedule(pilot, { kind: 'orb', delay: .75, x: pilot.x, y: pilot.y,
           radius: (70 + level * 8) * radius,
           damage: 30 + level * 14, source: 'astra_orb_return', targets: 8 });
+        fx(pilot,'orb',pilot,{x,y},40,.45);
         break;
       }
       case 'void_shock': { // A directional cone, not a generic radius blast.
         const angle = Math.atan2(focus.y - pilot.y, focus.x - pilot.x);
+        fx(pilot,'beam',pilot,focus,70,.28);
         let n = 0;
         for (const e of list) {
           if (distance(e, pilot) > (250 + level * 16) * radius) continue;
@@ -780,9 +818,13 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
             x: focus.x + Math.cos(a) * 72, y: focus.y + Math.sin(a) * 72,
             radius: (70 + level * 6) * radius,
             damage: 52 + level * 18, source: 'astra_skyfall', targets: 9 });
+          fx(pilot,'telegraph',{
+            x:focus.x+Math.cos(a)*72,y:focus.y+Math.sin(a)*72
+          },null,(70+level*6)*radius,.4+.3*i);
         }
         break;
       case 'singularity_chant': // Long charge & one heavily capped detonation.
+        fx(pilot,'telegraph',focus,null,(135+level*12)*radius,1.4);
         schedule(pilot, { kind: 'burst', delay: 1.4,
           x: focus.x, y: focus.y, radius: (135 + level * 12) * radius,
           damage: 110 + level * 38, source: 'astra_singularity', targets: 16 });
@@ -819,6 +861,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       s.pending.splice(i, 1);
       pulse(pilot, game, list, event, event.radius, event.damage,
         event.source, event.targets);
+      fx(pilot,'burst',event,null,event.radius,.44);
       if ((game.shockwaves?.length || 0) < 35) game.shockwaves?.push({
         x: event.x, y: event.y, radius: 8, maxRadius: event.radius,
         color: '#b89bff', alpha: .7
@@ -841,6 +884,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     s.lastRefractionAt = now;
     hit(pilot, game, e, Math.min(90, absorbed * .18 + strength * 9),
       'astra_refraction', false);
+    fx(pilot,'beam',pilot,e,35,.3);
     return true;
   }
 
@@ -852,6 +896,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     if (up.prism_veil && spell) {
       spell.phaseVeilRemaining = Math.max(spell.phaseVeilRemaining || 0,
         1 + Math.min(2, up.prism_veil) * .6);
+      fx(pilot,'shield',pilot,null,52,.45);
     }
     if (up.spatial_disturb) {
       const radius = 100 + Math.min(2, up.spatial_disturb) * 25;
@@ -868,8 +913,12 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       spell.mana -= 15;
       pulse(pilot, game, targets(game, pilot), pilot, 135,
         45 + Math.min(up.rift_brand, 2) * 28, 'astra_rift_brand', 8);
+      fx(pilot,'burst',pilot,null,135,.38);
     }
-    if (up.mirror_echo) s.mirrorEchoPending = true;
+    if (up.mirror_echo) {
+      s.mirrorEchoPending = true;
+      fx(pilot,'mark',pilot,null,34,.45);
+    }
     if (up.anchor_rewrite && pilot.starWeave?.anchors?.length) {
       let nearestAnchor = null;
       let minDistance = 180 + Math.min(2, up.anchor_rewrite) * 30;
@@ -878,6 +927,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         if (d < minDistance) { minDistance = d; nearestAnchor = anchor; }
       }
       if (nearestAnchor) {
+        fx(pilot,'beam',nearestAnchor,pilot,24,.3);
         nearestAnchor.x = pilot.x;
         nearestAnchor.y = pilot.y;
         // Preserve remaining lifetime, so phase spam cannot extend star nets.
@@ -907,20 +957,20 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     return true;
   }
 
-  // Register with the V6 ship API while ASTRA remains locked. Its catalog is
-  // then ready for normal weighted picks as soon as gameplay is validated.
+  // All 24 distinct cards share the same authoritative ship hook.
   if (window.NeonShips?.registerUpgradeCatalog && window.NeonAstra?.catalog) {
     window.NeonShips.registerUpgradeCatalog('astra', window.NeonAstra.catalog);
     window.NeonShips.registerAbilities('astra', {
       onStart(pilot) { state(pilot); window.NeonAstra?.state(pilot); },
       onTick(pilot, game, dt) {
+        window.NeonAstraVisual?.tick(pilot,dt);
         window.NeonAstra?.tick(pilot, game, dt);
         window.NeonAstraWeave?.tick(pilot, game, dt);
         tick(pilot, game, dt);
       },
       onAction(pilot, game, action) {
         if (action === 'meteor' || action === 'ward') return window.NeonAstra?.cast(pilot, game, action);
-        if (action?.kind === 'blink') return window.NeonAstra?.blink(pilot, game,
+        if (action?.kind === 'warp' || action?.kind === 'blink') return window.NeonAstra?.blink(pilot, game,
           action.direction, game.survivalTime || 0);
         return false;
       },
@@ -934,13 +984,94 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
 })();
 
 // Source: ships/astra/effects.js
+/* Visual-only, bounded event timeline. Combat runs on the authoritative host;
+ * clients draw copies of these lightweight primitives from room snapshots. */
+const NeonAstraVisual = (() => {
+  const MAX_FX = 24;
+  function emit(pilot, kind, a, b = null, radius = 45, duration = .35) {
+    if (!pilot || !a || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return;
+    const fx = pilot.astraVisual ||= [];
+    if (fx.length >= MAX_FX) fx.shift();
+    fx.push({kind, x:a.x, y:a.y,
+      x2:Number.isFinite(b?.x)?b.x:a.x,
+      y2:Number.isFinite(b?.y)?b.y:a.y,
+      radius:Math.min(280,Math.max(8,radius)),
+      life:duration,maxLife:duration});
+  }
+  function tick(pilot,dt) {
+    if (!Number.isFinite(dt)||dt<=0) return;
+    const fx=pilot?.astraVisual||[];
+    for(let i=fx.length-1;i>=0;i--) {
+      fx[i].life-=dt;
+      if(fx[i].life<=0)fx.splice(i,1);
+    }
+  }
+  function draw(ctx,entries) {
+    if(!ctx||!Array.isArray(entries))return;
+    ctx.save();ctx.lineCap='round';
+    for(const f of entries.slice(0,MAX_FX)) {
+      if(!f||!(f.life>0)||!Number.isFinite(f.x)||!Number.isFinite(f.y))continue;
+      const alpha=Math.min(1,f.life/Math.max(.01,f.maxLife||.35));
+      const radius=Math.min(280,Math.max(8,f.radius||45));
+      ctx.globalAlpha=.8*alpha;
+      ctx.strokeStyle=f.kind==='danger'?'#ff668d':f.kind==='shield'?'#85f5ff':'#bb8aff';
+      ctx.fillStyle=f.kind==='danger'?'#ff668d':'#d9a6ff';
+      ctx.shadowBlur=8;ctx.shadowColor=ctx.strokeStyle;
+      if(['beam','chain','bolt','orb','echo'].includes(f.kind)) {
+        ctx.lineWidth=f.kind==='beam'?9:4;
+        ctx.beginPath();ctx.moveTo(f.x,f.y);
+        ctx.lineTo(f.x2,f.y2);ctx.stroke();
+        ctx.beginPath();ctx.arc(f.x2,f.y2,Math.min(14,radius*.18),0,Math.PI*2);ctx.fill();
+      } else {
+        ctx.lineWidth=f.kind==='shield'?4:3;
+        ctx.beginPath();ctx.arc(f.x,f.y,
+          f.kind==='telegraph'?radius:radius*(1-.7*alpha),0,Math.PI*2);ctx.stroke();
+        if(f.kind==='burst') {
+          ctx.globalAlpha=.16*alpha;
+          ctx.beginPath();ctx.arc(f.x,f.y,radius*(1-.7*alpha),0,Math.PI*2);ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+  return Object.freeze({emit,tick,draw,MAX_FX});
+})();
+window.NeonAstraVisual=NeonAstraVisual;
+function drawAstraBlink(ctx, fx) {
+  if (!fx || !ctx || !(fx.life > 0)) return;
+  const fade = Math.min(1, fx.life / Math.max(.01,fx.maxLife || .32));
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#a783ff';
+  ctx.lineWidth = 17 * fade + 2;
+  ctx.shadowColor = '#9a7aff';
+  ctx.shadowBlur = 15;
+  ctx.beginPath();
+  ctx.moveTo(fx.x1,fx.y1);
+  ctx.lineTo(fx.x2,fx.y2);
+  ctx.stroke();
+  ctx.strokeStyle = '#e8f9ff';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  for(const [x,y] of [[fx.x1,fx.y1],[fx.x2,fx.y2]]) {
+    ctx.beginPath();
+    ctx.arc(x,y,10+24*(1-fade),0,Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 window.NeonShips.registerEffects('astra', {
   pilot(ctx, pilot) {
+    drawAstraBlink(ctx,pilot?.astra?.blinkFx);
+    NeonAstraVisual.draw(ctx,pilot?.astraVisual);
     window.NeonAstra?.renderWard(ctx, pilot);
     window.NeonAstraWeave?.render(ctx, pilot);
   },
   network(ctx, snapshot) {
     const arcane = snapshot.arcane;
+    drawAstraBlink(ctx,arcane?.blinkFx);
+    NeonAstraVisual.draw(ctx,arcane?.visual);
     if (arcane?.wardRemaining > 0) {
       window.NeonAstra?.renderWard(ctx, {
         shipId: 'astra',
@@ -973,6 +1104,20 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
     maxMana: clamp(state.maxMana, 1, 250, 100),
     blinkCharges: clamp(state.blinkCharges, 0, 4, 2),
     blinkRecharge: clamp(state.blinkRecharge, 0, 5),
+    blinkFx: state.blinkFx?.life > 0 ? {
+      x1: clamp(state.blinkFx.x1,-1e7,1e7),
+      y1: clamp(state.blinkFx.y1,-1e7,1e7),
+      x2: clamp(state.blinkFx.x2,-1e7,1e7),
+      y2: clamp(state.blinkFx.y2,-1e7,1e7),
+      life: clamp(state.blinkFx.life,0,.32),maxLife:.32
+    } : null,
+    visual:(pilot.astraVisual||[]).slice(-24).map(fx=>({
+      kind:fx.kind,
+      x:clamp(fx.x,-1e7,1e7),y:clamp(fx.y,-1e7,1e7),
+      x2:clamp(fx.x2,-1e7,1e7),y2:clamp(fx.y2,-1e7,1e7),
+      radius:clamp(fx.radius,8,280),life:clamp(fx.life,0,3),
+      maxLife:clamp(fx.maxLife,.01,3)
+    })),
     meteorCooldown: clamp(state.cooldowns?.meteor, 0, 30),
     wardCooldown: clamp(state.cooldowns?.ward, 0, 30),
     wardRemaining: clamp(state.wardRemaining, 0, 10),
@@ -1242,7 +1387,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       warpUpgrades: {},
       passiveUpgrades: {},
       lastEjectAt: -Infinity,
-      slingshotBuffUntil: 0
+      slingshotBuffUntil: 0,
+      shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0
     };
   }
 
@@ -1285,6 +1431,11 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     s.shiftActive = true;
     const extraDuration = (s.warpUpgrades.spectral_extend || 0) * 0.5;
     s.shiftRemaining = BASE.shiftDuration + extraDuration;
+    s.shiftTrail.length = 0;
+    s.shiftTrailTimer = 0;
+    s.shiftFlash = .24;
+    s.shiftTrail.push({x:pilot.x,y:pilot.y,life:.5});
+    pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, s.shiftRemaining);
 
     if ((game.shockwaves?.length || 0) < 40) {
       game.shockwaves?.push({
@@ -1299,12 +1450,16 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || !enemy || enemy.dead || enemy.hp <= 0) return false;
     if (!s.shiftActive) return false;
+    // Guests used to re-mark the same enemy every frame and farm unlimited
+    // ectoplasm without changing position. One fresh mark earns one reward.
+    if ((s.marks.get(enemy) || 0) > timeSeconds) return false;
     if (s.marks.size >= 64) {
       // Bound map size to prevent memory explosion
       s.marks.delete(s.marks.keys().next().value);
     }
     s.marks.set(enemy, timeSeconds + BASE.markDuration);
     addEctoplasm(pilot, BASE.passThroughEctoplasm);
+    window.NeonPhantomVisual?.emit(pilot,'mark',enemy,null,25,.37);
     return true;
   }
 
@@ -1355,6 +1510,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
           e.fearedUntil = (game.survivalTime || 0) + 1.5;
         }
       }
+      window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,BASE.ejectRadius,.45);
+      window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,180,.45);
     }
 
     // Shockwave FX
@@ -1366,7 +1523,29 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     }
 
     s.marks.clear();
+    s.reapFlash = .28;
     return targetCount;
+  }
+
+  function finishShift(pilot, game, forced = false) {
+    const s = state(pilot);
+    if (!validPilot(pilot) || !s?.shiftActive || game?.state !== 'playing') return false;
+    s.shiftActive = false;
+    s.shiftRemaining = 0;
+    // Ending shift early also ends its extended no-hit window.
+    pilot.invulnTimer = Math.min(pilot.invulnTimer || 0,.18);
+    if (Number.isFinite(pilot.invuln)) pilot.invuln = Math.min(pilot.invuln,.18);
+    s.reapFlash = .28;
+    reap(pilot, game, forced);
+    const power = Math.min(2, s.warpUpgrades.dimension_door || 0);
+    if (power) {
+      window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,90+power*15,.4);
+      for (const enemy of game.enemies || []) {
+        if (enemy.dead || enemy.hp <= 0 || !within(enemy,pilot,90+power*15)) continue;
+        enemy.freezeTimer = Math.max(enemy.freezeTimer || 0, .4+power*.2);
+      }
+    }
+    return true;
   }
 
   function canDock(pilot, carrier) {
@@ -1386,6 +1565,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     carrier.hasDockedGunner = true;
     pilot.x = carrier.x;
     pilot.y = carrier.y;
+    window.NeonPhantomVisual?.emit(pilot,'heal',carrier,null,40,.45);
     return true;
   }
 
@@ -1404,6 +1584,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       s.lastEjectAt = now;
       if ((s.warpUpgrades.symbiote_slingshot || 0) > 0) {
         s.slingshotBuffUntil = now + 3.0; // 3s 100% crit
+        window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,90,.45);
       }
 
       // Radial blast knocks back and stuns enemies
@@ -1440,6 +1621,24 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
         game?.state !== 'playing') return;
 
     const now = game.survivalTime || 0;
+    if (pilot.cheatDeathUsed && !s.deathVisualPlayed) {
+      s.deathVisualPlayed = true;
+      window.NeonPhantomVisual?.emit(pilot,'heal',pilot,null,75,.7);
+    }
+    s.shiftFlash = Math.max(0,(s.shiftFlash || 0)-dt);
+    s.reapFlash = Math.max(0,(s.reapFlash || 0)-dt);
+    for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
+      s.shiftTrail[i].life -= dt;
+      if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i,1);
+    }
+    if (s.shiftActive) {
+      s.shiftTrailTimer -= dt;
+      if (s.shiftTrailTimer <= 0) {
+        s.shiftTrailTimer = .055;
+        s.shiftTrail.push({x:pilot.x,y:pilot.y,life:.42});
+        if (s.shiftTrail.length > 10) s.shiftTrail.shift();
+      }
+    }
     // Passing through an enemy while shifted leaves a bounded soul mark.
     // Subsequent reap can always affect a target even in solo play.
     if (s.shiftActive) {
@@ -1459,26 +1658,20 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
         if (s.ghostTrailCooldown === 0 && (game.shockwaves?.length || 0) < 35) {
           s.ghostTrailCooldown = .36;
           const level = Math.min(2, s.warpUpgrades.ghost_trail);
+          let hits=0;
           for (const enemy of game.enemies || []) {
             if (enemy.dead || enemy.hp <= 0 || !within(enemy,pilot,45+level*12)) continue;
             game.dealDamage(enemy,13+level*9,'phantom_ghost_trail',false,pilot);
+            if (++hits >= 12) break;
           }
+          window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,55+level*12,.32);
           game.shockwaves.push({x:pilot.x,y:pilot.y,radius:10,maxRadius:55+level*12,
             color:'#7439b5',alpha:.48});
         }
       }
       s.shiftRemaining -= dt;
       if (s.shiftRemaining <= 0) {
-        s.shiftActive = false;
-        s.shiftRemaining = 0;
-        reap(pilot, game, false);
-        if ((s.warpUpgrades.dimension_door || 0) > 0) {
-          const power = Math.min(2,s.warpUpgrades.dimension_door);
-          for (const enemy of game.enemies || []) {
-            if (enemy.dead || enemy.hp<=0 || !within(enemy,pilot,90+power*15)) continue;
-            enemy.freezeTimer=Math.max(enemy.freezeTimer || 0, .4+power*.2);
-          }
-        }
+        finishShift(pilot, game, false);
       }
     }
 
@@ -1571,13 +1764,16 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
             window.NeonPhantomScythe?.state(pilot);
           },
           onTick(pilot, game, dt) {
+            window.NeonPhantomVisual?.tick(pilot,dt);
             tick(pilot, game, dt);
             window.NeonPhantomScythe?.tick(pilot, game, dt);
             window.NeonPhantomArsenal?.tick(pilot, game, dt);
           },
           onAction(pilot, game, action) {
+            if (action?.kind === 'warp') return state(pilot)?.shiftActive ?
+              finishShift(pilot,game,true) : enterShift(pilot,game);
             if (action === 'shift') return enterShift(pilot, game);
-            if (action === 'reap') return reap(pilot, game, true);
+            if (action === 'reap') return finishShift(pilot, game, true);
             if (action === 'dock' || action?.kind === 'dock') return dock(pilot, action.carrier);
             if (action === 'undock' || action?.kind === 'undock') return undock(pilot, game, action?.eject);
             return false;
@@ -1602,7 +1798,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
   window.NeonPhantom = Object.freeze({
     BASE, UNIQUE, catalog, state, validPilot,
-    addEctoplasm, critBonus, enterShift, markEnemy, reap,
+    addEctoplasm, critBonus, enterShift, finishShift, markEnemy, reap,
     canDock, dock, undock, carrierDamageReduction, tick, renderMarks
   });
 })();
@@ -1878,6 +2074,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   const alive = e => e && !e.dead && e.hp > 0;
   const distance = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
   const rank = (p,id) => Math.min(5, Math.max(0, p.passives?.[id] || 0));
+  const fx=(pilot,kind,from,to,radius,life)=>
+    window.NeonPhantomVisual?.emit(pilot,kind,from,to,radius,life);
   const state = pilot => pilot.phantomArsenal ||= { timers: {}, delayed: [] };
   function targets(game,pilot,reach=750) {
     return (game.enemies || []).filter(e => alive(e) && distance(e,pilot) <= reach)
@@ -1890,8 +2088,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     const ecto = window.NeonPhantom?.state(pilot)?.ectoplasm || 0;
     const bonus = Math.min(.35, ecto / 500) + execute;
     game.dealDamage(enemy,base * (1 + bonus) * (pilot.dmgMultiplier || 1),source,
-      Math.random() < Math.min(.75, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0),pilot);
+      Math.random() < Math.min(1, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0),pilot);
     window.NeonPhantom?.addEctoplasm(pilot,1 + rank(pilot,'soul_gatherer'));
+    fx(pilot,'soul',pilot,enemy,15,.2);
     return true;
   }
   function pulse(pilot,game,center,radius,amount,source,limit=10) {
@@ -1904,6 +2103,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if ((game.shockwaves?.length || 0)<35)game.shockwaves?.push({
       x:center.x,y:center.y,radius:8,maxRadius:radius,color:'#a855f7',alpha:.7
     });
+    fx(pilot,'burst',center,null,radius,.37);
     return count;
   }
   function queue(pilot,event){const s=state(pilot);if(s.delayed.length>=18)s.delayed.shift();s.delayed.push(event);}
@@ -1915,37 +2115,48 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     switch(id) {
       case 'spectral_dart':
         enemyList.slice(0,Math.min(5,1+level)).forEach(e=>damage(pilot,game,e,19*levelDamage,'phantom_dart'));
+        for(const e of enemyList.slice(0,Math.min(5,1+level)))fx(pilot,'dart',pilot,e,22,.23);
         break;
       case 'soul_reap_orb': {
         for(const e of enemyList.slice(0,Math.min(7,2+level))){
           damage(pilot,game,e,23*levelDamage,'phantom_orb');
+          fx(pilot,'orb',pilot,e,24,.36);
           window.NeonPhantom?.addEctoplasm(pilot,2);
         }
         break;
       }
       case 'void_rift_mine':
+        fx(pilot,'telegraph',first,null,75+level*13,.55);
         queue(pilot,{x:first.x,y:first.y,delay:.55,radius:75+level*13,
           amount:45*levelDamage,id:'phantom_mine',limit:10});
         break;
       case 'symbiote_beam':
         enemyList.slice(0,Math.min(5,1+level)).forEach(e=>damage(pilot,game,e,28*levelDamage,'phantom_beam'));
+        for(const e of enemyList.slice(0,Math.min(5,1+level)))fx(pilot,'beam',pilot,e,38,.31);
         if(pilot.phantom?.docked && pilot.phantom.carrier)
           pilot.phantom.carrier.hp=Math.min(pilot.phantom.carrier.maxHp,pilot.phantom.carrier.hp+1+level*.4);
+        if(pilot.phantom?.docked&&pilot.phantom.carrier)fx(pilot,'heal',pilot.phantom.carrier,null,32,.45);
         break;
       case 'haunt_clones':
-        enemyList.slice(0,Math.min(6,1+Math.ceil(level/2))).forEach((e,i)=>queue(pilot,{
+        enemyList.slice(0,Math.min(6,1+Math.ceil(level/2))).forEach((e,i)=>{
+          fx(pilot,'clone',pilot,e,42,.45+i*.11);
+          queue(pilot,{
           x:e.x,y:e.y,delay:.18+i*.11,radius:45+level*4,
           amount:32*levelDamage,id:'phantom_clone',limit:5
-        }));
+          });
+        });
         break;
       case 'curse_totem':
+        fx(pilot,'telegraph',first,null,110+level*15,.45);
         queue(pilot,{x:first.x,y:first.y,delay:.45,radius:110+level*15,
           amount:27*levelDamage,id:'phantom_totem',limit:14,mark:true});
         break;
       case 'apocalypse_scythe':
+        fx(pilot,'burst',pilot,null,175+level*25,.45);
         pulse(pilot,game,pilot,175+level*25,70*levelDamage,'phantom_apocalypse',16);
         break;
       case 'abyssal_possession':
+        fx(pilot,'soul',pilot,first,75,.55);
         damage(pilot,game,first,Math.min(210,90+level*22+Math.min(80,
           (first.maxHp || first.hp)*.012)),'phantom_possession');
         if(first.hp > 0 && !first.isBoss)first.freezeTimer=Math.max(first.freezeTimer || 0,.2+level*.1);
@@ -1962,8 +2173,11 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       // Passive effects apply to the class itself, not global Riftblade slots.
       p.maxEctoplasm=100+rank(pilot,'phantom_core')*8;
       if(rank(pilot,'death_reversal')>=1 && !pilot.cheatDeathUsed)pilot.hasCheatDeath=true;
-      if(pilot.hp < pilot.maxHp*.45 && rank(pilot,'stealth_armor'))
-        pilot.regen=Math.max(pilot.regen || .5,.5+rank(pilot,'stealth_armor')*.12);
+      // Recompute from registered base each tick; no permanent low-HP stacking.
+      const base=(window.NeonShips?.get('phantom')?.baseStats.regen ?? .5) +
+        (pilot.passives?.armor || 0)*1.8;
+      const extra=pilot.hp < pilot.maxHp*.45 ? rank(pilot,'stealth_armor')*.12 : 0;
+      pilot.regen=base+extra;
     }
     let fired=0;
     for(const [id,[period,min]] of Object.entries(RULES)){
@@ -1991,14 +2205,105 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 })();
 
 // Source: ships/phantom/effects.js
+const NeonPhantomVisual = (() => {
+  const MAX_FX=24;
+  function emit(pilot,kind,from,to=null,radius=50,duration=.32) {
+    if(!pilot||!Number.isFinite(from?.x)||!Number.isFinite(from?.y))return;
+    const timeline=pilot.phantomVisual ||= [];
+    if(timeline.length>=MAX_FX)timeline.shift();
+    timeline.push({kind,x:from.x,y:from.y,
+      x2:Number.isFinite(to?.x)?to.x:from.x,
+      y2:Number.isFinite(to?.y)?to.y:from.y,
+      radius:Math.max(8,Math.min(280,radius)),life:duration,maxLife:duration});
+  }
+  function tick(pilot,dt) {
+    if(!Number.isFinite(dt)||dt<=0)return;
+    const events=pilot?.phantomVisual || [];
+    for(let i=events.length-1;i>=0;i--){
+      events[i].life-=dt;
+      if(events[i].life<=0)events.splice(i,1);
+    }
+  }
+  function draw(ctx,events) {
+    if(!ctx||!Array.isArray(events))return;
+    ctx.save();ctx.lineCap='round';
+    for(const event of events.slice(0,MAX_FX)){
+      if(!event||!(event.life>0)||!Number.isFinite(event.x)||!Number.isFinite(event.y))continue;
+      const alpha=Math.min(1,event.life/Math.max(.01,event.maxLife || .32));
+      const radius=Math.max(8,Math.min(280,event.radius||50));
+      ctx.globalAlpha=alpha*.85;
+      ctx.strokeStyle=event.kind==='soul'?'#ef88ff':event.kind==='heal'?'#66ffcb':'#9b55ee';
+      ctx.fillStyle=event.kind==='heal'?'#66ffcb':'#b779f7';
+      ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=9;
+      if(['dart','orb','beam','clone','soul'].includes(event.kind)) {
+        ctx.lineWidth=event.kind==='beam'?8:3;
+        ctx.beginPath();ctx.moveTo(event.x,event.y);
+        ctx.lineTo(event.x2,event.y2);ctx.stroke();
+        ctx.beginPath();ctx.arc(event.x2,event.y2,Math.min(12,radius*.2),0,Math.PI*2);ctx.fill();
+      } else {
+        ctx.lineWidth=event.kind==='heal'?4:3;
+        ctx.beginPath();ctx.arc(event.x,event.y,
+          event.kind==='telegraph'?radius:radius*(1-.65*alpha),0,Math.PI*2);ctx.stroke();
+        if(event.kind==='burst') {
+          ctx.globalAlpha=.13*alpha;
+          ctx.beginPath();ctx.arc(event.x,event.y,radius*(1-.65*alpha),0,Math.PI*2);ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+  return Object.freeze({emit,tick,draw,MAX_FX});
+})();
+window.NeonPhantomVisual=NeonPhantomVisual;
+function drawPhantomShift(ctx, spectral) {
+  if (!ctx || !spectral) return;
+  const trail = Array.isArray(spectral.shiftTrail) ? spectral.shiftTrail.slice(0,10) : [];
+  if (!trail.length && !(spectral.reapFlash > 0) && !(spectral.shiftFlash > 0)) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for(let i=0;i<trail.length;i++) {
+    const point=trail[i];
+    if(!Number.isFinite(point.x)||!Number.isFinite(point.y))continue;
+    const fade=Math.min(1,Math.max(0,(point.life||0)/.42));
+    ctx.globalAlpha=fade*.48;
+    ctx.fillStyle=i%2?'#7e3ad5':'#00f0ff';
+    ctx.beginPath();
+    ctx.arc(point.x,point.y,7+fade*9,0,Math.PI*2);
+    ctx.fill();
+    if(i) {
+      const prev=trail[i-1];
+      ctx.strokeStyle='#b967ff';
+      ctx.lineWidth=2+fade*7;
+      ctx.beginPath();ctx.moveTo(prev.x,prev.y);ctx.lineTo(point.x,point.y);ctx.stroke();
+    }
+  }
+  const pulse=spectral.reapFlash>0?spectral.reapFlash:spectral.shiftFlash;
+  if(pulse>0&&Number.isFinite(spectral.x)&&Number.isFinite(spectral.y)) {
+    ctx.globalAlpha=Math.min(.9,pulse*3);
+    ctx.strokeStyle=spectral.reapFlash>0?'#d38aff':'#00f0ff';
+    ctx.shadowColor=ctx.strokeStyle;
+    ctx.shadowBlur=14;
+    ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(spectral.x,spectral.y,25+(1-pulse/.28)*65,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.restore();
+}
 window.NeonShips.registerEffects('phantom', {
   pilot(ctx, pilot) {
+    if(pilot?.phantom)drawPhantomShift(ctx,{
+      ...pilot.phantom,x:pilot.x,y:pilot.y
+    });
+    NeonPhantomVisual.draw(ctx,pilot?.phantomVisual);
     window.NeonPhantomScythe?.render(ctx, pilot);
   },
   world(ctx, game) {
     window.NeonPhantom?.renderMarks(ctx, game);
   },
   network(ctx, snapshot) {
+    drawPhantomShift(ctx,{
+      ...snapshot.spectral,x:snapshot.x,y:snapshot.y
+    });
+    NeonPhantomVisual.draw(ctx,snapshot.spectral?.visual);
     if (snapshot.spectral?.scythes?.length) {
       window.NeonPhantomScythe?.render(ctx, {
         phantomScythe: {scythes:snapshot.spectral.scythes}
@@ -2023,6 +2328,19 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
     docked: Boolean(s.docked),
     dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),
+    shiftFlash: clamp(s.shiftFlash,0,.24),
+    reapFlash: clamp(s.reapFlash,0,.28),
+    shiftTrail:(s.shiftTrail || []).slice(-10).map(point=>({
+      x:clamp(point.x,-1e7,1e7),y:clamp(point.y,-1e7,1e7),
+      life:clamp(point.life,0,.5)
+    })),
+    visual:(pilot.phantomVisual||[]).slice(-24).map(fx=>({
+      kind:fx.kind,
+      x:clamp(fx.x,-1e7,1e7),y:clamp(fx.y,-1e7,1e7),
+      x2:clamp(fx.x2,-1e7,1e7),y2:clamp(fx.y2,-1e7,1e7),
+      radius:clamp(fx.radius,8,280),life:clamp(fx.life,0,3),
+      maxLife:clamp(fx.maxLife,.01,3)
+    })),
     scythes: (pilot.phantomScythe?.scythes || []).slice(0,6).map(sc=>({
       x:clamp(sc.x,-1e7,1e7), y:clamp(sc.y,-1e7,1e7),
       angle:clamp(sc.angle,-6.29,6.29),

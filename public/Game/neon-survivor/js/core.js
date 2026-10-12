@@ -25,49 +25,6 @@
         this.scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00]; // Pentatonic
       }
 
-      togglePhantomDock() {
-        if (this.settingsOpen) return false;
-        if (this.state === 'lan-client') {
-          if (this.lanCoop?.latest?.guest?.shipId !== 'phantom') return false;
-          return this.lanCoop.requestGuestShipAction('dock_toggle') === true;
-        }
-        const ectoPanel = document.getElementById('phantom-ecto-hud');
-        const isPhantom = this.player?.shipId === 'phantom';
-        if (ectoPanel) {
-          ectoPanel.hidden = !isPhantom;
-          const s = this.player.phantom;
-          if (isPhantom && s) {
-            const text = document.getElementById('phantom-ecto-text');
-            const fill = document.getElementById('phantom-ecto-fill');
-            if (text) text.textContent = `灵质 ${Math.floor(s.ectoplasm || 0)}/${s.maxEctoplasm || 100}` +
-              (s.shiftActive ? ' · 潜行' : '') + (s.docked ? ' · 共生' : '');
-            if (fill) fill.style.width = Math.round(100 * Math.min(1,
-              (s.ectoplasm || 0) / Math.max(1,s.maxEctoplasm || 100))) + '%';
-          }
-        }
-        const dockPanel = document.getElementById('phantom-touch-actions');
-        if (dockPanel) {
-          dockPanel.hidden = !isPhantom ||
-            (this.state !== 'playing' && this.state !== 'lan-client');
-          const control = document.getElementById('phantom-dock-action');
-          if (control) {
-            control.textContent = this.player.phantom?.docked ? '脱离共生 Q' : '共生合体 Q';
-            control.disabled = this.state === 'playing' ?
-              !this.lanCoop?.ally : !this.lanCoop?.latest?.host;
-          }
-        }
-        if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
-            this.player.downed || this.player.hp <= 0) return false;
-        if (this.player.phantom?.docked) {
-          return window.NeonShips?.runAbility?.(this.player,'onAction',this,
-            {kind:'undock',eject:true}) === true;
-        }
-        const carrier = this.lanCoop?.ally;
-        if (!carrier || !this.lanCoop?.rtc.connected) return false;
-        return window.NeonShips?.runAbility?.(this.player,'onAction',this,
-          {kind:'dock',carrier}) === true;
-      }
-
       init() {
         if (this.ctx) return;
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -82,22 +39,6 @@
         this.enabled = !this.enabled;
         if (this.masterGain) {
           this.masterGain.gain.value = this.enabled ? 0.28 : 0.0;
-        }
-        if (this.player?.shipId === 'phantom') {
-          const ghost = window.NeonPhantom?.state(this.player);
-          if (ghost) {
-            this.player.maxDashCharges = Math.min(3,
-              2 + (ghost.warpUpgrades.charge_overflow || 0));
-            this.player.dashCharges = ghost.dashCharges;
-            this.player.dashRechargeTimer = ghost.dashRecharge;
-          }
-          if (!e.repeat && e.key.toLowerCase() === 'q' &&
-              (this.state === 'playing' || this.state === 'lan-client') &&
-              (this.state === 'playing' ? this.player?.shipId :
-                this.lanCoop?.latest?.guest?.shipId) === 'phantom') {
-            this.togglePhantomDock();
-            e.preventDefault();
-          }
         }
         return this.enabled;
       }
@@ -1193,6 +1134,13 @@
               e.preventDefault();
             }
           }
+          if (!e.repeat && e.key.toLowerCase() === 'q' &&
+              (this.state === 'playing' || this.state === 'lan-client') &&
+              (this.state === 'playing' ? this.player?.shipId :
+                this.lanCoop?.latest?.guest?.shipId) === 'phantom') {
+            this.togglePhantomDock();
+            e.preventDefault();
+          }
           if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
             if (this.state === 'playing') this.pauseGame();
             else if (this.state === 'paused') this.resumeGame();
@@ -2026,47 +1974,63 @@
           this.selectedAstraSpell || 'meteor') === true;
       }
 
+      togglePhantomDock() {
+        if (this.settingsOpen) return false;
+        if (this.state === 'lan-client') {
+          if (this.lanCoop?.latest?.guest?.shipId !== 'phantom') return false;
+          return this.lanCoop?.requestGuestShipAction('dock_toggle') === true;
+        }
+        if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
+            this.player.downed || this.player.hp <= 0) return false;
+        if (this.player.phantom?.docked) {
+          return window.NeonShips?.runAbility?.(this.player, 'onAction', this,
+            { kind:'undock', eject:true }) === true;
+        }
+        const carrier = this.lanCoop?.ally;
+        if (!carrier || !this.lanCoop?.rtc?.connected) return false;
+        return window.NeonShips?.runAbility?.(this.player, 'onAction', this,
+          { kind:'dock', carrier }) === true;
+      }
+
+      getWarpDirection() {
+        let x = Number(Boolean(this.keys?.d || this.keys?.arrowright)) -
+          Number(Boolean(this.keys?.a || this.keys?.arrowleft));
+        let y = Number(Boolean(this.keys?.s || this.keys?.arrowdown)) -
+          Number(Boolean(this.keys?.w || this.keys?.arrowup));
+        if (this.touch?.active) {
+          x = this.touch.currentX - this.touch.startX;
+          y = this.touch.currentY - this.touch.startY;
+        } else if (this.gamepadMove &&
+          Math.hypot(this.gamepadMove.x,this.gamepadMove.y) > .2) {
+          x = this.gamepadMove.x; y = this.gamepadMove.y;
+        } else if (typeof navigator !== 'undefined' && navigator.getGamepads) {
+          const gp = navigator.getGamepads()?.[this.gamepadIndex];
+          const gx = Number.isFinite(gp?.axes?.[0]) ? gp.axes[0] : 0;
+          const gy = Number.isFinite(gp?.axes?.[1]) ? gp.axes[1] : 0;
+          if (Math.hypot(gx,gy) > .22) { x=gx; y=gy; }
+        }
+        const length=Math.hypot(x,y);
+        if (Number.isFinite(length) && length>.05) return {x:x/length,y:y/length};
+        const aim=Number.isFinite(this.player?.aimAngle)?this.player.aimAngle:0;
+        return {x:Math.cos(aim),y:Math.sin(aim)};
+      }
+
       triggerDash() {
         if (this.state === 'lan-client' && this.lanCoop?.guestMode) {
           if (this.lanCoop.latest?.guest?.downed) return;
           this.lanCoop.dashQueued = true;
           return;
         }
-        if (this.state === 'playing' && this.player?.shipId === 'astra') {
-          let x = Number(Boolean(this.keys.d || this.keys.arrowright)) -
-            Number(Boolean(this.keys.a || this.keys.arrowleft));
-          let y = Number(Boolean(this.keys.s || this.keys.arrowdown)) -
-            Number(Boolean(this.keys.w || this.keys.arrowup));
-          if (this.touch.active) {
-            x = this.touch.currentX - this.touch.startX;
-            y = this.touch.currentY - this.touch.startY;
-          } else if (this.gamepadMove && Math.hypot(this.gamepadMove.x, this.gamepadMove.y) > .2) {
-            x = this.gamepadMove.x;
-            y = this.gamepadMove.y;
+        // Every additional ship implements one common warp hook. The game
+        // controller neither knows its action names nor computes its damage.
+        if (this.state === 'playing' && this.player?.shipId &&
+            this.player.shipId !== 'riftblade') {
+          if (!this.player.downed && this.player.hp > 0 &&
+              window.NeonShips?.runAbility?.(this.player,'onAction',this,
+                {kind:'warp',direction:this.getWarpDirection()}) === true) {
+            this.sound?.playDash?.();
+            this.lanCoop?.onHostDash();
           }
-          if (!x && !y) {
-            x = Math.cos(this.player.aimAngle || 0);
-            y = Math.sin(this.player.aimAngle || 0);
-          }
-          const blinked = window.NeonShips?.runAbility?.(this.player, 'onAction', this,
-            { kind: 'blink', direction: { x, y } });
-          if (blinked) this.lanCoop?.onHostDash();
-          return;
-        }
-        if (this.state === 'playing' && this.player?.shipId === 'phantom') {
-          let shifted = false;
-          if (this.player.phantom?.shiftActive) {
-            shifted = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'reap') ||
-              window.NeonPhantom?.reap(this.player, this, true);
-          } else {
-            shifted = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'shift') ||
-              window.NeonPhantom?.enterShift(this.player, this);
-            if (shifted) {
-              this.player.invulnTimer = Math.max(this.player.invulnTimer || 0, window.NeonPhantom?.BASE?.shiftDuration || 1.6);
-              this.sound.playDash();
-            }
-          }
-          if (shifted) this.lanCoop?.onHostDash();
           return;
         }
         if (this.player?.downed) return;
@@ -2091,42 +2055,8 @@
         this.player.dashHitEnemies = new Set();
         this.sound.playDash();
 
-        // Dash vector direction
-        let dx = 0, dy = 0;
-        if (this.keys['w'] || this.keys['arrowup']) dy -= 1;
-        if (this.keys['s'] || this.keys['arrowdown']) dy += 1;
-        if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;
-        if (this.keys['d'] || this.keys['arrowright']) dx += 1;
-
-        if (this.touch.active) {
-          dx = this.touch.currentX - this.touch.startX;
-          dy = this.touch.currentY - this.touch.startY;
-        }
-
-        // Support Gamepad Left-Stick Dash Direction
-        if (!this.touch.active && typeof navigator !== 'undefined' && navigator.getGamepads) {
-          const gamepads = navigator.getGamepads();
-          const gp = gamepads && gamepads[this.gamepadIndex];
-          if (gp) {
-            const lx = Number.isFinite(gp.axes[0]) ? gp.axes[0] : 0;
-            const ly = Number.isFinite(gp.axes[1]) ? gp.axes[1] : 0;
-            if (Math.hypot(lx, ly) > 0.22) {
-              dx = lx;
-              dy = ly;
-            }
-          }
-        }
-
         this.vibrateGamepad(100, 0.45, 0.2);
-
-        const len = Math.hypot(dx, dy);
-        if (Number.isFinite(len) && len > 0.05) {
-          this.player.dashDir = { x: dx / len, y: dy / len };
-        } else {
-          // Dash towards aim angle if standing still
-          const aim = Number.isFinite(this.player.aimAngle) ? this.player.aimAngle : 0;
-          this.player.dashDir = { x: Math.cos(aim), y: Math.sin(aim) };
-        }
+        this.player.dashDir = this.getWarpDirection();
 
         // Spawn warp slash shockwave
         this.shockwaves.push({
@@ -2150,14 +2080,26 @@
 
       gainXP(amount) {
         // Magnet upgrade bonus XP multiplier
-        const xpBonus = 1 + (this.player.passives.magnet || 0) * 0.15;
-        this.player.xp += Math.round(amount * xpBonus);
+        // A corrupted/overflowing drop must never stall the RAF thread in
+        // an unbounded level-up loop or create hundreds of upgrade dialogs.
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        const xpBonus = 1 + Math.min(5, Math.max(0, this.player.passives?.magnet || 0)) * .15;
+        if (!Number.isFinite(this.player.xpNeeded) || this.player.xpNeeded <= 0)
+          this.player.xpNeeded = this.calcXpNeeded(Math.max(1, this.player.level || 1));
+        const need = Math.max(1, Number.isFinite(this.player.xpNeeded) ? this.player.xpNeeded :
+          this.calcXpNeeded(Math.max(1, this.player.level || 1)));
+        const earned = Math.min(Math.round(amount * xpBonus), Math.max(300, need * 3));
+        if (!Number.isFinite(this.player.xp) || this.player.xp < 0) this.player.xp = 0;
+        this.player.xp = Math.min(this.player.xp + earned, need * 8);
         this.player.crystals++;
 
         let shouldLevelUp = false;
-        while (this.player.xp >= this.player.xpNeeded) {
+        let levelUps = 0;
+        while (levelUps < 8 && Number.isFinite(this.player.xpNeeded) &&
+          this.player.xpNeeded > 0 && this.player.xp >= this.player.xpNeeded) {
           this.player.xp -= this.player.xpNeeded;
           this.player.level++;
+          levelUps++;
           this.player.xpNeeded = this.calcXpNeeded(this.player.level);
           this.pendingLevelUps = (this.pendingLevelUps || 0) + 1;
           shouldLevelUp = true;
@@ -2968,11 +2910,42 @@
 
       updateHUD() {
         const isAstra = this.player?.shipId === 'astra';
+        const isPhantom = this.player?.shipId === 'phantom';
         const astraState = isAstra ? window.NeonAstra?.state(this.player) : null;
         if (astraState) {
           this.player.maxDashCharges = Math.min(4, 2 + (astraState.warpUpgrades.star_gate || 0));
           this.player.dashCharges = astraState.blinkCharges;
           this.player.dashRechargeTimer = astraState.blinkRecharge;
+        }
+        const ghostState = isPhantom ? window.NeonPhantom?.state(this.player) : null;
+        if (ghostState) {
+          this.player.maxDashCharges = Math.min(3, 2 + (ghostState.warpUpgrades?.charge_overflow || 0));
+          this.player.dashCharges = ghostState.dashCharges;
+          this.player.dashRechargeTimer = ghostState.dashRecharge;
+        }
+        const ectoPanel = document.getElementById('phantom-ecto-hud');
+        if (ectoPanel) {
+          ectoPanel.hidden = !isPhantom;
+          if (ghostState) {
+            const text = document.getElementById('phantom-ecto-text');
+            const fill = document.getElementById('phantom-ecto-fill');
+            const maximum = Math.max(1, ghostState.maxEctoplasm || 100);
+            if (text) text.textContent = `灵质 ${Math.floor(ghostState.ectoplasm || 0)}/${maximum}` +
+              (ghostState.shiftActive ? ' · 潜行' : '') + (ghostState.docked ? ' · 共生' : '');
+            if (fill) fill.style.width = Math.round(100 * Math.min(1,
+              (ghostState.ectoplasm || 0) / maximum)) + '%';
+          }
+        }
+        const dockPanel = document.getElementById('phantom-touch-actions');
+        if (dockPanel) {
+          dockPanel.hidden = !isPhantom || (this.state !== 'playing' &&
+            !(this.state === 'lan-client' && this.lanCoop?.latest?.phase === 'playing'));
+          const control = document.getElementById('phantom-dock-action');
+          if (control) {
+            control.textContent = ghostState?.docked ? '脱离共生 Q' : '共生合体 Q';
+            control.disabled = this.state === 'playing' ?
+              !this.lanCoop?.ally : !this.lanCoop?.latest?.host;
+          }
         }
         const manaPanel = document.getElementById('astra-mana-hud');
         if (manaPanel) {
@@ -3498,10 +3471,25 @@
         return 'gem';
       }
 
+      playCombatSound(channel, callback, maxPerFrame = 2) {
+        const time = this.survivalTime || 0;
+        const state = this.combatSoundBudget ||= {};
+        const item = state[channel] ||= { time: NaN, count: 0 };
+        if (item.time !== time) { item.time = time; item.count = 0; }
+        if (item.count >= maxPerFrame) return false;
+        item.count++;
+        callback?.();
+        return true;
+      }
+
       onEnemyKilled(enemy, source = 'combat') {
         this.kills++;
         if (this.endlessMode) window.NeonRogueEndless?.onKill(this, enemy, source);
-        this.sound.playExplosion(enemy.isBoss ? 'large' : 'small');
+        // A dash can kill dozens of enemies in the same simulation frame.
+        // Rate-limit sound nodes; never rate-limit kills, XP or loot rewards.
+        this.playCombatSound('explosion', () =>
+          this.sound.playExplosion(enemy.isBoss ? 'large' : 'small'),
+          enemy.isBoss ? 2 : 1);
         this.screenShake = Math.max(this.screenShake, enemy.isBoss ? 15 : 2.5);
 
         // Boss-Minion Linkage hooks
@@ -3615,24 +3603,15 @@
             });
           }
         } else if (enemy.isElite) {
-          this.sound.playExplosion('large');
+          this.playCombatSound('elite-explosion', () => this.sound.playExplosion('large'), 1);
           this.screenShake = Math.max(this.screenShake, 6);
-          this.shockwaves.push({
-            x: enemy.x,
-            y: enemy.y,
-            radius: 8,
-            maxRadius: 160,
-            alpha: 0.9,
-            color: '#ffd700'
+          if (this.shockwaves.length < 36) this.shockwaves.push({
+            x: enemy.x, y: enemy.y, radius: 8, maxRadius: 160,
+            alpha: .9, color: '#ffd700'
           });
-          this.texts.push({
-            x: enemy.x,
-            y: enemy.y - 25,
-            text: '★ 精英机甲击破!',
-            color: '#ffd700',
-            size: 16,
-            life: 1.5,
-            maxLife: 1.5
+          if (this.texts.length < 36) this.texts.push({
+            x: enemy.x, y: enemy.y - 25, text: '★ 精英机甲击破!',
+            color: '#ffd700', size: 16, life: 1.5, maxLife: 1.5
           });
           for (let k = 0; k < 2; k++) {
             this.gems.push({
@@ -4321,7 +4300,7 @@
             this.player.dashRechargeTimer = 0;
             this.player.dashCharges++;
           }
-        } else {
+        } else if (this.player.shipId === 'riftblade') {
           this.player.dashRechargeTimer = 0;
         }
 
@@ -4377,32 +4356,32 @@
                 this.dealDamage(e, slashDmg * (precise ? 1 + this.player.dashCombo * 0.08 : 1),
                   'dash', this.player.dashAlwaysCrit);
 
-                this.sound.playLaser(780, 'triangle');
-                this.particles.push({
-                  type: 'spark',
-                  x: e.x,
-                  y: e.y,
-                  vx: this.player.dashDir.x * 220 + (Math.random() - 0.5) * 80,
-                  vy: this.player.dashDir.y * 220 + (Math.random() - 0.5) * 80,
-                  radius: Math.random() * 2.5 + 1.5,
-                  color: this.player.hasFireTrail ? '#ff007f' : '#00f3ff',
-                  life: 0.22,
-                  maxLife: 0.22
-                });
+                this.playCombatSound('dash-impact', () => this.sound.playLaser(780,'triangle'), 2);
+                if (this.particles.length < (this.fxLow ? 20 : 60)) {
+                  this.particles.push({
+                    type: 'spark',
+                    x: e.x, y: e.y,
+                    vx: this.player.dashDir.x * 220 + (Math.random() - 0.5) * 80,
+                    vy: this.player.dashDir.y * 220 + (Math.random() - 0.5) * 80,
+                    radius: Math.random() * 2.5 + 1.5,
+                    color: this.player.hasFireTrail ? '#ff007f' : '#00f3ff',
+                    life: 0.22, maxLife: 0.22
+                  });
+                }
               }
             }
           }
 
           // Trail phantom particles
-          this.particles.push({
-            type: 'afterimage',
-            x: this.player.x,
-            y: this.player.y,
-            radius: this.player.radius * (this.player.hasFireTrail ? 1.4 : 1.1),
-            color: this.player.hasFireTrail ? 'rgba(255, 0, 128, 0.65)' : 'rgba(0, 243, 255, 0.55)',
-            life: 0.2,
-            maxLife: 0.2
-          });
+          if (this.particles.length < (this.fxLow ? 20 : 60)) {
+            this.particles.push({
+              type: 'afterimage',
+              x: this.player.x,y: this.player.y,
+              radius: this.player.radius * (this.player.hasFireTrail ? 1.4 : 1.1),
+              color: this.player.hasFireTrail ? 'rgba(255, 0, 128, 0.65)' : 'rgba(0, 243, 255, 0.55)',
+              life: 0.2,maxLife: 0.2
+            });
+          }
 
           if (this.player.dashTimeLeft <= 0) {
             this.player.isDashing = false;
@@ -4476,8 +4455,10 @@
           if (moveLen > 0.05) {
             const normX = moveX / moveLen;
             const normY = moveY / moveLen;
-            this.player.vx = normX * this.player.baseSpeed;
-            this.player.vy = normY * this.player.baseSpeed;
+            const phaseSpeed = this.player.shipId === 'phantom' &&
+              this.player.phantom?.shiftActive ? window.NeonPhantom?.BASE?.shiftSpeedMultiplier || 1.4 : 1;
+            this.player.vx = normX * this.player.baseSpeed * phaseSpeed;
+            this.player.vy = normY * this.player.baseSpeed * phaseSpeed;
           } else {
             this.player.vx *= 0.8;
             this.player.vy *= 0.8;
@@ -5033,7 +5014,17 @@
           }
 
           // Enemy Behavior Types
-          if (e.type === 'charger') {
+          if (e.stunnedUntil > this.survivalTime) {
+            // Ejection stun pauses both movement AND attacks, not just velocity.
+            e.vx = 0;
+            e.vy = 0;
+          } else if (!e.isBoss && e.fearedUntil > this.survivalTime) {
+            // Terror prevents special attacks while enemies retreat.
+            const awayX = e.x - aimPlayer.x, awayY = e.y - aimPlayer.y;
+            const awayDist = Math.max(1,Math.hypot(awayX,awayY));
+            e.vx = awayX / awayDist * (e.speed || 120) * 1.25;
+            e.vy = awayY / awayDist * (e.speed || 120) * 1.25;
+          } else if (e.type === 'charger') {
             e.chargeTimer -= dt;
             if (e.chargeTimer <= 0) {
               e.isCharging = true;
@@ -5051,7 +5042,8 @@
             }
           } else if (e.type === 'spitter') {
             e.shootTimer += dt;
-            if (e.shootTimer >= e.shootCooldown) {
+            if (e.shootTimer >= e.shootCooldown &&
+                !(e.fearedUntil > this.survivalTime) && !(e.stunnedUntil > this.survivalTime)) {
               e.shootTimer = 0;
               this.enemyBullets.push({
                 x: e.x,
@@ -5415,7 +5407,12 @@
         }
 
         // --- Update XP Gems & Drops ---
+        // One mass kill / blink into a gem pile must not synchronously resolve
+        // hundreds of pickups, DOM HUD changes or upgrade dialogs in one RAF.
+        const pickupBudget = 24;
+        let pickupsThisFrame = 0;
         for (let i = this.gems.length - 1; i >= 0; i--) {
+          if (this.state !== 'playing') break;
           const g = this.gems[i];
           if (!g) continue;
           const collector = window.NeonLanExperience?.collector(this, g) || this.player;
@@ -5431,6 +5428,8 @@
             g.y += Math.sin(angle) * pullSpeed * dt;
 
             if (dist < collector.radius + g.radius + 8) {
+              if (pickupsThisFrame >= pickupBudget) continue;
+              pickupsThisFrame++;
               if (g.type === 'heal') {
                 const healAmt = Math.round(collector.maxHp * 0.35);
                 collector.hp = Math.min(collector.maxHp, collector.hp + healAmt);
@@ -5494,6 +5493,9 @@
                 this.gainXP(g.value);
               }
               this.gems.splice(i, 1);
+              // The first level-up pauses gameplay and yields to the upgrade
+              // picker. Leave the rest of the drops for resumed simulation.
+              if (this.state !== 'playing') break;
             }
           }
         }

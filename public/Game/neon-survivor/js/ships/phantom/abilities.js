@@ -128,7 +128,8 @@
       warpUpgrades: {},
       passiveUpgrades: {},
       lastEjectAt: -Infinity,
-      slingshotBuffUntil: 0
+      slingshotBuffUntil: 0,
+      shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0
     };
   }
 
@@ -171,6 +172,11 @@
     s.shiftActive = true;
     const extraDuration = (s.warpUpgrades.spectral_extend || 0) * 0.5;
     s.shiftRemaining = BASE.shiftDuration + extraDuration;
+    s.shiftTrail.length = 0;
+    s.shiftTrailTimer = 0;
+    s.shiftFlash = .24;
+    s.shiftTrail.push({x:pilot.x,y:pilot.y,life:.5});
+    pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, s.shiftRemaining);
 
     if ((game.shockwaves?.length || 0) < 40) {
       game.shockwaves?.push({
@@ -185,12 +191,16 @@
     const s = state(pilot);
     if (!validPilot(pilot) || !s || !enemy || enemy.dead || enemy.hp <= 0) return false;
     if (!s.shiftActive) return false;
+    // Guests used to re-mark the same enemy every frame and farm unlimited
+    // ectoplasm without changing position. One fresh mark earns one reward.
+    if ((s.marks.get(enemy) || 0) > timeSeconds) return false;
     if (s.marks.size >= 64) {
       // Bound map size to prevent memory explosion
       s.marks.delete(s.marks.keys().next().value);
     }
     s.marks.set(enemy, timeSeconds + BASE.markDuration);
     addEctoplasm(pilot, BASE.passThroughEctoplasm);
+    window.NeonPhantomVisual?.emit(pilot,'mark',enemy,null,25,.37);
     return true;
   }
 
@@ -241,6 +251,8 @@
           e.fearedUntil = (game.survivalTime || 0) + 1.5;
         }
       }
+      window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,BASE.ejectRadius,.45);
+      window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,180,.45);
     }
 
     // Shockwave FX
@@ -252,7 +264,29 @@
     }
 
     s.marks.clear();
+    s.reapFlash = .28;
     return targetCount;
+  }
+
+  function finishShift(pilot, game, forced = false) {
+    const s = state(pilot);
+    if (!validPilot(pilot) || !s?.shiftActive || game?.state !== 'playing') return false;
+    s.shiftActive = false;
+    s.shiftRemaining = 0;
+    // Ending shift early also ends its extended no-hit window.
+    pilot.invulnTimer = Math.min(pilot.invulnTimer || 0,.18);
+    if (Number.isFinite(pilot.invuln)) pilot.invuln = Math.min(pilot.invuln,.18);
+    s.reapFlash = .28;
+    reap(pilot, game, forced);
+    const power = Math.min(2, s.warpUpgrades.dimension_door || 0);
+    if (power) {
+      window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,90+power*15,.4);
+      for (const enemy of game.enemies || []) {
+        if (enemy.dead || enemy.hp <= 0 || !within(enemy,pilot,90+power*15)) continue;
+        enemy.freezeTimer = Math.max(enemy.freezeTimer || 0, .4+power*.2);
+      }
+    }
+    return true;
   }
 
   function canDock(pilot, carrier) {
@@ -272,6 +306,7 @@
     carrier.hasDockedGunner = true;
     pilot.x = carrier.x;
     pilot.y = carrier.y;
+    window.NeonPhantomVisual?.emit(pilot,'heal',carrier,null,40,.45);
     return true;
   }
 
@@ -290,6 +325,7 @@
       s.lastEjectAt = now;
       if ((s.warpUpgrades.symbiote_slingshot || 0) > 0) {
         s.slingshotBuffUntil = now + 3.0; // 3s 100% crit
+        window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,90,.45);
       }
 
       // Radial blast knocks back and stuns enemies
@@ -326,6 +362,24 @@
         game?.state !== 'playing') return;
 
     const now = game.survivalTime || 0;
+    if (pilot.cheatDeathUsed && !s.deathVisualPlayed) {
+      s.deathVisualPlayed = true;
+      window.NeonPhantomVisual?.emit(pilot,'heal',pilot,null,75,.7);
+    }
+    s.shiftFlash = Math.max(0,(s.shiftFlash || 0)-dt);
+    s.reapFlash = Math.max(0,(s.reapFlash || 0)-dt);
+    for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
+      s.shiftTrail[i].life -= dt;
+      if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i,1);
+    }
+    if (s.shiftActive) {
+      s.shiftTrailTimer -= dt;
+      if (s.shiftTrailTimer <= 0) {
+        s.shiftTrailTimer = .055;
+        s.shiftTrail.push({x:pilot.x,y:pilot.y,life:.42});
+        if (s.shiftTrail.length > 10) s.shiftTrail.shift();
+      }
+    }
     // Passing through an enemy while shifted leaves a bounded soul mark.
     // Subsequent reap can always affect a target even in solo play.
     if (s.shiftActive) {
@@ -345,26 +399,20 @@
         if (s.ghostTrailCooldown === 0 && (game.shockwaves?.length || 0) < 35) {
           s.ghostTrailCooldown = .36;
           const level = Math.min(2, s.warpUpgrades.ghost_trail);
+          let hits=0;
           for (const enemy of game.enemies || []) {
             if (enemy.dead || enemy.hp <= 0 || !within(enemy,pilot,45+level*12)) continue;
             game.dealDamage(enemy,13+level*9,'phantom_ghost_trail',false,pilot);
+            if (++hits >= 12) break;
           }
+          window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,55+level*12,.32);
           game.shockwaves.push({x:pilot.x,y:pilot.y,radius:10,maxRadius:55+level*12,
             color:'#7439b5',alpha:.48});
         }
       }
       s.shiftRemaining -= dt;
       if (s.shiftRemaining <= 0) {
-        s.shiftActive = false;
-        s.shiftRemaining = 0;
-        reap(pilot, game, false);
-        if ((s.warpUpgrades.dimension_door || 0) > 0) {
-          const power = Math.min(2,s.warpUpgrades.dimension_door);
-          for (const enemy of game.enemies || []) {
-            if (enemy.dead || enemy.hp<=0 || !within(enemy,pilot,90+power*15)) continue;
-            enemy.freezeTimer=Math.max(enemy.freezeTimer || 0, .4+power*.2);
-          }
-        }
+        finishShift(pilot, game, false);
       }
     }
 
@@ -457,13 +505,16 @@
             window.NeonPhantomScythe?.state(pilot);
           },
           onTick(pilot, game, dt) {
+            window.NeonPhantomVisual?.tick(pilot,dt);
             tick(pilot, game, dt);
             window.NeonPhantomScythe?.tick(pilot, game, dt);
             window.NeonPhantomArsenal?.tick(pilot, game, dt);
           },
           onAction(pilot, game, action) {
+            if (action?.kind === 'warp') return state(pilot)?.shiftActive ?
+              finishShift(pilot,game,true) : enterShift(pilot,game);
             if (action === 'shift') return enterShift(pilot, game);
-            if (action === 'reap') return reap(pilot, game, true);
+            if (action === 'reap') return finishShift(pilot, game, true);
             if (action === 'dock' || action?.kind === 'dock') return dock(pilot, action.carrier);
             if (action === 'undock' || action?.kind === 'undock') return undock(pilot, game, action?.eject);
             return false;
@@ -488,7 +539,7 @@
 
   window.NeonPhantom = Object.freeze({
     BASE, UNIQUE, catalog, state, validPilot,
-    addEctoplasm, critBonus, enterShift, markEnemy, reap,
+    addEctoplasm, critBonus, enterShift, finishShift, markEnemy, reap,
     canDock, dock, undock, carrierDamageReduction, tick, renderMarks
   });
 })();

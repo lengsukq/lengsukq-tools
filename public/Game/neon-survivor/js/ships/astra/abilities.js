@@ -1,7 +1,4 @@
-/* ASTRA / 星织·织界术师 — headless, host-authoritative ability foundation.
- * NOT enabled in the live character selector yet: the full 9+8+7 ability
- * implementations, platform controls and LAN protocol belong to V5/V6.
- * This file supplies pure combat rules that can be tested before wiring UI.
+/* ASTRA / 星织·织界术师 — host-authoritative abilities and transient warp FX.
  */
 (() => {
   'use strict';
@@ -154,7 +151,7 @@
       warpUpgrades: {}, lastFoldAt: -Infinity,
       wardHarmonyBonus: 0,
       phaseVeilRemaining: 0, mirrorEchoPending: false,
-      lastBrandAt: -Infinity
+      lastBrandAt: -Infinity, blinkFx: null
     };
   }
   function state(pilot) {
@@ -188,6 +185,11 @@
         game?.state !== 'playing') return;
     const level = pilot.level || 1;
     const m = modifiers(pilot);
+    const dangerActive = (pilot.passives?.danger_resonance || 0) > 0 &&
+      pilot.hp <= (pilot.maxHp || 95) * .4;
+    if (dangerActive && !s.dangerVisualActive)
+      window.NeonAstraVisual?.emit(pilot,'danger',pilot,null,72,.7);
+    s.dangerVisualActive = dangerActive;
     s.talentLevel = level >= 12 ? 3 : level >= 6 ? 2 : 1;
     s.maxMana = m.maxMana;
     s.mana = Math.min(s.maxMana, s.mana + m.manaRegen * dt);
@@ -197,6 +199,10 @@
     s.wardRemaining = Math.max(0, s.wardRemaining - dt);
     if (s.wardRemaining <= 0) s.wardHarmonyBonus = 0;
     s.phaseVeilRemaining = Math.max(0, s.phaseVeilRemaining - dt);
+    if (s.blinkFx) {
+      s.blinkFx.life -= dt;
+      if (s.blinkFx.life <= 0) s.blinkFx = null;
+    }
     const maxCharges = Math.min(BASE.maxCharges, 2 + (s.warpUpgrades.star_gate || 0));
     s.blinkCharges = Math.min(maxCharges, s.blinkCharges);
     if (s.blinkCharges < maxCharges) {
@@ -236,6 +242,8 @@
           'astra_meteor', false, pilot);
         regenOnHit(pilot, enemy, game.survivalTime || 0);
       }
+      window.NeonAstraVisual?.emit(pilot,'burst',focus,null,
+        BASE.meteorRadius * m.areaFactor,.6);
       if ((game.shockwaves?.length || 0) < 40) game.shockwaves?.push({
         x: focus.x, y: focus.y, radius: 12, maxRadius: BASE.meteorRadius,
         color: '#b38dff', alpha: .95
@@ -246,7 +254,11 @@
       s.wardX = pilot.x;
       s.wardY = pilot.y;
       s.wardHarmonyBonus = alternating ? m.harmony * .012 : 0;
+      window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,
+        BASE.wardRadius * m.areaFactor,.8);
     }
+    if (alternating && m.harmony > 0)
+      window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.7);
     if (arcane) arcane.harmonyLast = spell;
     s.cooldowns[spell] = (spell === SPELLS.meteor ? BASE.meteorCooldown :
       BASE.wardCooldown) * m.cooldownFactor;
@@ -278,6 +290,7 @@
     const amount = tier >= 2 ? 20 : 12;
     if (!pilot.astraTempShield || pilot.astraTempShield.value < amount) {
       pilot.astraTempShield = { value: amount, remaining: BASE.foldDuration };
+      window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.55);
       return 1;
     }
     return 0;
@@ -318,9 +331,18 @@
     const dx = Number(direction?.x), dy = Number(direction?.y);
     const length = Math.hypot(dx, dy);
     if (!Number.isFinite(length) || length <= 0) return false;
+    const fromX = pilot.x, fromY = pilot.y;
     s.blinkCharges--;
     pilot.x += dx / length * BASE.blinkDistance;
     pilot.y += dy / length * BASE.blinkDistance;
+    // Fixed-size transient effect state; renderer has no allocations or damage
+    // responsibilities, and the FX expires on simulated time (not wall time).
+    s.blinkFx = { x1: fromX, y1: fromY, x2: pilot.x, y2: pilot.y,
+      life: .32, maxLife: .32 };
+    if ((game.shockwaves?.length || 0) < 36) {
+      game.shockwaves.push({ x: pilot.x, y: pilot.y,
+        radius: 8, maxRadius: 65, alpha: .8, color: '#b38dff' });
+    }
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, BASE.blinkInvulnerability);
     foldShield(pilot, game, timeSeconds);
     window.NeonAstraArsenal?.onBlink(pilot, game, timeSeconds);

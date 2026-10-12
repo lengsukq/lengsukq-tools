@@ -70,6 +70,10 @@
       const target = closest(enemies, pilot);
       if (target) {
         applyDamage(game, pilot, target, 28, 'astra_weave_bolt', true);
+        // The signature weapon must activate the class's marked-target passive
+        // without requiring a second specific weapon (star_fragments).
+        if ((pilot.passives?.star_mark_hunt || 0) > 0)
+          window.NeonAstraArsenal?.markEnemy(pilot,target,(game.survivalTime||0)+3);
         const angle = s.serial++ * 2.3999632;
         const newAnchor = { x: target.x + Math.cos(angle) * 25,
           y: target.y + Math.sin(angle) * 25, life: level >= 4 ? 5 : 4 };

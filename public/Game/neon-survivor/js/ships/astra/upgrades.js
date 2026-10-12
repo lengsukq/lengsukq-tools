@@ -22,6 +22,8 @@
   const safe = p => p?.shipId === 'astra' && p.hp > 0 && !p.downed;
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const active = enemy => enemy && !enemy.dead && enemy.hp > 0;
+  const fx = (pilot,kind,from,to,radius,life) =>
+    window.NeonAstraVisual?.emit(pilot,kind,from,to,radius,life);
 
   function modifiers(pilot) {
     const talisman = rank(pilot, 'star_talisman');
@@ -76,6 +78,7 @@
       s.marks.delete(s.marks.keys().next().value);
     }
     s.marks.set(enemy, until);
+    fx(pilot,'mark',enemy,null,24,.32);
   }
   function hit(pilot, game, enemy, base, source, mana = true) {
     if (!active(enemy) || !safe(pilot)) return false;
@@ -87,6 +90,7 @@
       ? 1 + Math.min(2, pilot.dashUpgrades?.mirror_echo || 1) * .15 : 1;
     if (s.mirrorEchoPending) s.mirrorEchoPending = false;
     const damage = base * (pilot.dmgMultiplier || 1) * m.dangerBonus * bonus * echo;
+    if (echo > 1) fx(pilot,'echo',pilot,enemy,38,.32);
     game.dealDamage(enemy, damage, source, false, pilot);
     if (mana) window.NeonAstra?.regenOnHit(pilot, enemy, game.survivalTime || 0);
     return true;
@@ -116,6 +120,7 @@
     switch (id) {
       case 'star_fragments': // Delayed skyfall locks the enemy's old position.
         markEnemy(pilot, focus, now + 3);
+        fx(pilot,'telegraph',focus,null,(60+level*10)*radius,.5);
         schedule(pilot, { kind: 'burst', delay: .5,
           x: focus.x, y: focus.y, radius: (60 + level * 10) * radius,
           damage: 38 + level * 18, source: 'astra_fragments', targets: 10 });
@@ -127,21 +132,26 @@
           if (!e || seen.has(e)) break;
           seen.add(e);
           hit(pilot, game, e, 32 + level * 13, 'astra_prism');
-          e = nearest(list.filter(other => !seen.has(other)), e, 150 + level * 12);
+          const next = nearest(list.filter(other => !seen.has(other)), e, 150 + level * 12);
+          fx(pilot,'chain',seen.size===1?pilot:e,next||e,55,.3);
+          e=next;
         }
         break;
       }
+      fx(pilot,'burst',pilot,null,radius,.28);
       case 'chrono_bind': { // Slow several linked enemies, bosses less.
         let n = 0;
         for (const e of list) {
           if (distance(e, focus) > (115 + level * 10) * radius) continue;
           hit(pilot, game, e, 22 + level * 9, 'astra_chrono');
           e.freezeTimer = Math.max(e.freezeTimer || 0, e.isBoss ? .18 : .45 + level * .12);
+          fx(pilot,'shield',e,null,32,.42);
           if (++n >= 3 + level) break;
         }
         break;
       }
       case 'eclipse_seal': // Visible delayed seal; high positional payout.
+        fx(pilot,'telegraph',focus,null,(100+level*10)*radius,1);
         schedule(pilot, { kind: 'burst', delay: 1,
           x: focus.x, y: focus.y, radius: (100 + level * 10) * radius,
           damage: 60 + level * 25, source: 'astra_eclipse', targets: 12 });
@@ -157,10 +167,12 @@
         schedule(pilot, { kind: 'orb', delay: .75, x: pilot.x, y: pilot.y,
           radius: (70 + level * 8) * radius,
           damage: 30 + level * 14, source: 'astra_orb_return', targets: 8 });
+        fx(pilot,'orb',pilot,{x,y},40,.45);
         break;
       }
       case 'void_shock': { // A directional cone, not a generic radius blast.
         const angle = Math.atan2(focus.y - pilot.y, focus.x - pilot.x);
+        fx(pilot,'beam',pilot,focus,70,.28);
         let n = 0;
         for (const e of list) {
           if (distance(e, pilot) > (250 + level * 16) * radius) continue;
@@ -179,9 +191,13 @@
             x: focus.x + Math.cos(a) * 72, y: focus.y + Math.sin(a) * 72,
             radius: (70 + level * 6) * radius,
             damage: 52 + level * 18, source: 'astra_skyfall', targets: 9 });
+          fx(pilot,'telegraph',{
+            x:focus.x+Math.cos(a)*72,y:focus.y+Math.sin(a)*72
+          },null,(70+level*6)*radius,.4+.3*i);
         }
         break;
       case 'singularity_chant': // Long charge & one heavily capped detonation.
+        fx(pilot,'telegraph',focus,null,(135+level*12)*radius,1.4);
         schedule(pilot, { kind: 'burst', delay: 1.4,
           x: focus.x, y: focus.y, radius: (135 + level * 12) * radius,
           damage: 110 + level * 38, source: 'astra_singularity', targets: 16 });
@@ -218,6 +234,7 @@
       s.pending.splice(i, 1);
       pulse(pilot, game, list, event, event.radius, event.damage,
         event.source, event.targets);
+      fx(pilot,'burst',event,null,event.radius,.44);
       if ((game.shockwaves?.length || 0) < 35) game.shockwaves?.push({
         x: event.x, y: event.y, radius: 8, maxRadius: event.radius,
         color: '#b89bff', alpha: .7
@@ -240,6 +257,7 @@
     s.lastRefractionAt = now;
     hit(pilot, game, e, Math.min(90, absorbed * .18 + strength * 9),
       'astra_refraction', false);
+    fx(pilot,'beam',pilot,e,35,.3);
     return true;
   }
 
@@ -251,6 +269,7 @@
     if (up.prism_veil && spell) {
       spell.phaseVeilRemaining = Math.max(spell.phaseVeilRemaining || 0,
         1 + Math.min(2, up.prism_veil) * .6);
+      fx(pilot,'shield',pilot,null,52,.45);
     }
     if (up.spatial_disturb) {
       const radius = 100 + Math.min(2, up.spatial_disturb) * 25;
@@ -267,8 +286,12 @@
       spell.mana -= 15;
       pulse(pilot, game, targets(game, pilot), pilot, 135,
         45 + Math.min(up.rift_brand, 2) * 28, 'astra_rift_brand', 8);
+      fx(pilot,'burst',pilot,null,135,.38);
     }
-    if (up.mirror_echo) s.mirrorEchoPending = true;
+    if (up.mirror_echo) {
+      s.mirrorEchoPending = true;
+      fx(pilot,'mark',pilot,null,34,.45);
+    }
     if (up.anchor_rewrite && pilot.starWeave?.anchors?.length) {
       let nearestAnchor = null;
       let minDistance = 180 + Math.min(2, up.anchor_rewrite) * 30;
@@ -277,6 +300,7 @@
         if (d < minDistance) { minDistance = d; nearestAnchor = anchor; }
       }
       if (nearestAnchor) {
+        fx(pilot,'beam',nearestAnchor,pilot,24,.3);
         nearestAnchor.x = pilot.x;
         nearestAnchor.y = pilot.y;
         // Preserve remaining lifetime, so phase spam cannot extend star nets.
@@ -306,20 +330,20 @@
     return true;
   }
 
-  // Register with the V6 ship API while ASTRA remains locked. Its catalog is
-  // then ready for normal weighted picks as soon as gameplay is validated.
+  // All 24 distinct cards share the same authoritative ship hook.
   if (window.NeonShips?.registerUpgradeCatalog && window.NeonAstra?.catalog) {
     window.NeonShips.registerUpgradeCatalog('astra', window.NeonAstra.catalog);
     window.NeonShips.registerAbilities('astra', {
       onStart(pilot) { state(pilot); window.NeonAstra?.state(pilot); },
       onTick(pilot, game, dt) {
+        window.NeonAstraVisual?.tick(pilot,dt);
         window.NeonAstra?.tick(pilot, game, dt);
         window.NeonAstraWeave?.tick(pilot, game, dt);
         tick(pilot, game, dt);
       },
       onAction(pilot, game, action) {
         if (action === 'meteor' || action === 'ward') return window.NeonAstra?.cast(pilot, game, action);
-        if (action?.kind === 'blink') return window.NeonAstra?.blink(pilot, game,
+        if (action?.kind === 'warp' || action?.kind === 'blink') return window.NeonAstra?.blink(pilot, game,
           action.direction, game.survivalTime || 0);
         return false;
       },

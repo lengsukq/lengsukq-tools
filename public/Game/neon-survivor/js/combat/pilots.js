@@ -18,24 +18,22 @@
     };
   }
   function startDash(game, pilot) {
-    if (pilot?.shipId === 'astra') {
-      const x = pilot.input?.dx || Math.cos(pilot.aimAngle || 0);
-      const y = pilot.input?.dy || Math.sin(pilot.aimAngle || 0);
-      const blinked = window.NeonAstra?.blink(pilot, game, { x, y },
-        game.survivalTime || 0) || false;
-      if (blinked) {
-        pilot.invuln = Math.max(pilot.invuln || 0, .12);
-        pilot.charges = pilot.astra?.blinkCharges ?? pilot.charges;
+    if (pilot?.shipId && pilot.shipId !== 'riftblade') {
+      const dx=Number.isFinite(pilot.input?.dx)?pilot.input.dx:0;
+      const dy=Number.isFinite(pilot.input?.dy)?pilot.input.dy:0;
+      const length=Math.hypot(dx,dy);
+      const aim=Number.isFinite(pilot.aimAngle)?pilot.aimAngle:0;
+      const direction=length>.05 ? {x:dx/length,y:dy/length} :
+        {x:Math.cos(aim),y:Math.sin(aim)};
+      const warped=window.NeonShips?.runAbility?.(pilot,'onAction',game,
+        {kind:'warp',direction}) === true;
+      if (warped) {
+        // Class plugins own the meaning of warp; the shared pilot only mirrors
+        // any resulting short protection and the class's existing charge pool.
+        pilot.invuln=Math.max(pilot.invuln || 0,pilot.invulnTimer || 0);
+        pilot.charges=pilot.astra?.blinkCharges ?? pilot.phantom?.dashCharges ?? pilot.charges;
       }
-      return blinked;
-    }
-    if (pilot?.shipId === 'phantom') {
-      if (pilot.phantom?.shiftActive) {
-        return window.NeonPhantom?.reap(pilot, game, true) || false;
-      }
-      const shifted = window.NeonPhantom?.enterShift(pilot, game);
-      if (shifted) pilot.invuln = Math.max(pilot.invuln || 0, window.NeonPhantom?.BASE?.shiftDuration || 1.6);
-      return Boolean(shifted);
+      return warped;
     }
     if (!pilot || pilot.hp <= 0 || pilot.downed || pilot.charges <= 0 || pilot.dash > 0) return false;
     pilot.charges--;
@@ -92,8 +90,15 @@
       pilot.x += dx * speed * shiftSpeed * dt;
       pilot.y += dy * speed * shiftSpeed * dt;
     }
+    // Recalculate once, not once in the ship hook and again in ally regen.
+    // The previous code double-added armour regen for co-op clients.
+    const baseRegen = window.NeonShips?.get(pilot.shipId)?.baseStats.regen ?? .8;
+    const armorRegen = (pilot.passives?.armor || 0) * 1.8;
+    const stealthRegen = pilot.shipId === 'phantom' &&
+      pilot.hp < pilot.maxHp * .45 ? (pilot.passives?.stealth_armor || 0) * .12 : 0;
+    pilot.regen = baseRegen + armorRegen + stealthRegen;
     if (pilot.hp > 0 && !pilot.downed) pilot.hp = Math.min(pilot.maxHp,
-      pilot.hp + dt * ((pilot.regen ?? .8) + (pilot.passives?.armor || 0) * 1.8));
+      pilot.hp + dt * pilot.regen);
     if (!pilot.downed && pilot.shipId === 'phantom' && pilot.phantom?.shiftActive) {
       for (const enemy of game.enemies || []) {
         if (!enemy.dead && dist(enemy, pilot) <= (enemy.radius || 12) + (pilot.radius || 16)) {

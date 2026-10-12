@@ -13,6 +13,19 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
     docked: Boolean(s.docked),
     dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),
+    shiftFlash: clamp(s.shiftFlash,0,.24),
+    reapFlash: clamp(s.reapFlash,0,.28),
+    shiftTrail:(s.shiftTrail || []).slice(-10).map(point=>({
+      x:clamp(point.x,-1e7,1e7),y:clamp(point.y,-1e7,1e7),
+      life:clamp(point.life,0,.5)
+    })),
+    visual:(pilot.phantomVisual||[]).slice(-24).map(fx=>({
+      kind:fx.kind,
+      x:clamp(fx.x,-1e7,1e7),y:clamp(fx.y,-1e7,1e7),
+      x2:clamp(fx.x2,-1e7,1e7),y2:clamp(fx.y2,-1e7,1e7),
+      radius:clamp(fx.radius,8,280),life:clamp(fx.life,0,3),
+      maxLife:clamp(fx.maxLife,.01,3)
+    })),
     scythes: (pilot.phantomScythe?.scythes || []).slice(0,6).map(sc=>({
       x:clamp(sc.x,-1e7,1e7), y:clamp(sc.y,-1e7,1e7),
       angle:clamp(sc.angle,-6.29,6.29),

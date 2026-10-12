@@ -104,7 +104,10 @@
       dashCharges: player.spectral.charges,
       dashRecharge: player.spectral.recharge,
       docked: player.spectral.docked,
-      dockCooldownRemaining: player.spectral.dockCooldown
+      dockCooldownRemaining: player.spectral.dockCooldown,
+      shiftTrail: player.spectral.shiftTrail || [],
+      shiftFlash: player.spectral.shiftFlash || 0,
+      reapFlash: player.spectral.reapFlash || 0
     } : null;
     if (player.shipId === 'astra' && state.guest.arcane) {
       const aura = state.guest.arcane;
@@ -120,6 +123,7 @@
         wardRemaining: aura.wardRemaining,
         wardX: aura.wardX,
         wardY: aura.wardY,
+        blinkFx: aura.blinkFx || null,
         warpUpgrades: state.guest.dashUpgrades || {}
       };
       player.starWeave = { anchors: aura.anchors || [] };
@@ -138,7 +142,8 @@
     player.level = xp.level;
     player.xp = xp.xp;
     player.xpNeeded = xp.xpNeeded;
-    player.regen = .8 + (state.guest.passives?.armor || 0) * 1.8;
+    player.regen = (window.NeonShips?.get(player.shipId)?.baseStats.regen ?? .8) +
+      (state.guest.passives?.armor || 0) * 1.8;
     player.crystals = state.host.crystals || 0;
     player.maxDashCharges = state.guest.maxCharges || 3;
     player.dashCharges = state.guest.charges ?? 3;
