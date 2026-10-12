@@ -112,6 +112,7 @@
       } : { tier: 0, distance: 0, damageBonus: 0, pulseCooldown: 0 },
       host: { ...sample(game.player, ['x','y','hp','maxHp','aimAngle','level','radius',
         'shipId',
+        'isDashing','dashTimeLeft',
         'regen','crystals','invulnTimer','aegisTimer','aegisRadius','maxDashCharges',
         'dashCharges','dashRechargeTimer','dashSlashDmg','dashCombo','aegisDuration',
         'downed','reviveIn']),
@@ -121,7 +122,7 @@
         name: ownProfile('host').name, color: ownProfile('host').color },
       guest: { ...sample(ally, ['x','y','hp','maxHp','aimAngle','level','charges','radius',
         'shipId',
-        'invuln','recharge','lastSeq','maxCharges','pendingUpgrades',
+        'dash','invuln','recharge','lastSeq','maxCharges','pendingUpgrades',
         'cdrMultiplier','dmgMultiplier','areaMultiplier','upgradeRound',
         'upgradeCapacity','upgradeFinished',
         'downed','reviveIn']),
@@ -249,6 +250,7 @@
       this.guestView = null;
       this.lastGuestHudSeq = -1;
       this.predicted = null;
+      this.predictedDashFeedbackAt = -Infinity;
       this.frameSampler = null;
       this.guestView = null;
       this.lastGuestHudSeq = -1;
@@ -458,6 +460,7 @@
       this.latest = null;
       this.previous = null;
       this.predicted = null;
+      this.predictedDashFeedbackAt = -Infinity;
       this.currentRenderState = null;
       this.lastSnapshotSeq = -1;
       this.guestUpgradeKey = null;
@@ -560,6 +563,7 @@
       this.latest = null;
       this.previous = null;
       this.predicted = null;
+      this.predictedDashFeedbackAt = -Infinity;
       this.dashQueued = false;
       this.guestUpgradeKey = null;
       this.game.modalLevelup?.classList.remove('active');
@@ -768,15 +772,9 @@
         // Host is authoritative; locally predicted position is corrected
         // gradually for small differences and snapped on large drift.
         const guest = message.guest;
-        if (!this.predicted) this.predicted = { x: guest.x, y: guest.y };
-        const delta = Math.hypot(this.predicted.x - guest.x, this.predicted.y - guest.y);
-        if (delta > 135) {
-          this.predicted.x = guest.x;
-          this.predicted.y = guest.y;
-        } else {
-          this.predicted.x += (guest.x - this.predicted.x) * 0.22;
-          this.predicted.y += (guest.y - this.predicted.y) * 0.22;
-        }
+        this.predicted = window.NeonLanPrediction?.reconcile(
+          this.predicted, guest, this.receivedAt) ||
+          { x: guest.x, y: guest.y };
       }
     }
     resumeAfterUpgrades() {
@@ -1266,6 +1264,15 @@
       return { type: 'input', seq: consume ? this.seq++ : this.seq,
         dx, dy, aim, autoAim: true, dash };
     }
+    predictGuestDash() {
+      const now = performance.now();
+      if (now - this.predictedDashFeedbackAt < 180) return;
+      if (window.NeonLanPrediction?.dash(this.predicted, this.latest?.guest, now)) {
+        this.predictedDashFeedbackAt = now;
+        this.game.sound?.playDash?.();
+        this.game.vibrateGamepad?.(85, .45, .25);
+      }
+    }
     requestGuestSpell(spell) {
       if (!this.guestMode || !this.rtc.connected ||
           this.latest?.phase !== 'playing' || this.latest?.guest?.shipId !== 'astra' ||
@@ -1373,20 +1380,17 @@
       const canSteer = this.latest?.phase === 'playing' && !this.latest?.guest?.downed &&
         !this.game.settingsOpen;
       if (this.predicted && canSteer) {
-        // Sample without consuming dash edges each display frame: a newly
-        // pressed movement direction should not wait for the next 30Hz packet.
-        const input = this.sampleInput(false);
-        const thruster = this.latest.guest?.passives?.thruster || 0;
-        const speed = Math.min(385,
-          (240 + Math.min(120, ((this.latest.teamXP?.level || 1) - 1) * 6)) *
-          (1 + .15 * thruster));
-        this.predicted.x += input.dx * speed * dt;
-        this.predicted.y += input.dy * speed * dt;
+        // Predict at rendering refresh rate. The movement model matches the
+        // authoritative per-pilot simulation and keeps short input history.
+        window.NeonLanPrediction?.advance(this.predicted, this.latest.guest,
+          this.sampleInput(false), dt, performance.now());
       }
       this.inputAccumulator += dt;
       if (this.inputAccumulator >= 1 / INPUT_HZ) {
         this.inputAccumulator = 0;
         this.lastInput = this.sampleInput();
+        if (this.lastInput.dash) this.predictGuestDash();
+        window.NeonLanPrediction?.sent(this.predicted, this.lastInput.seq, performance.now());
         this.rtc.send(this.lastInput);
       }
     }
@@ -1412,6 +1416,10 @@
       if (this.predicted) {
         frame.guest.x = this.predicted.x;
         frame.guest.y = this.predicted.y;
+        frame.guest.dash = Math.max(frame.guest.dash || 0,
+          Math.max(0, (this.predicted.dashUntil || 0) - performance.now()) / 1000);
+        frame.guest.visualDash = Math.max(0,
+          ((this.predicted.dashEffectUntil || 0) - performance.now()) / 290);
       }
       const world = window.NeonLanWorldView;
       if (!this.guestView && world) this.guestView = world.create(game, frame, this);

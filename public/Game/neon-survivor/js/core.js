@@ -1066,6 +1066,29 @@
           e.stopPropagation();
           this.triggerDash();
         });
+        // On mobile a second finger may tap a skill while the joystick finger
+        // is moving. The global touchmove handler cancels synthetic `click`
+        // in several browsers, so direct skills must respond to touchstart
+        // just like the independent dash button does.
+        const skillsBar = document.getElementById('ship-skills-bar');
+        skillsBar?.addEventListener('touchstart', (event) => {
+          const button = event.target?.closest?.('.combat-skill-btn');
+          if (!button || !skillsBar.contains(button)) return;
+          const action = {
+            'btn-skill-ward': 'castAstraWard',
+            'btn-skill-meteor': 'castAstraMeteor',
+            'btn-skill-reap': 'triggerPhantomStrike',
+            'btn-skill-dock': 'togglePhantomDock',
+            'btn-skill-blink': 'triggerDash',
+            'btn-skill-shift': 'triggerDash',
+            'btn-skill-dash': 'triggerDash'
+          }[button.id];
+          if (!action || !['playing', 'lan-client'].includes(this.state)) return;
+          button.dataset.neonSkillTouchedAt = String(performance.now());
+          event.preventDefault();
+          event.stopPropagation();
+          this[action]();
+        }, { passive: false });
         const phantomDock = document.getElementById('phantom-dock-action');
         if (phantomDock) {
           phantomDock.addEventListener('touchstart', event => {
@@ -2166,6 +2189,7 @@
       triggerDash() {
         if (this.state === 'lan-client' && this.lanCoop?.guestMode) {
           if (this.lanCoop.latest?.guest?.downed) return;
+          this.lanCoop.predictGuestDash?.();
           this.lanCoop.dashQueued = true;
           return;
         }
@@ -3245,6 +3269,14 @@
         this.updateCombatSkillsDock();
       }
 
+      isDuplicateCombatSkillClick(event) {
+        const lastTouchAt = Number(event.currentTarget?.dataset?.neonSkillTouchedAt);
+        return Number.isFinite(lastTouchAt) &&
+          lastTouchAt > 0 &&
+          event.detail !== 0 &&
+          performance.now() - lastTouchAt < 450;
+      }
+
       updateCombatSkillsDock() {
         const dock = document.getElementById('combat-hud-dock');
         if (!dock) return;
@@ -3292,12 +3324,15 @@
               </button>`;
 
             skillsBar.querySelector('#btn-skill-ward')?.addEventListener('click', (e) => {
+              if (this.isDuplicateCombatSkillClick(e)) return;
               e.stopPropagation(); this.castAstraWard();
             });
             skillsBar.querySelector('#btn-skill-meteor')?.addEventListener('click', (e) => {
+              if (this.isDuplicateCombatSkillClick(e)) return;
               e.stopPropagation(); this.castAstraMeteor();
             });
             skillsBar.querySelector('#btn-skill-blink')?.addEventListener('click', (e) => {
+              if (this.isDuplicateCombatSkillClick(e)) return;
               e.stopPropagation(); this.triggerDash();
             });
           } else if (shipId === 'phantom') {
@@ -3325,12 +3360,15 @@
               </button>`;
 
             skillsBar.querySelector('#btn-skill-reap')?.addEventListener('click', (e) => {
+              if (this.isDuplicateCombatSkillClick(e)) return;
               e.stopPropagation(); this.triggerPhantomStrike();
             });
             skillsBar.querySelector('#btn-skill-dock')?.addEventListener('click', (e) => {
+              if (this.isDuplicateCombatSkillClick(e)) return;
               e.stopPropagation(); this.togglePhantomDock();
             });
             skillsBar.querySelector('#btn-skill-shift')?.addEventListener('click', (e) => {
+              if (this.isDuplicateCombatSkillClick(e)) return;
               e.stopPropagation(); this.triggerDash();
             });
           } else {
@@ -3344,6 +3382,7 @@
                 <div class="skill-cd-mask" id="mask-skill-dash"></div>
               </button>`;
             skillsBar.querySelector('#btn-skill-dash')?.addEventListener('click', (e) => {
+              if (this.isDuplicateCombatSkillClick(e)) return;
               e.stopPropagation(); this.triggerDash();
             });
           }
@@ -6854,6 +6893,34 @@
         if (fighter.downed) ctx.globalAlpha = .5;
         if ((fighter.invulnTimer || 0) > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
           ctx.globalAlpha = 0.4;
+        }
+        // The same bounded warp pulse is drawn for host, remote pilots and
+        // the guest's immediate visual prediction. Combat logic stays on host.
+        const warpPulse = Math.max(
+          Math.min(1, (fighter.dash || 0) / .18),
+          Math.min(1, (fighter.dashTimeLeft || 0) / .18),
+          Math.min(1, fighter.visualDash || 0)
+        );
+        if (warpPulse > 0 && !fighter.downed) {
+          ctx.save();
+          const tint = fighter.shipId === 'phantom' ? '#cf82ff' :
+            fighter.shipId === 'astra' ? '#8db8ff' : '#00f3ff';
+          ctx.globalAlpha = .8 * warpPulse;
+          ctx.shadowColor = tint;
+          ctx.shadowBlur = 18;
+          ctx.strokeStyle = tint;
+          ctx.lineWidth = 2 + warpPulse * 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, 21 + (1 - warpPulse) * 33, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = tint;
+          ctx.beginPath();
+          ctx.moveTo(-12, -12);
+          ctx.lineTo(-38 - 28 * warpPulse, 0);
+          ctx.lineTo(-12, 12);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
         }
         // New hulls are registered by rendererId. Legacy default geometry
         // remains as a fallback for isolated tests / missing ship module.

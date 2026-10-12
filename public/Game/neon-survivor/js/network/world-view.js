@@ -114,6 +114,7 @@
       player.astra = {
         mana: aura.mana,
         maxMana: aura.maxMana,
+        wardActive: Boolean(aura.wardActive),
         blinkCharges: aura.blinkCharges,
         blinkRecharge: aura.blinkRecharge,
         cooldowns: {
@@ -127,10 +128,13 @@
         warpUpgrades: state.guest.dashUpgrades || {}
       };
       player.starWeave = { anchors: aura.anchors || [] };
+      player.astraVisual = aura.visual || [];
     } else {
       player.astra = null;
       player.starWeave = null;
+      player.astraVisual = [];
     }
+    player.phantomVisual = state.guest.spectral?.visual || [];
     player.x = state.guest.x;
     player.y = state.guest.y;
     player.hp = state.guest.hp;
@@ -138,6 +142,8 @@
     player.aimAngle = state.guest.aimAngle || 0;
     player.radius = state.guest.radius || 16;
     player.invulnTimer = state.guest.invuln || 0;
+    player.dash = state.guest.dash || 0;
+    player.visualDash = state.guest.visualDash || 0;
     player.downed = Boolean(state.guest.downed);
     player.level = xp.level;
     player.xp = xp.xp;

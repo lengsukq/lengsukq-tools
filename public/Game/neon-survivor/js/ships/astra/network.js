@@ -11,6 +11,7 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
     mana: clamp(state.mana, 0, 250, 60),
     maxMana: clamp(state.maxMana, 1, 250, 100),
     blinkCharges: clamp(state.blinkCharges, 0, 4, 2),
+    wardActive: Boolean(state.wardActive),
     blinkRecharge: clamp(state.blinkRecharge, 0, 5),
     blinkFx: state.blinkFx?.life > 0 ? {
       x1: clamp(state.blinkFx.x1,-1e7,1e7),
