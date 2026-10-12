@@ -42,7 +42,7 @@
       dangerBonus: low ? 1 + danger * .10 : 1,
       shieldReduction: low ? danger * .03 : 0,
       refraction: rank(pilot, 'shield_refraction'),
-      harmony: rank(pilot, 'dual_harmony')
+      resonance: rank(pilot, 'astral_resonance')
     };
   }
 
@@ -50,7 +50,6 @@
     if (!pilot || pilot.shipId !== 'astra') return null;
     return pilot.astraArsenal ||= {
       timers: {}, pending: [], marks: new Map(),
-      harmonyLast: '', harmonyAttack: 0, harmonyWard: 0,
       lastRefractionAt: -Infinity
     };
   }

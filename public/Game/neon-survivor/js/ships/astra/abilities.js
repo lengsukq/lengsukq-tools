@@ -39,7 +39,7 @@
       ['star_mark_hunt', '星痕追猎', 'rare'],
       ['glyph_extent', '法阵延展', 'common'],
       ['danger_resonance', '险境共鸣', 'legendary'],
-      ['dual_harmony', '双相调和', 'legendary']
+      ['astral_resonance', '星穹回响', 'legendary']
     ]),
     dash: Object.freeze([
       ['star_gate', '星门储能', 'rare', 2],
@@ -105,9 +105,10 @@
       ['低生命攻击+10%及减伤+3%','低血攻击+20%及减伤+6%',
        '低血攻击+30%及减伤+9%','低血攻击+40%及减伤+12%',
        '低血攻击+50%及减伤+15%']],
-    dual_harmony: ['☯','交替使用进攻与防御法术能够获得强化',
-      ['双相轮换增益+8%','双相轮换增益+16%','双相轮换增益+24%',
-       '双相轮换增益+32%','双相轮换增益+40%']],
+    astral_resonance: ['✺','星陨命中敌群时，每9秒引发一次星核二次爆发并获得短时自身护盾；直接施法即可触发',
+      ['回响爆发30伤害、获得12护盾','回响爆发42伤害、获得20护盾',
+       '回响爆发54伤害、获得28护盾','回响爆发66伤害、获得36护盾',
+       '回响爆发78伤害、获得44护盾']],
     star_gate: ['◁','提高相位闪现储能而非攻击型九连折跃',
       ['相位闪现从2段变为3段','相位闪现提升至4段']],
     prism_veil: ['◇','闪现后获得短时减伤窗口',
@@ -139,7 +140,7 @@
   const modifiers = pilot => window.NeonAstraArsenal?.modifiers(pilot) || {
     maxMana: BASE.maxMana, manaRegen: BASE.naturalRegen,
     cooldownFactor: 1, areaFactor: 1, dangerBonus: 1,
-    shieldReduction: 0, harmony: 0
+    shieldReduction: 0, resonance: 0
   };
   const within = (a, b, radius) => Boolean(a && b &&
     Math.hypot(a.x - b.x, a.y - b.y) <= radius);
@@ -156,7 +157,7 @@
       wardRemaining: 0, wardX: 0, wardY: 0,
       blinkCharges: 2, blinkRecharge: 0,
       warpUpgrades: {}, lastFoldAt: -Infinity,
-      wardHarmonyBonus: 0,
+      resonanceReadyAt: 0,
       phaseVeilRemaining: 0, mirrorEchoPending: false,
       lastBrandAt: -Infinity, blinkFx: null
     };
@@ -199,7 +200,6 @@
     if (!s || !s.wardActive) return false;
     s.wardActive = false;
     s.wardRemaining = 0;
-    s.wardHarmonyBonus = 0;
     s.isTurretAnchored = false;
 
     // 1. Emergency Astral Shield to prevent being swarmed
@@ -339,9 +339,6 @@
         !Object.values(SPELLS).includes(spell)) return false;
     const s = state(pilot);
     const m = modifiers(pilot);
-    const arcane = window.NeonAstraArsenal?.state(pilot);
-    const alternating = Boolean(arcane?.harmonyLast && arcane.harmonyLast !== spell);
-    const harmonyBonus = alternating ? m.harmony * .08 : 0;
 
     if (spell === SPELLS.meteor) {
       if (s.mana < BASE.meteorCost) return false;
@@ -363,7 +360,7 @@
         .slice(0, BASE.meteorMaxTargets);
       for (const enemy of targets) {
         game.dealDamage(enemy, BASE.meteorDamage * (pilot.dmgMultiplier || 1) *
-          m.dangerBonus * (1 + harmonyBonus),
+          m.dangerBonus,
           'astra_meteor', false, pilot);
         regenOnHit(pilot, enemy, game.survivalTime || 0);
         // Stun enemies hit by meteor
@@ -372,6 +369,24 @@
 
       // Multi-hit refund & CDR mechanics
       const hitCount = targets.length;
+      // Legendary Star Echo: an autonomous attack/defense payoff, independent
+      // of spell selection order. It procs only on real hits, is time-gated,
+      // and caps targets, damage and shield so rapid meteor casts cannot farm it.
+      const now = Number(game.survivalTime) || 0;
+      if (hitCount && m.resonance > 0 && now >= (s.resonanceReadyAt || 0)) {
+        s.resonanceReadyAt = now + 9;
+        const power = 18 + 12 * m.resonance;
+        const echoRadius = 115 * m.areaFactor;
+        for (const enemy of enemies.filter(e => within(e, focus, echoRadius)).slice(0, 8)) {
+          game.dealDamage(enemy, power * (pilot.dmgMultiplier || 1) * m.dangerBonus,
+            'astra_star_echo', false, pilot);
+        }
+        const shield = 4 + 8 * m.resonance;
+        const current = pilot.astraTempShield?.remaining > 0 ? pilot.astraTempShield.value : 0;
+        pilot.astraTempShield = {value: Math.min(80, Math.max(current, shield)), remaining: 3.5};
+        window.NeonAstraVisual?.emit(pilot, 'burst', focus, null, echoRadius, .55);
+        window.NeonAstraVisual?.emit(pilot, 'shield', pilot, null, 54, .65);
+      }
       if (hitCount >= BASE.meteorRefundThreshold) {
         const extraHits = hitCount - (BASE.meteorRefundThreshold - 1);
         const manaRefund = Math.min(BASE.maxMeteorManaRefund, extraHits * BASE.meteorRefundPerTarget);
@@ -403,9 +418,6 @@
         x: focus.x, y: focus.y, radius: 12, maxRadius: BASE.meteorRadius,
         color: '#b38dff', alpha: .95
       });
-      if (alternating && m.harmony > 0)
-        window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.7);
-      if (arcane) arcane.harmonyLast = spell;
       s.cooldowns.meteor = 0; // 0 CD!
       return true;
     } else {
@@ -420,7 +432,6 @@
       s.wardRemaining = 999;
       s.wardX = pilot.x;
       s.wardY = pilot.y;
-      s.wardHarmonyBonus = alternating ? m.harmony * .012 : 0;
       s.wardManaGainedThisSec = 0;
       s.wardManaTimer = 0;
 
@@ -437,9 +448,6 @@
       }
       window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,
         BASE.wardRadius * m.areaFactor,.8);
-      if (alternating && m.harmony > 0)
-        window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.7);
-      if (arcane) arcane.harmonyLast = spell;
       return true;
     }
   }
@@ -452,8 +460,7 @@
       // not drag protection across the map.
       if (within({ x: pilot.astra.wardX, y: pilot.astra.wardY }, target,
         BASE.wardRadius * modifiers(pilot).areaFactor)) {
-        return Math.min(.5, BASE.wardReduction +
-          (pilot.astra.wardHarmonyBonus || 0));
+        return Math.min(.5, BASE.wardReduction);
       }
     }
     return 0; // Wards do not stack with one another.

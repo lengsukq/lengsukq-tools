@@ -73,14 +73,23 @@ assert.ok(hits.length>previous,'Guarding with shield refraction counters once');
 const count=hits.length;
 a.incomingDamage(game,pilot,40);
 assert.equal(hits.length,count,'Refraction obeys its internal cooldown');
-// The two active spells share mana and create an alternating-play bonus.
+// Both active spells share mana; the legendary triggers independently on a
+// valid meteor hit, has an internal cooldown and never requires spell toggling.
 a.state(pilot).mana=120;
 a.state(pilot).cooldowns.meteor=0;
 const before=hits.length;
 assert.equal(a.cast(pilot,game,'meteor'),true);
 assert.ok(hits.length>before);
 const s=lib.state(pilot);
-assert.equal(s.harmonyLast,'meteor');
+assert.ok(hits.some(h=>h.source==='astra_star_echo'));
+assert.ok(pilot.astraTempShield?.value>=12);
+assert.equal(a.state(pilot).resonanceReadyAt,game.survivalTime+9);
+const echoes=hits.filter(h=>h.source==='astra_star_echo').length;
+assert.equal(a.cast(pilot,game,'meteor'),true);
+assert.equal(hits.filter(h=>h.source==='astra_star_echo').length,echoes,'No echo farming during cooldown');
+game.survivalTime+=9;
+assert.equal(a.cast(pilot,game,'meteor'),true);
+assert.ok(hits.filter(h=>h.source==='astra_star_echo').length>echoes);
 // All seven alternate warp cards remain independently obtainable.
 for (const card of a.catalog.filter(c=>c.type==='dash')) {
   assert.equal(lib.upgrade(pilot,card),true,card.id);

@@ -41,11 +41,11 @@ for(const id of Object.keys(env.window.NeonAstraArsenal.WEAPONS)){
 }
 mage.passives={star_talisman:1,ley_conduit:1,weave_focus:1,
   shield_refraction:1,star_mark_hunt:1,glyph_extent:1,
-  danger_resonance:1,dual_harmony:1};
+  danger_resonance:1,astral_resonance:1};
 mage.hp=20;
 const mods=env.window.NeonAstraArsenal.modifiers(mage);
 for(const [key,min] of [['maxMana',100],['manaRegen',2],['areaFactor',1],
-  ['markBonus',1],['dangerBonus',1],['shieldReduction',0],['refraction',0],['harmony',0]])
+  ['markBonus',1],['dangerBonus',1],['shieldReduction',0],['refraction',0],['resonance',0]])
   assert.ok(mods[key]>min,'Astra passive modifier missing: '+key);
 assert.ok(mods.cooldownFactor<1);
 mage.astraArsenal.marks.clear(); // Distinguish default bolt from fragments' marks.
@@ -55,8 +55,9 @@ assert.ok(mage.astraArsenal.marks.has(nearest),
   'Marked-target passive must work with default star-weave weapon');
 mage.astra.maxMana=140;mage.astra.mana=140;
 assert.equal(env.window.NeonAstra.cast(mage,game,'meteor'),true);
+assert.ok(damage.some(hit=>hit.source==='astra_star_echo'),'Legendary Star Echo strikes without spell toggling');
+assert.ok(mage.astraTempShield?.value>0,'Legendary Star Echo grants self shield');
 assert.equal(env.window.NeonAstra.cast(mage,game,'ward'),true);
-assert.ok(mage.astra.wardHarmonyBonus>0,'Alternating active spells apply dual-harmony buff');
 assert.ok(mage.astraVisual.some(e=>e.kind==='burst'));
 assert.ok(mage.astraVisual.some(e=>e.kind==='shield'));
 mage.dashUpgrades={star_gate:1,prism_veil:1,spatial_disturb:1,
