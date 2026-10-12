@@ -52,4 +52,16 @@ export const GAMES: Game[] = [
       "30 首奇妙的植物和弦：调整三个声波灯笼的七档相位，让干涉图样吻合花冠音型，唤醒声波植物",
     href: "/Game/echo_greenhouse.html",
   },
+  {
+    title: "星穹弹珠：符文工坊",
+    description:
+      "弹珠碰撞肉鸽构筑：操控星穹发射器，引燃爆裂钉、雷霆连锁与双生分形，构筑专属符文弹珠与远古神器，冲击 8x 黄金大奖！全平台触屏与键鼠自适应",
+    href: "/Game/astro_pachinko.html",
+  },
+  {
+    title: "棱镜奇旅：光之交响",
+    description:
+      "空灵优雅的光学物理益智游戏：操控反射镜、分光三棱镜与时空星门，折射与融合七色光束唤醒共鸣水晶，内含24个精心关卡与自由沙盒",
+    href: "/Game/chroma_prism.html",
+  },
 ];

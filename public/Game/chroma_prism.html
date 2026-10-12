@@ -1,0 +1,2938 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>棱镜奇旅：光之交响 (Chroma Prism: Symphony of Light)</title>
+  <style>
+    :root {
+      --bg-dark: #060914;
+      --bg-card: rgba(13, 20, 42, 0.78);
+      --bg-card-hover: rgba(22, 34, 70, 0.88);
+      --border-subtle: rgba(255, 255, 255, 0.12);
+      --border-glow: rgba(0, 242, 254, 0.45);
+      --cyan: #00f2fe;
+      --magenta: #ff2a85;
+      --gold: #ffbe0b;
+      --emerald: #05f0a0;
+      --purple: #9d4edd;
+      --white: #ffffff;
+      --red: #ff3366;
+      --blue: #1e90ff;
+      --yellow: #ffd000;
+      --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: manipulation;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: var(--font-stack);
+      color: #fff;
+    }
+
+    #app-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 25%, #0f1636 0%, #060914 90%);
+    }
+
+    /* Ambient Canvas */
+    #game-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: block;
+    }
+
+    /* Top Navigation HUD */
+    #top-hud {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      padding-top: max(8px, env(safe-area-inset-top));
+      background: linear-gradient(180deg, rgba(6, 9, 20, 0.88) 0%, rgba(6, 9, 20, 0.4) 80%, transparent 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .hud-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .hud-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.25);
+      color: #fff;
+    }
+    .hud-btn:active {
+      transform: scale(0.96);
+    }
+
+    .hud-title-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .hud-level-name {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, #fff, var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hud-chapter-name {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.55);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .hud-stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .hud-stat-pill .gold-star {
+      color: var(--gold);
+      font-size: 13px;
+    }
+
+    /* Bottom Inventory & Action Dock */
+    #bottom-dock {
+      position: relative;
+      z-index: 10;
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      background: linear-gradient(0deg, rgba(6, 9, 20, 0.95) 0%, rgba(6, 9, 20, 0.6) 80%, transparent 100%);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-top: 1px solid var(--border-subtle);
+      transition: transform 0.3s ease;
+    }
+
+    #inventory-tray {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      max-width: 100%;
+    }
+
+    .inventory-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .inventory-item:hover, .inventory-item.selected {
+      background: var(--bg-card-hover);
+      border-color: var(--cyan);
+      box-shadow: 0 0 16px rgba(0, 242, 254, 0.35);
+      transform: translateY(-2px);
+    }
+    .inventory-item.disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      border-color: rgba(255, 255, 255, 0.05);
+      box-shadow: none;
+      transform: none;
+    }
+    .inventory-item canvas.item-icon {
+      width: 40px;
+      height: 40px;
+      pointer-events: none;
+    }
+    .inventory-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, var(--cyan), #0072ff);
+      font-size: 10px;
+      font-weight: 700;
+      color: #060914;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+    .inventory-label {
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.75);
+      margin-top: 2px;
+      pointer-events: none;
+    }
+
+    .dock-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 2px;
+    }
+    .dock-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dock-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+
+    /* Floating Radial Tool Ring for Selection */
+    #selection-ring {
+      position: absolute;
+      z-index: 15;
+      display: none;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      border: 1px dashed rgba(0, 242, 254, 0.5);
+      animation: ringSpin 20s linear infinite;
+    }
+    @keyframes ringSpin {
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    #floating-toolbar {
+      position: absolute;
+      z-index: 16;
+      display: none;
+      transform: translate(-50%, -100%);
+      margin-top: -12px;
+      background: rgba(10, 16, 36, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 242, 254, 0.3);
+      border-radius: 24px;
+      padding: 4px 8px;
+      align-items: center;
+      gap: 4px;
+    }
+    .ring-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .ring-btn:hover {
+      background: var(--cyan);
+      color: #060914;
+      border-color: #fff;
+      transform: scale(1.12);
+    }
+    .ring-btn.danger:hover {
+      background: var(--magenta);
+      color: #fff;
+    }
+
+    /* Modals & Overlays */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: rgba(4, 6, 16, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: linear-gradient(145deg, rgba(16, 24, 52, 0.96) 0%, rgba(9, 13, 30, 0.96) 100%);
+      border: 1px solid var(--border-glow);
+      border-radius: 20px;
+      padding: 24px;
+      max-width: 580px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 24px rgba(0, 242, 254, 0.2);
+      transform: scale(0.92);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-backdrop.active .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .modal-title {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #fff, var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    /* Level Selector Grid */
+    .chapter-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--cyan);
+      margin: 16px 0 8px 0;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chapter-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(0, 242, 254, 0.3), transparent);
+    }
+
+    .level-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .level-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 10px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .level-pill:hover {
+      background: rgba(0, 242, 254, 0.15);
+      border-color: var(--cyan);
+      transform: translateY(-2px);
+    }
+    .level-pill.locked {
+      opacity: 0.35;
+      cursor: not-allowed;
+      border-color: rgba(255, 255, 255, 0.05);
+      transform: none;
+    }
+    .level-pill.current {
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(255, 190, 11, 0.3);
+      background: rgba(255, 190, 11, 0.12);
+    }
+    .level-pill-num {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .level-pill-stars {
+      font-size: 10px;
+      color: var(--gold);
+      letter-spacing: 1px;
+    }
+
+    /* Victory Dialog FX */
+    .victory-stars {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      font-size: 40px;
+      margin: 20px 0;
+    }
+    .victory-star {
+      color: rgba(255, 255, 255, 0.15);
+      transform: scale(0.6);
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .victory-star.awarded {
+      color: var(--gold);
+      text-shadow: 0 0 20px rgba(255, 190, 11, 0.8);
+      transform: scale(1.15);
+    }
+    .victory-stats {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .victory-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-primary {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--cyan), #0072ff);
+      color: #060914;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 18px rgba(0, 242, 254, 0.35);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0, 242, 254, 0.55);
+    }
+    .btn-secondary {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Sandbox Palette Bar */
+    .sandbox-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .sandbox-item {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sandbox-item:hover, .sandbox-item.active {
+      background: rgba(0, 242, 254, 0.18);
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.3);
+    }
+
+    /* Toast Notification */
+    #toast {
+      position: absolute;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      z-index: 100;
+      background: rgba(14, 22, 46, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 242, 254, 0.3);
+      border-radius: 20px;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      pointer-events: none;
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Help & Guide styles */
+    .help-section {
+      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 12px;
+      padding: 12px 16px;
+    }
+    .help-section h4 {
+      color: var(--cyan);
+      font-size: 14px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .help-section p, .help-section li {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.8);
+      line-height: 1.6;
+    }
+    .help-section ul {
+      padding-left: 20px;
+    }
+    .color-chip {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin: 0 3px;
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 640px) {
+      .hud-group { gap: 4px; }
+      .hud-btn { padding: 5px 8px; font-size: 11px; }
+      .hud-btn span.label-text { display: none; }
+      .inventory-item { width: 54px; height: 54px; }
+      .inventory-item canvas.item-icon { width: 34px; height: 34px; }
+      .dock-actions { gap: 6px; }
+      .dock-btn { font-size: 11px; padding: 4px 8px; }
+      .modal-card { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <!-- Main High-DPI Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Top HUD Bar -->
+    <header id="top-hud">
+      <div class="hud-group">
+        <a href="/" class="hud-btn" id="btn-back-home" title="返回在线工具主站">
+          <span>←</span>
+          <span class="label-text">主站</span>
+        </a>
+        <button class="hud-btn" id="btn-level-select" title="关卡选择">
+          <span>❖</span>
+          <span class="label-text">关卡</span>
+        </button>
+        <button class="hud-btn" id="btn-sandbox-toggle" title="光之沙盒自由模式">
+          <span>✦</span>
+          <span class="label-text">沙盒</span>
+        </button>
+      </div>
+
+      <div class="hud-title-badge">
+        <div class="hud-level-name" id="hud-level-title">初光启示</div>
+        <div class="hud-chapter-name" id="hud-chapter-title">第一章：晨曦之镜</div>
+      </div>
+
+      <div class="hud-group">
+        <div class="hud-stat-pill" title="已获星数">
+          <span class="gold-star">★</span>
+          <span id="hud-star-count">0/72</span>
+        </div>
+        <button class="hud-btn" id="btn-hint" title="获取关卡提示">
+          <span>💡</span>
+        </button>
+        <button class="hud-btn" id="btn-audio" title="音效开关">
+          <span id="audio-icon">🔊</span>
+        </button>
+        <button class="hud-btn" id="btn-help" title="玩法说明">
+          <span>?</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Floating Tool Ring on Selected Placed Piece -->
+    <div id="selection-ring"></div>
+    <div id="floating-toolbar">
+      <button class="ring-btn" id="ring-btn-rotate-cw" title="顺时针旋转 90° (R)">↺</button>
+      <button class="ring-btn" id="ring-btn-flip" title="微调角度 (F)">⇄</button>
+      <button class="ring-btn danger" id="ring-btn-remove" title="收回至背包 (X/Del)">✖</button>
+    </div>
+
+    <!-- Bottom Dock with Inventory -->
+    <footer id="bottom-dock">
+      <div id="inventory-tray"></div>
+      <div class="dock-actions">
+        <div class="hud-stat-pill">
+          <span>步数:</span>
+          <strong id="stat-moves">0</strong>
+          <span style="color:rgba(255,255,255,0.4);">/ 目标:</span>
+          <span id="stat-target-moves" style="color:var(--gold);">3</span>
+        </div>
+        <button class="dock-btn" id="btn-undo" title="撤销上一步 (Z)">↺ 撤销</button>
+        <button class="dock-btn" id="btn-reset" title="重置当前关卡">⟲ 重置</button>
+        <button class="dock-btn" id="btn-pulse" title="激光高能脉冲 (Space)">⚡ 脉冲</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast Notification Pop -->
+  <div id="toast">提示信息</div>
+
+  <!-- Level Select Modal -->
+  <div class="modal-backdrop" id="modal-level-select">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">❖ 选择关卡 · 光谱旅程</h3>
+        <button class="modal-close" data-close="modal-level-select">✕</button>
+      </div>
+      <div id="level-list-container"></div>
+      <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
+        <button class="btn-secondary" data-close="modal-level-select">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help & Guide Modal -->
+  <div class="modal-backdrop" id="modal-help">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">📖 光学指南与共鸣法则</h3>
+        <button class="modal-close" data-close="modal-help">✕</button>
+      </div>
+      <div class="help-section">
+        <h4>❖ 核心目标</h4>
+        <p>将光源发射的高能光束，经过各类光学元件的反射、折射、融合与时空跃迁，精准引向目标<b>共鸣水晶</b>。同时集齐漂浮在路径上的<b>星光碎片</b>可达成三星完美评价！</p>
+      </div>
+      <div class="help-section">
+        <h4>🌈 加色法色彩合成法则</h4>
+        <ul>
+          <li><span class="color-chip" style="background:#ff3366;"></span>红 + <span class="color-chip" style="background:#10e88a;"></span>绿 = <span class="color-chip" style="background:#ffd000;"></span><b>黄金黄 (Yellow)</b></li>
+          <li><span class="color-chip" style="background:#ff3366;"></span>红 + <span class="color-chip" style="background:#1e90ff;"></span>蓝 = <span class="color-chip" style="background:#ff2fd4;"></span><b>品红霓光 (Magenta)</b></li>
+          <li><span class="color-chip" style="background:#10e88a;"></span>绿 + <span class="color-chip" style="background:#1e90ff;"></span>蓝 = <span class="color-chip" style="background:#00f0ff;"></span><b>青空天碧 (Cyan)</b></li>
+          <li><span class="color-chip" style="background:#ff3366;"></span>红 + <span class="color-chip" style="background:#10e88a;"></span>绿 + <span class="color-chip" style="background:#1e90ff;"></span>蓝 = <span class="color-chip" style="background:#fff;"></span><b>纯白圣光 (White)</b></li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h4>🔮 光学元件图鉴</h4>
+        <ul>
+          <li><b>平面反射镜 (Mirror)</b>：将入射光束进行 90° 或特定角度反射。</li>
+          <li><b>三棱分光镜 (Prism)</b>：将入射的纯白光束分解为红、绿、蓝三原色分束；对单色光产生偏折。</li>
+          <li><b>混色融合镜 (Combiner)</b>：将多路射入的光束融合成复合色彩并单向射出。</li>
+          <li><b>分束半透镜 (Splitter)</b>：将单路光束复制为直行光与反射光（50/50 分流）。</li>
+          <li><b>时空星门 (Portal)</b>：穿过星门 α 的光束将在星门 β 处以相同的角度和波长跃迁重现！</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h4>⌨️ 快捷键与操作方式</h4>
+        <p><b>触屏</b>：从底部背包拖拽元件至棋盘；点击已放置元件唤起快捷环，轻按旋转。<br>
+        <b>电脑</b>：鼠标拖拽放置；滚轮轻扫已放置元件可直接旋转；快捷键 <b>[R]</b> 顺时针旋转，<b>[Q]</b> 逆时针，<b>[X]</b> 收回，<b>[Z]</b> 撤销，<b>[Space]</b> 脉冲。</p>
+      </div>
+      <div style="margin-top: 18px; text-align: right;">
+        <button class="btn-primary" data-close="modal-help">开启探索</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Victory Dialog Modal -->
+  <div class="modal-backdrop" id="modal-victory">
+    <div class="modal-card" style="text-align: center;">
+      <h3 class="modal-title" style="font-size: 24px;">✨ 共鸣达成 · 光辉绽放</h3>
+      <div class="victory-stars">
+        <span class="victory-star" id="v-star-1">★</span>
+        <span class="victory-star" id="v-star-2">★</span>
+        <span class="victory-star" id="v-star-3">★</span>
+      </div>
+      <div class="victory-stats" id="victory-stats-text">
+        本关步数：3 / 目标步数：3<br>
+        星光碎片收集：全部达成
+      </div>
+      <div class="victory-actions">
+        <button class="btn-secondary" id="btn-victory-replay">⟲ 重玩</button>
+        <button class="btn-primary" id="btn-victory-next">下一关 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sandbox Config Modal -->
+  <div class="modal-backdrop" id="modal-sandbox">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">✦ 光之沙盒 · 自由创作工坊</h3>
+        <button class="modal-close" data-close="modal-sandbox">✕</button>
+      </div>
+      <p style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 12px;">
+        在沙盒模式下，你可以无限制放置任意光源、折射镜、星门与共鸣水晶，构建专属于你的壮丽光路图腾！
+      </p>
+      <div class="sandbox-panel" id="sandbox-palette"></div>
+      <div style="display: flex; gap: 10px; margin-top: 18px;">
+        <button class="btn-secondary" id="btn-sandbox-clear">清空画布</button>
+        <button class="btn-secondary" id="btn-sandbox-copy">导出关卡代码</button>
+        <button class="btn-primary" id="btn-sandbox-exit">退出沙盒模式</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 棱镜奇旅：光之交响 (Chroma Prism: Symphony of Light)
+     * High Performance HTML5 Canvas + Web Audio Procedural Synthesizer
+     */
+
+    // --- Color Bitmask Constants ---
+    const MASK_RED = 1;     // 001
+    const MASK_GREEN = 2;   // 010
+    const MASK_BLUE = 4;    // 100
+    const MASK_YELLOW = 3;  // 011 (R+G)
+    const MASK_MAGENTA = 5; // 101 (R+B)
+    const MASK_CYAN = 6;    // 110 (G+B)
+    const MASK_WHITE = 7;   // 111 (R+G+B)
+
+    const COLOR_PALETTE = {
+      [MASK_RED]: { name: '炽红', css: '#ff3366', rgb: [255, 51, 102], note: 261.63 },      // C4
+      [MASK_GREEN]: { name: '翠绿', css: '#10e88a', rgb: [16, 232, 138], note: 329.63 },     // E4
+      [MASK_BLUE]: { name: '蔚蓝', css: '#1e90ff', rgb: [30, 144, 255], note: 392.00 },      // G4
+      [MASK_YELLOW]: { name: '金黄', css: '#ffd000', rgb: [255, 208, 0], note: 293.66 },     // D4
+      [MASK_MAGENTA]: { name: '品红', css: '#ff2fd4', rgb: [255, 47, 212], note: 493.88 },    // B4
+      [MASK_CYAN]: { name: '青天', css: '#00f0ff', rgb: [0, 240, 255], note: 440.00 },       // A4
+      [MASK_WHITE]: { name: '圣白', css: '#ffffff', rgb: [255, 255, 255], note: 523.25 },    // C5
+    };
+
+    function getColorInfo(mask) {
+      return COLOR_PALETTE[mask] || { name: '微光', css: '#ffffff', rgb: [255, 255, 255], note: 440 };
+    }
+
+    // --- Web Audio Procedural Synthesizer ---
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = localStorage.getItem('chroma_muted') === 'true';
+        this.volume = parseFloat(localStorage.getItem('chroma_volume') || '0.65');
+        this.masterGain = null;
+        this.droneOsc1 = null;
+        this.droneOsc2 = null;
+        this.droneGain = null;
+      }
+
+      init() {
+        if (this.ctx) {
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+          return;
+        }
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          this.ctx = new AudioContext();
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime);
+          this.masterGain.connect(this.ctx.destination);
+          this.startAmbientDrone();
+        } catch (e) {
+          console.warn('AudioContext init error:', e);
+        }
+      }
+
+      setMuted(muted) {
+        this.muted = muted;
+        localStorage.setItem('chroma_muted', muted ? 'true' : 'false');
+        if (this.masterGain && this.ctx) {
+          this.masterGain.gain.setValueAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime);
+        }
+      }
+
+      startAmbientDrone() {
+        if (!this.ctx || this.droneOsc1) return;
+        try {
+          // Low celestial drone (subtle meditation foundation)
+          this.droneOsc1 = this.ctx.createOscillator();
+          this.droneOsc2 = this.ctx.createOscillator();
+          this.droneOsc1.type = 'sine';
+          this.droneOsc2.type = 'triangle';
+          this.droneOsc1.frequency.setValueAtTime(65.41, this.ctx.currentTime); // C2
+          this.droneOsc2.frequency.setValueAtTime(98.00, this.ctx.currentTime); // G2
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(160, this.ctx.currentTime);
+
+          this.droneGain = this.ctx.createGain();
+          this.droneGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+
+          this.droneOsc1.connect(filter);
+          this.droneOsc2.connect(filter);
+          filter.connect(this.droneGain);
+          this.droneGain.connect(this.masterGain);
+
+          this.droneOsc1.start();
+          this.droneOsc2.start();
+        } catch (e) {}
+      }
+
+      playClick() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.04);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      }
+
+      playRotate() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(780, now + 0.06);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      }
+
+      playCrystalChime(mask) {
+        if (!this.ctx || this.muted) return;
+        const info = getColorInfo(mask);
+        const freq = info.note || 440;
+        const now = this.ctx.currentTime;
+
+        // Dual sine singing bowl tone
+        const osc1 = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc1.type = 'sine';
+        osc2.type = 'sine';
+        osc1.frequency.setValueAtTime(freq, now);
+        osc2.frequency.setValueAtTime(freq * 2.01, now); // Overtone shimmer
+
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.9);
+        osc2.stop(now + 0.9);
+      }
+
+      playPulse() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(560, now + 0.22);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      }
+
+      playVictory() {
+        if (!this.ctx || this.muted) return;
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50]; // Ascending C major pentatonic
+        const now = this.ctx.currentTime;
+        notes.forEach((freq, idx) => {
+          const t = now + idx * 0.08;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t);
+          gain.gain.setValueAtTime(0.2, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(t);
+          osc.stop(t + 0.6);
+        });
+      }
+    }
+
+    // --- Particle System for Floating Dust & Laser Bloom ---
+    class ParticleSystem {
+      constructor() {
+        this.ambientParticles = [];
+        this.photonSparks = [];
+        this.victoryConfetti = [];
+      }
+
+      initAmbient(width, height) {
+        this.ambientParticles = [];
+        for (let i = 0; i < 45; i++) {
+          this.ambientParticles.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: (Math.random() - 0.5) * 0.25,
+            vy: (Math.random() - 0.5) * 0.25 - 0.1,
+            size: Math.random() * 2 + 0.8,
+            alpha: Math.random() * 0.5 + 0.2,
+            pulse: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      spawnHitSparks(x, y, rgb) {
+        for (let i = 0; i < 8; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = Math.random() * 2.5 + 1.2;
+          this.photonSparks.push({
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            rgb,
+            alpha: 1,
+            decay: Math.random() * 0.04 + 0.03,
+            size: Math.random() * 2.5 + 1
+          });
+        }
+      }
+
+      spawnVictory(width, height) {
+        for (let i = 0; i < 80; i++) {
+          const colors = ['#00f2fe', '#ffd000', '#ff2fd4', '#05f0a0', '#ffffff'];
+          this.victoryConfetti.push({
+            x: width * 0.5 + (Math.random() - 0.5) * 160,
+            y: height * 0.45 + (Math.random() - 0.5) * 100,
+            vx: (Math.random() - 0.5) * 7,
+            vy: (Math.random() - 0.8) * 8,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            alpha: 1,
+            decay: Math.random() * 0.015 + 0.01,
+            size: Math.random() * 4 + 2,
+            rot: Math.random() * Math.PI,
+            vRot: (Math.random() - 0.5) * 0.2
+          });
+        }
+      }
+
+      update(width, height) {
+        // Update ambient dust
+        for (const p of this.ambientParticles) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.pulse += 0.02;
+          if (p.x < 0) p.x = width;
+          if (p.x > width) p.x = 0;
+          if (p.y < 0) p.y = height;
+          if (p.y > height) p.y = 0;
+        }
+
+        // Update sparks
+        for (let i = this.photonSparks.length - 1; i >= 0; i--) {
+          const s = this.photonSparks[i];
+          s.x += s.vx;
+          s.y += s.vy;
+          s.alpha -= s.decay;
+          if (s.alpha <= 0) this.photonSparks.splice(i, 1);
+        }
+
+        // Update victory confetti
+        for (let i = this.victoryConfetti.length - 1; i >= 0; i--) {
+          const c = this.victoryConfetti[i];
+          c.x += c.vx;
+          c.y += c.vy;
+          c.vy += 0.15; // Gravity
+          c.rot += c.vRot;
+          c.alpha -= c.decay;
+          if (c.alpha <= 0) this.victoryConfetti.splice(i, 1);
+        }
+      }
+
+      drawAmbient(ctx) {
+        ctx.save();
+        for (const p of this.ambientParticles) {
+          const a = p.alpha * (0.6 + 0.4 * Math.sin(p.pulse));
+          ctx.fillStyle = `rgba(180, 220, 255, ${a})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      drawSparks(ctx) {
+        if (!this.photonSparks.length) return;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const s of this.photonSparks) {
+          ctx.fillStyle = `rgba(${s.rgb[0]}, ${s.rgb[1]}, ${s.rgb[2]}, ${s.alpha})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      drawVictory(ctx) {
+        if (!this.victoryConfetti.length) return;
+        ctx.save();
+        for (const c of this.victoryConfetti) {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.rotate(c.rot);
+          ctx.fillStyle = c.color;
+          ctx.globalAlpha = Math.max(0, c.alpha);
+          ctx.fillRect(-c.size * 0.5, -c.size * 0.5, c.size, c.size * 1.5);
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+    }
+
+    // --- 24 Handcrafted Story Levels across 4 Chapters ---
+    const CHAPTERS = [
+      { id: 1, name: '第一章：晨曦之镜', subtitle: 'DAWN REFLECTIONS', range: [1, 6] },
+      { id: 2, name: '第二章：三棱分光', subtitle: 'PRISM SPECTRUM', range: [7, 12] },
+      { id: 3, name: '第三章：色彩交响', subtitle: 'CHROMA SYNTHESIS', range: [13, 18] },
+      { id: 4, name: '第四章：星门跃迁', subtitle: 'QUANTUM RESONANCE', range: [19, 24] },
+    ];
+
+    const LEVELS = [
+      // === Chapter 1: Dawn Reflections ===
+      {
+        id: 1, chapter: 1, title: '初光启示',
+        desc: '将白光经由反射镜导向共鸣水晶，揭示古老的光明。',
+        targetMoves: 1,
+        cols: 8, rows: 6,
+        emitters: [{ c: 1, r: 2, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [{ c: 5, r: 4, reqMask: MASK_WHITE }],
+        shards: [{ c: 3, r: 2 }],
+        blockers: [],
+        inventory: [{ type: 'mirror', angle: 135 }],
+        hint: { c: 5, r: 2, type: 'mirror', angle: 135 }
+      },
+      {
+        id: 2, chapter: 1, title: '双镜回响',
+        desc: '使用两面反射镜绕过虚空，收集星光碎片。',
+        targetMoves: 2,
+        cols: 8, rows: 6,
+        emitters: [{ c: 1, r: 4, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [{ c: 6, r: 1, reqMask: MASK_WHITE }],
+        shards: [{ c: 4, r: 1 }],
+        blockers: [{ c: 3, r: 4 }, { c: 4, r: 3 }],
+        inventory: [{ type: 'mirror', angle: 45 }, { type: 'mirror', angle: 135 }],
+        hint: { c: 2, r: 4, type: 'mirror', angle: 45 }
+      },
+      {
+        id: 3, chapter: 1, title: '晨曦回廊',
+        desc: '避开坚硬的黑曜石阻隔，点亮深处的蔚蓝水晶。',
+        targetMoves: 3,
+        cols: 9, rows: 6,
+        emitters: [{ c: 1, r: 1, dir: [1, 0], mask: MASK_BLUE }],
+        crystals: [{ c: 1, r: 4, reqMask: MASK_BLUE }],
+        shards: [{ c: 5, r: 1 }, { c: 5, r: 4 }],
+        blockers: [{ c: 3, r: 2 }, { c: 3, r: 3 }],
+        inventory: [{ type: 'mirror', angle: 135 }, { type: 'mirror', angle: 45 }],
+        hint: { c: 6, r: 1, type: 'mirror', angle: 135 }
+      },
+      {
+        id: 4, chapter: 1, title: '双向共鸣',
+        desc: '两颗不同色彩的水晶同时等待被唤醒。',
+        targetMoves: 2,
+        cols: 9, rows: 6,
+        emitters: [
+          { c: 1, r: 1, dir: [1, 0], mask: MASK_RED },
+          { c: 1, r: 4, dir: [1, 0], mask: MASK_GREEN }
+        ],
+        crystals: [
+          { c: 4, r: 4, reqMask: MASK_RED },
+          { c: 7, r: 1, reqMask: MASK_GREEN }
+        ],
+        shards: [{ c: 4, r: 2 }],
+        blockers: [{ c: 4, r: 3 }],
+        inventory: [{ type: 'mirror', angle: 135 }, { type: 'mirror', angle: 45 }],
+        hint: { c: 4, r: 1, type: 'mirror', angle: 135 }
+      },
+      {
+        id: 5, chapter: 1, title: '迷宫折射',
+        desc: '利用连续反射在黑晶缝隙中穿行。',
+        targetMoves: 3,
+        cols: 9, rows: 7,
+        emitters: [{ c: 2, r: 5, dir: [0, -1], mask: MASK_WHITE }],
+        crystals: [{ c: 7, r: 5, reqMask: MASK_WHITE }],
+        shards: [{ c: 2, r: 1 }, { c: 7, r: 1 }],
+        blockers: [{ c: 4, r: 2 }, { c: 5, r: 2 }, { c: 4, r: 4 }, { c: 5, r: 4 }],
+        inventory: [{ type: 'mirror', angle: 135 }, { type: 'mirror', angle: 45 }],
+        hint: { c: 2, r: 1, type: 'mirror', angle: 135 }
+      },
+      {
+        id: 6, chapter: 1, title: '第一章终曲 · 辉光圣所',
+        desc: '调和多重反射，同时点亮三颗古老水晶。',
+        targetMoves: 4,
+        cols: 9, rows: 7,
+        emitters: [
+          { c: 1, r: 2, dir: [1, 0], mask: MASK_RED },
+          { c: 7, r: 5, dir: [-1, 0], mask: MASK_BLUE }
+        ],
+        crystals: [
+          { c: 4, r: 1, reqMask: MASK_RED },
+          { c: 4, r: 5, reqMask: MASK_BLUE }
+        ],
+        shards: [{ c: 4, r: 3 }],
+        blockers: [{ c: 3, r: 3 }, { c: 5, r: 3 }],
+        inventory: [{ type: 'mirror', angle: 45 }, { type: 'mirror', angle: 225 }],
+        hint: { c: 4, r: 2, type: 'mirror', angle: 45 }
+      },
+
+      // === Chapter 2: Prism Spectrum ===
+      {
+        id: 7, chapter: 2, title: '三棱初启',
+        desc: '白光照射三棱镜，将折射分离出的红光导向目标。',
+        targetMoves: 2,
+        cols: 9, rows: 6,
+        emitters: [{ c: 1, r: 2, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [{ c: 4, r: 4, reqMask: MASK_RED }],
+        shards: [{ c: 3, r: 2 }],
+        blockers: [],
+        inventory: [{ type: 'prism', angle: 0 }, { type: 'mirror', angle: 45 }],
+        hint: { c: 4, r: 2, type: 'prism', angle: 0 }
+      },
+      {
+        id: 8, chapter: 2, title: '光谱分流',
+        desc: '用三棱镜分解出红光与蓝光，分别激活两颗异色水晶。',
+        targetMoves: 3,
+        cols: 9, rows: 7,
+        emitters: [{ c: 1, r: 3, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [
+          { c: 4, r: 1, reqMask: MASK_BLUE },
+          { c: 4, r: 5, reqMask: MASK_RED }
+        ],
+        shards: [{ c: 4, r: 3 }],
+        blockers: [{ c: 6, r: 3 }],
+        inventory: [{ type: 'prism', angle: 0 }],
+        hint: { c: 4, r: 3, type: 'prism', angle: 0 }
+      },
+      {
+        id: 9, chapter: 2, title: '三原色汇流',
+        desc: '直行绿光、偏折红光与蓝光各归其位。',
+        targetMoves: 3,
+        cols: 10, rows: 7,
+        emitters: [{ c: 1, r: 3, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [
+          { c: 5, r: 1, reqMask: MASK_BLUE },
+          { c: 8, r: 3, reqMask: MASK_GREEN },
+          { c: 5, r: 5, reqMask: MASK_RED }
+        ],
+        shards: [{ c: 7, r: 3 }],
+        blockers: [],
+        inventory: [{ type: 'prism', angle: 0 }],
+        hint: { c: 5, r: 3, type: 'prism', angle: 0 }
+      },
+      {
+        id: 10, chapter: 2, title: '彩虹转折',
+        desc: '分解出的光束再经反射镜二次引导，绕过深渊阻挡。',
+        targetMoves: 3,
+        cols: 9, rows: 7,
+        emitters: [{ c: 1, r: 2, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [
+          { c: 7, r: 1, reqMask: MASK_BLUE },
+          { c: 7, r: 4, reqMask: MASK_RED }
+        ],
+        shards: [{ c: 4, r: 4 }],
+        blockers: [{ c: 5, r: 2 }],
+        inventory: [{ type: 'prism', angle: 0 }, { type: 'mirror', angle: 45 }, { type: 'mirror', angle: 135 }],
+        hint: { c: 4, r: 2, type: 'prism', angle: 0 }
+      },
+      {
+        id: 11, chapter: 2, title: '光栅矩阵',
+        desc: '双路光源与分光三棱镜相互交织。',
+        targetMoves: 4,
+        cols: 9, rows: 7,
+        emitters: [
+          { c: 1, r: 1, dir: [1, 0], mask: MASK_WHITE },
+          { c: 1, r: 5, dir: [1, 0], mask: MASK_WHITE }
+        ],
+        crystals: [
+          { c: 7, r: 2, reqMask: MASK_RED },
+          { c: 7, r: 4, reqMask: MASK_BLUE }
+        ],
+        shards: [{ c: 4, r: 3 }],
+        blockers: [{ c: 4, r: 2 }, { c: 4, r: 4 }],
+        inventory: [{ type: 'prism', angle: 0 }, { type: 'mirror', angle: 45 }, { type: 'mirror', angle: 135 }],
+        hint: { c: 4, r: 1, type: 'prism', angle: 0 }
+      },
+      {
+        id: 12, chapter: 2, title: '第二章终曲 · 极光之环',
+        desc: '唤醒四象共鸣水晶，令彩虹环绕整个圣殿。',
+        targetMoves: 4,
+        cols: 10, rows: 7,
+        emitters: [{ c: 2, r: 3, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [
+          { c: 6, r: 1, reqMask: MASK_BLUE },
+          { c: 8, r: 3, reqMask: MASK_GREEN },
+          { c: 6, r: 5, reqMask: MASK_RED }
+        ],
+        shards: [{ c: 4, r: 3 }, { c: 6, r: 3 }],
+        blockers: [{ c: 7, r: 2 }, { c: 7, r: 4 }],
+        inventory: [{ type: 'prism', angle: 0 }, { type: 'mirror', angle: 135 }],
+        hint: { c: 6, r: 3, type: 'prism', angle: 0 }
+      },
+
+      // === Chapter 3: Chroma Synthesis ===
+      {
+        id: 13, chapter: 3, title: '黄金之耀',
+        desc: '红光与绿光在合光镜相融，合成耀眼的黄金黄色光芒！',
+        targetMoves: 2,
+        cols: 9, rows: 6,
+        emitters: [
+          { c: 1, r: 1, dir: [1, 0], mask: MASK_RED },
+          { c: 4, r: 4, dir: [0, -1], mask: MASK_GREEN }
+        ],
+        crystals: [{ c: 7, r: 1, reqMask: MASK_YELLOW }],
+        shards: [{ c: 5, r: 1 }],
+        blockers: [],
+        inventory: [{ type: 'combiner', angle: 0 }],
+        hint: { c: 4, r: 1, type: 'combiner', angle: 0 }
+      },
+      {
+        id: 14, chapter: 3, title: '品红霓影',
+        desc: '红光与蓝光汇聚，合成品红霓光唤醒古琴水晶。',
+        targetMoves: 3,
+        cols: 9, rows: 7,
+        emitters: [
+          { c: 1, r: 2, dir: [1, 0], mask: MASK_RED },
+          { c: 5, r: 5, dir: [0, -1], mask: MASK_BLUE }
+        ],
+        crystals: [{ c: 8, r: 2, reqMask: MASK_MAGENTA }],
+        shards: [{ c: 6, r: 2 }],
+        blockers: [{ c: 3, r: 3 }],
+        inventory: [{ type: 'combiner', angle: 0 }, { type: 'mirror', angle: 45 }],
+        hint: { c: 5, r: 2, type: 'combiner', angle: 0 }
+      },
+      {
+        id: 15, chapter: 3, title: '碧波青空',
+        desc: '绿光与蓝光合成为青空色（Cyan），激活天灵晶石。',
+        targetMoves: 3,
+        cols: 9, rows: 7,
+        emitters: [
+          { c: 2, r: 1, dir: [0, 1], mask: MASK_GREEN },
+          { c: 1, r: 4, dir: [1, 0], mask: MASK_BLUE }
+        ],
+        crystals: [{ c: 7, r: 4, reqMask: MASK_CYAN }],
+        shards: [{ c: 4, r: 4 }],
+        blockers: [{ c: 5, r: 3 }],
+        inventory: [{ type: 'combiner', angle: 0 }, { type: 'mirror', angle: 135 }],
+        hint: { c: 2, r: 4, type: 'combiner', angle: 0 }
+      },
+      {
+        id: 16, chapter: 3, title: '分束双生',
+        desc: '利用 50/50 分束镜复制光路，一路直行，一路折射合成。',
+        targetMoves: 3,
+        cols: 10, rows: 7,
+        emitters: [
+          { c: 1, r: 2, dir: [1, 0], mask: MASK_RED },
+          { c: 4, r: 5, dir: [0, -1], mask: MASK_GREEN }
+        ],
+        crystals: [
+          { c: 7, r: 2, reqMask: MASK_YELLOW },
+          { c: 4, r: 1, reqMask: MASK_RED }
+        ],
+        shards: [{ c: 4, r: 3 }],
+        blockers: [],
+        inventory: [{ type: 'splitter', angle: 135 }, { type: 'combiner', angle: 0 }],
+        hint: { c: 4, r: 2, type: 'splitter', angle: 135 }
+      },
+      {
+        id: 17, chapter: 3, title: '三色熔炉',
+        desc: '同时合成黄金光与青碧光，考验严密的光路调度。',
+        targetMoves: 4,
+        cols: 10, rows: 7,
+        emitters: [
+          { c: 1, r: 1, dir: [1, 0], mask: MASK_RED },
+          { c: 1, r: 3, dir: [1, 0], mask: MASK_GREEN },
+          { c: 1, r: 5, dir: [1, 0], mask: MASK_BLUE }
+        ],
+        crystals: [
+          { c: 7, r: 1, reqMask: MASK_YELLOW },
+          { c: 7, r: 5, reqMask: MASK_CYAN }
+        ],
+        shards: [{ c: 4, r: 2 }, { c: 4, r: 4 }],
+        blockers: [{ c: 3, r: 2 }, { c: 3, r: 4 }],
+        inventory: [{ type: 'splitter', angle: 135 }, { type: 'combiner', angle: 0 }, { type: 'combiner', angle: 0 }],
+        hint: { c: 4, r: 3, type: 'splitter', angle: 135 }
+      },
+      {
+        id: 18, chapter: 3, title: '第三章终曲 · 炼金神殿',
+        desc: '红绿蓝三原色完美重聚，再造纯白之光。',
+        targetMoves: 4,
+        cols: 10, rows: 7,
+        emitters: [
+          { c: 1, r: 2, dir: [1, 0], mask: MASK_YELLOW },
+          { c: 5, r: 5, dir: [0, -1], mask: MASK_BLUE }
+        ],
+        crystals: [{ c: 8, r: 2, reqMask: MASK_WHITE }],
+        shards: [{ c: 3, r: 2 }, { c: 7, r: 2 }],
+        blockers: [],
+        inventory: [{ type: 'combiner', angle: 0 }],
+        hint: { c: 5, r: 2, type: 'combiner', angle: 0 }
+      },
+
+      // === Chapter 4: Quantum Resonance ===
+      {
+        id: 19, chapter: 4, title: '时空跃迁',
+        desc: '光束进入星门 α，将跨越虚空在星门 β 瞬间重现！',
+        targetMoves: 2,
+        cols: 9, rows: 6,
+        emitters: [{ c: 1, r: 2, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [{ c: 7, r: 4, reqMask: MASK_WHITE }],
+        shards: [{ c: 5, r: 4 }],
+        blockers: [{ c: 4, r: 1 }, { c: 4, r: 2 }, { c: 4, r: 3 }, { c: 4, r: 4 }],
+        portals: [{ c: 3, r: 2, id: 'A' }, { c: 5, r: 4, id: 'B' }],
+        inventory: [{ type: 'mirror', angle: 135 }],
+        hint: { c: 7, r: 2, type: 'mirror', angle: 135 }
+      },
+      {
+        id: 20, chapter: 4, title: '双子星门',
+        desc: '利用星门穿透黑曜石壁垒，连接异色共鸣。',
+        targetMoves: 3,
+        cols: 10, rows: 7,
+        emitters: [{ c: 1, r: 1, dir: [1, 0], mask: MASK_RED }],
+        crystals: [{ c: 8, r: 5, reqMask: MASK_RED }],
+        shards: [{ c: 3, r: 5 }],
+        blockers: [{ c: 5, r: 0 }, { c: 5, r: 1 }, { c: 5, r: 2 }, { c: 5, r: 3 }, { c: 5, r: 4 }],
+        portals: [{ c: 3, r: 1, id: 'A' }, { c: 3, r: 5, id: 'B' }],
+        inventory: [{ type: 'mirror', angle: 135 }, { type: 'mirror', angle: 45 }],
+        hint: { c: 7, r: 5, type: 'mirror', angle: 45 }
+      },
+      {
+        id: 21, chapter: 4, title: '星门分光',
+        desc: '光束穿越星门后，由三棱镜在彼端分光分解。',
+        targetMoves: 3,
+        cols: 10, rows: 7,
+        emitters: [{ c: 1, r: 3, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [
+          { c: 8, r: 1, reqMask: MASK_BLUE },
+          { c: 8, r: 5, reqMask: MASK_RED }
+        ],
+        shards: [{ c: 4, r: 3 }],
+        blockers: [{ c: 3, r: 0 }, { c: 3, r: 1 }, { c: 3, r: 2 }, { c: 3, r: 4 }, { c: 3, r: 5 }],
+        portals: [{ c: 2, r: 3, id: 'A' }, { c: 5, r: 3, id: 'B' }],
+        inventory: [{ type: 'prism', angle: 0 }],
+        hint: { c: 6, r: 3, type: 'prism', angle: 0 }
+      },
+      {
+        id: 22, chapter: 4, title: '交叉跃迁',
+        desc: '利用星门与分束镜实现错位空间传递。',
+        targetMoves: 4,
+        cols: 10, rows: 7,
+        emitters: [
+          { c: 1, r: 1, dir: [1, 0], mask: MASK_GREEN },
+          { c: 1, r: 5, dir: [1, 0], mask: MASK_BLUE }
+        ],
+        crystals: [{ c: 8, r: 3, reqMask: MASK_CYAN }],
+        shards: [{ c: 5, r: 3 }],
+        blockers: [{ c: 4, r: 2 }, { c: 4, r: 4 }],
+        portals: [{ c: 3, r: 1, id: 'A' }, { c: 6, r: 2, id: 'B' }],
+        inventory: [{ type: 'mirror', angle: 135 }, { type: 'combiner', angle: 0 }],
+        hint: { c: 6, r: 3, type: 'combiner', angle: 0 }
+      },
+      {
+        id: 23, chapter: 4, title: '宏伟阵列',
+        desc: '四大共鸣水晶环绕，极高密度的光学逻辑挑战！',
+        targetMoves: 5,
+        cols: 10, rows: 8,
+        emitters: [{ c: 1, r: 3, dir: [1, 0], mask: MASK_WHITE }],
+        crystals: [
+          { c: 4, r: 1, reqMask: MASK_BLUE },
+          { c: 4, r: 6, reqMask: MASK_RED },
+          { c: 8, r: 3, reqMask: MASK_GREEN }
+        ],
+        shards: [{ c: 6, r: 3 }, { c: 4, r: 3 }],
+        blockers: [{ c: 5, r: 2 }, { c: 5, r: 5 }],
+        inventory: [{ type: 'prism', angle: 0 }, { type: 'mirror', angle: 45 }, { type: 'mirror', angle: 135 }],
+        hint: { c: 4, r: 3, type: 'prism', angle: 0 }
+      },
+      {
+        id: 24, chapter: 4, title: '终章 · 光之大合奏',
+        desc: '调动所有光学神器，让纯白、青天、黄金水晶同频齐鸣！',
+        targetMoves: 5,
+        cols: 11, rows: 8,
+        emitters: [
+          { c: 1, r: 2, dir: [1, 0], mask: MASK_WHITE },
+          { c: 1, r: 5, dir: [1, 0], mask: MASK_WHITE }
+        ],
+        crystals: [
+          { c: 9, r: 1, reqMask: MASK_BLUE },
+          { c: 9, r: 4, reqMask: MASK_YELLOW },
+          { c: 9, r: 6, reqMask: MASK_RED }
+        ],
+        shards: [{ c: 5, r: 2 }, { c: 5, r: 5 }],
+        blockers: [{ c: 6, r: 3 }],
+        inventory: [{ type: 'prism', angle: 0 }, { type: 'mirror', angle: 45 }, { type: 'mirror', angle: 135 }],
+        hint: { c: 4, r: 2, type: 'prism', angle: 0 }
+      }
+    ];
+
+    // --- Main Game Controller ---
+    class ChromaPrismGame {
+      constructor() {
+        this.canvas = document.getElementById('game-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.sound = new SoundEngine();
+        this.particles = new ParticleSystem();
+
+        this.currentLevelIndex = 0;
+        this.isSandbox = false;
+        this.sandboxSelectedTool = 'mirror';
+
+        // Board & Layout
+        this.cols = 9;
+        this.rows = 7;
+        this.cellSize = 64;
+        this.gridOffsetX = 0;
+        this.gridOffsetY = 0;
+        this.dpr = 1;
+
+        // Interactive State
+        this.placedElements = []; // { c, r, type, angle, id, isFixed }
+        this.inventory = [];      // { type, count, angle }
+        this.emitters = [];
+        this.crystals = [];
+        this.shards = [];
+        this.blockers = [];
+        this.portals = [];
+
+        this.selectedPiece = null; // Placed piece currently focused
+        this.selectedInventoryItem = null; // Inventory item selected for tap-to-place
+        this.draggedItem = null;   // Drag from inventory or moving placed piece
+        this.dragPos = { x: 0, y: 0 };
+        this.hoverCell = null;
+
+        // Game Progress
+        this.moveCount = 0;
+        this.undoStack = [];
+        this.solved = false;
+        this.levelStars = JSON.parse(localStorage.getItem('chroma_stars') || '{}');
+        this.pulseTime = 0;
+
+        // UI references
+        this.toastEl = document.getElementById('toast');
+        this.toolbarEl = document.getElementById('floating-toolbar');
+        this.ringEl = document.getElementById('selection-ring');
+
+        this.initDOM();
+        this.initEvents();
+        this.resize();
+        this.loadLevel(0);
+        this.loop();
+      }
+
+      initDOM() {
+        // Render Levels modal
+        const container = document.getElementById('level-list-container');
+        container.innerHTML = '';
+        for (const chap of CHAPTERS) {
+          const chapTitle = document.createElement('div');
+          chapTitle.className = 'chapter-title';
+          chapTitle.textContent = `${chap.name} · ${chap.subtitle}`;
+          container.appendChild(chapTitle);
+
+          const grid = document.createElement('div');
+          grid.className = 'level-grid';
+          for (let lvl = chap.range[0]; lvl <= chap.range[1]; lvl++) {
+            const idx = lvl - 1;
+            const stars = this.levelStars[lvl] || 0;
+            const isUnlocked = lvl === 1 || this.levelStars[lvl - 1] !== undefined;
+
+            const pill = document.createElement('div');
+            pill.className = `level-pill ${isUnlocked ? '' : 'locked'} ${idx === this.currentLevelIndex ? 'current' : ''}`;
+            pill.innerHTML = `
+              <div class="level-pill-num">${lvl}</div>
+              <div class="level-pill-stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+            `;
+            if (isUnlocked) {
+              pill.onclick = () => {
+                this.closeModal('modal-level-select');
+                this.loadLevel(idx);
+              };
+            }
+            grid.appendChild(pill);
+          }
+          container.appendChild(grid);
+        }
+
+        // Render Sandbox Palette
+        const palette = document.getElementById('sandbox-palette');
+        const tools = [
+          { type: 'mirror', label: '反射镜' },
+          { type: 'prism', label: '三棱镜' },
+          { type: 'combiner', label: '混色镜' },
+          { type: 'splitter', label: '分束镜' },
+          { type: 'portal', label: '星门对' },
+          { type: 'emitter_white', label: '白光源' },
+          { type: 'emitter_red', label: '红光源' },
+          { type: 'emitter_green', label: '绿光源' },
+          { type: 'emitter_blue', label: '蓝光源' },
+          { type: 'crystal_white', label: '纯白晶' },
+          { type: 'crystal_yellow', label: '金黄晶' },
+          { type: 'crystal_cyan', label: '青碧晶' },
+          { type: 'crystal_magenta', label: '品红晶' },
+          { type: 'blocker', label: '黑曜石' },
+        ];
+        palette.innerHTML = '';
+        tools.forEach((t, i) => {
+          const item = document.createElement('div');
+          item.className = `sandbox-item ${i === 0 ? 'active' : ''}`;
+          item.innerHTML = `<span style="font-size:20px;">✦</span><span style="font-size:10px;">${t.label}</span>`;
+          item.onclick = () => {
+            palette.querySelectorAll('.sandbox-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+            this.sandboxSelectedTool = t.type;
+            this.showToast(`已选工具：${t.label}`);
+          };
+          palette.appendChild(item);
+        });
+
+        this.updateStarHUD();
+      }
+
+      initEvents() {
+        window.addEventListener('resize', () => this.resize());
+
+        // Modal triggers
+        document.getElementById('btn-level-select').onclick = () => {
+          this.initDOM();
+          this.openModal('modal-level-select');
+        };
+        document.getElementById('btn-help').onclick = () => this.openModal('modal-help');
+        document.getElementById('btn-sandbox-toggle').onclick = () => {
+          this.isSandbox = !this.isSandbox;
+          if (this.isSandbox) {
+            this.openModal('modal-sandbox');
+            this.showToast('已进入光之沙盒模式');
+            document.getElementById('btn-sandbox-toggle').classList.add('active');
+          } else {
+            this.loadLevel(this.currentLevelIndex);
+            this.showToast('已回到关卡模式');
+            document.getElementById('btn-sandbox-toggle').classList.remove('active');
+          }
+        };
+
+        // Close modal buttons
+        document.querySelectorAll('[data-close]').forEach(btn => {
+          btn.onclick = () => this.closeModal(btn.getAttribute('data-close'));
+        });
+
+        // Audio toggle
+        const audioBtn = document.getElementById('btn-audio');
+        const audioIcon = document.getElementById('audio-icon');
+        audioBtn.onclick = () => {
+          this.sound.init();
+          const nextState = !this.sound.muted;
+          this.sound.setMuted(nextState);
+          audioIcon.textContent = nextState ? '🔇' : '🔊';
+          this.showToast(nextState ? '音效已静音' : '音效已开启');
+        };
+
+        // Hint button
+        document.getElementById('btn-hint').onclick = () => this.triggerHint();
+
+        // Undo & Reset & Pulse
+        document.getElementById('btn-undo').onclick = () => this.undoMove();
+        document.getElementById('btn-reset').onclick = () => this.resetLevel();
+        document.getElementById('btn-pulse').onclick = () => {
+          this.sound.init();
+          this.sound.playPulse();
+          this.pulseTime = 1.0;
+        };
+
+        // Victory dialog buttons
+        document.getElementById('btn-victory-replay').onclick = () => {
+          this.closeModal('modal-victory');
+          this.resetLevel();
+        };
+        document.getElementById('btn-victory-next').onclick = () => {
+          this.closeModal('modal-victory');
+          if (this.currentLevelIndex < LEVELS.length - 1) {
+            this.loadLevel(this.currentLevelIndex + 1);
+          } else {
+            this.showToast('恭喜通关所有关卡！');
+          }
+        };
+
+        // Sandbox Action buttons
+        document.getElementById('btn-sandbox-clear').onclick = () => {
+          this.placedElements = [];
+          this.emitters = [];
+          this.crystals = [];
+          this.blockers = [];
+          this.portals = [];
+          this.showToast('沙盒画布已清空');
+          this.closeModal('modal-sandbox');
+        };
+        document.getElementById('btn-sandbox-copy').onclick = () => {
+          const exportData = {
+            placed: this.placedElements,
+            emitters: this.emitters,
+            crystals: this.crystals,
+            blockers: this.blockers
+          };
+          navigator.clipboard.writeText(JSON.stringify(exportData)).then(() => {
+            this.showToast('关卡代码已复制到剪贴板！');
+          }).catch(() => {
+            this.showToast('复制失败，请手动操作');
+          });
+        };
+        document.getElementById('btn-sandbox-exit').onclick = () => {
+          this.closeModal('modal-sandbox');
+          this.isSandbox = false;
+          this.loadLevel(this.currentLevelIndex);
+        };
+
+        // Floating ring actions
+        document.getElementById('ring-btn-rotate-cw').onclick = (e) => {
+          e.stopPropagation();
+          if (this.selectedPiece) this.rotatePiece(this.selectedPiece, 90);
+        };
+        document.getElementById('ring-btn-flip').onclick = (e) => {
+          e.stopPropagation();
+          if (this.selectedPiece) this.rotatePiece(this.selectedPiece, 45);
+        };
+        document.getElementById('ring-btn-remove').onclick = (e) => {
+          e.stopPropagation();
+          if (this.selectedPiece) this.removePiece(this.selectedPiece);
+        };
+
+        // Canvas Pointer / Mouse / Touch Interactions
+        this.setupInputHandlers();
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+          this.sound.init();
+          if (e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') {
+            if (this.selectedPiece) this.rotatePiece(this.selectedPiece, 90);
+          } else if (e.key === 'q' || e.key === 'Q') {
+            if (this.selectedPiece) this.rotatePiece(this.selectedPiece, -90);
+          } else if (e.key === 'f' || e.key === 'F') {
+            if (this.selectedPiece) this.rotatePiece(this.selectedPiece, 45);
+          } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete' || e.key === 'Backspace') {
+            if (this.selectedPiece) this.removePiece(this.selectedPiece);
+          } else if (e.key === 'z' || e.key === 'Z') {
+            this.undoMove();
+          } else if (e.key === ' ') {
+            e.preventDefault();
+            this.sound.playPulse();
+            this.pulseTime = 1.0;
+          } else if (e.key === 'h' || e.key === 'H') {
+            this.triggerHint();
+          } else if (e.key === 'Escape') {
+            this.deselectPiece();
+          }
+        });
+      }
+
+      setupInputHandlers() {
+        const getCanvasCoords = (clientX, clientY) => {
+          const rect = this.canvas.getBoundingClientRect();
+          return {
+            x: (clientX - rect.left),
+            y: (clientY - rect.top)
+          };
+        };
+
+        const getGridCell = (x, y) => {
+          const c = Math.floor((x - this.gridOffsetX) / this.cellSize);
+          const r = Math.floor((y - this.gridOffsetY) / this.cellSize);
+          if (c >= 0 && c < this.cols && r >= 0 && r < this.rows) {
+            return { c, r };
+          }
+          return null;
+        };
+
+        // Mouse Wheel on canvas to rotate hovered placed piece
+        this.canvas.addEventListener('wheel', (e) => {
+          const pos = getCanvasCoords(e.clientX, e.clientY);
+          const cell = getGridCell(pos.x, pos.y);
+          if (cell) {
+            const piece = this.placedElements.find(p => p.c === cell.c && p.r === cell.r && !p.isFixed);
+            if (piece) {
+              e.preventDefault();
+              const delta = e.deltaY > 0 ? 90 : -90;
+              this.rotatePiece(piece, delta);
+            }
+          }
+        }, { passive: false });
+
+        // Pointer down
+        const handleStart = (clientX, clientY) => {
+          this.sound.init();
+          const pos = getCanvasCoords(clientX, clientY);
+          const cell = getGridCell(pos.x, pos.y);
+
+          if (this.isSandbox && cell) {
+            this.handleSandboxPlacement(cell);
+            return;
+          }
+
+          // If an inventory item was pre-selected by tap, clicking an empty cell places it
+          if (this.selectedInventoryItem && cell) {
+            const inv = this.selectedInventoryItem;
+            if (inv.count > 0 && !this.isCellOccupied(cell.c, cell.r)) {
+              this.recordHistory();
+              inv.count--;
+              const newPiece = {
+                c: cell.c,
+                r: cell.r,
+                type: inv.type,
+                angle: inv.angle || 45,
+                isFixed: false
+              };
+              this.placedElements.push(newPiece);
+              this.selectPiece(newPiece);
+              this.moveCount++;
+              this.sound.playClick();
+              if (inv.count <= 0) {
+                this.selectedInventoryItem = null;
+              }
+              this.renderInventory();
+              return;
+            }
+          }
+
+          if (cell) {
+            const placed = this.placedElements.find(p => p.c === cell.c && p.r === cell.r);
+            if (placed && !placed.isFixed) {
+              if (this.selectedPiece === placed) {
+                // Tapping selected piece directly rotates it 90 degrees
+                this.rotatePiece(placed, 90);
+              } else {
+                this.selectPiece(placed);
+              }
+              this.draggedItem = { piece: placed, originCell: { ...cell } };
+              this.dragPos = { x: pos.x, y: pos.y };
+              return;
+            }
+          }
+
+          this.deselectPiece();
+        };
+
+        // Pointer move
+        const handleMove = (clientX, clientY) => {
+          const pos = getCanvasCoords(clientX, clientY);
+          this.hoverCell = getGridCell(pos.x, pos.y);
+
+          if (this.draggedItem) {
+            this.dragPos = { x: pos.x, y: pos.y };
+            this.updateFloatingToolbarPos();
+          }
+        };
+
+        // Pointer end
+        const handleEnd = (clientX, clientY) => {
+          if (!this.draggedItem) return;
+
+          const pos = getCanvasCoords(clientX, clientY);
+          const targetCell = getGridCell(pos.x, pos.y);
+
+          if (this.draggedItem.piece) {
+            const p = this.draggedItem.piece;
+            // Check if dropped into bottom dock or out of bounds -> recycle
+            const rect = document.getElementById('bottom-dock').getBoundingClientRect();
+            if (clientY >= rect.top - 20) {
+              this.removePiece(p);
+            } else if (targetCell) {
+              // Move piece to new cell if not occupied
+              const isOccupied = this.isCellOccupied(targetCell.c, targetCell.r, p);
+              if (!isOccupied) {
+                if (targetCell.c !== p.c || targetCell.r !== p.r) {
+                  this.recordHistory();
+                  p.c = targetCell.c;
+                  p.r = targetCell.r;
+                  this.moveCount++;
+                  this.sound.playClick();
+                }
+              }
+            }
+          } else if (this.draggedItem.inventoryItem && targetCell) {
+            // Dragged from inventory
+            const inv = this.draggedItem.inventoryItem;
+            if (inv.count > 0 && !this.isCellOccupied(targetCell.c, targetCell.r)) {
+              this.recordHistory();
+              inv.count--;
+              const newPiece = {
+                c: targetCell.c,
+                r: targetCell.r,
+                type: inv.type,
+                angle: inv.angle || 45,
+                isFixed: false
+              };
+              this.placedElements.push(newPiece);
+              this.selectPiece(newPiece);
+              this.moveCount++;
+              this.sound.playClick();
+              this.renderInventory();
+            }
+          }
+
+          this.draggedItem = null;
+          this.updateFloatingToolbarPos();
+        };
+
+        // Attach Mouse events
+        this.canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', (e) => handleEnd(e.clientX, e.clientY));
+
+        // Attach Touch events with haptic support
+        this.canvas.addEventListener('touchstart', (e) => {
+          const t = e.touches[0];
+          handleStart(t.clientX, t.clientY);
+          if (navigator.vibrate) navigator.vibrate(10);
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+          if (!this.draggedItem) return;
+          const t = e.touches[0];
+          handleMove(t.clientX, t.clientY);
+        }, { passive: true });
+
+        window.addEventListener('touchend', (e) => {
+          if (e.changedTouches.length) {
+            const t = e.changedTouches[0];
+            handleEnd(t.clientX, t.clientY);
+          }
+        });
+      }
+
+      handleSandboxPlacement(cell) {
+        const tool = this.sandboxSelectedTool;
+        if (tool === 'blocker') {
+          const idx = this.blockers.findIndex(b => b.c === cell.c && b.r === cell.r);
+          if (idx >= 0) this.blockers.splice(idx, 1);
+          else this.blockers.push({ c: cell.c, r: cell.r });
+        } else if (tool.startsWith('emitter_')) {
+          const colorMap = { emitter_white: MASK_WHITE, emitter_red: MASK_RED, emitter_green: MASK_GREEN, emitter_blue: MASK_BLUE };
+          const idx = this.emitters.findIndex(e => e.c === cell.c && e.r === cell.r);
+          if (idx >= 0) this.emitters.splice(idx, 1);
+          else this.emitters.push({ c: cell.c, r: cell.r, dir: [1, 0], mask: colorMap[tool] });
+        } else if (tool.startsWith('crystal_')) {
+          const colorMap = { crystal_white: MASK_WHITE, crystal_yellow: MASK_YELLOW, crystal_cyan: MASK_CYAN, crystal_magenta: MASK_MAGENTA };
+          const idx = this.crystals.findIndex(c => c.c === cell.c && c.r === cell.r);
+          if (idx >= 0) this.crystals.splice(idx, 1);
+          else this.crystals.push({ c: cell.c, r: cell.r, reqMask: colorMap[tool] });
+        } else {
+          // Optical element
+          const idx = this.placedElements.findIndex(p => p.c === cell.c && p.r === cell.r);
+          if (idx >= 0) {
+            this.placedElements[idx].angle = (this.placedElements[idx].angle + 90) % 360;
+          } else {
+            this.placedElements.push({ c: cell.c, r: cell.r, type: tool, angle: 45, isFixed: false });
+          }
+        }
+        this.sound.playClick();
+      }
+
+      isCellOccupied(c, r, ignorePiece = null) {
+        if (this.blockers.some(b => b.c === c && b.r === r)) return true;
+        if (this.emitters.some(e => e.c === c && e.r === r)) return true;
+        if (this.crystals.some(cr => cr.c === c && cr.r === r)) return true;
+        if (this.portals.some(p => p.c === c && p.r === r)) return true;
+        return this.placedElements.some(p => p !== ignorePiece && p.c === c && p.r === r);
+      }
+
+      selectPiece(piece) {
+        this.selectedPiece = piece;
+        this.updateFloatingToolbarPos();
+      }
+
+      deselectPiece() {
+        this.selectedPiece = null;
+        this.toolbarEl.style.display = 'none';
+        this.ringEl.style.display = 'none';
+      }
+
+      updateFloatingToolbarPos() {
+        if (!this.selectedPiece) {
+          this.toolbarEl.style.display = 'none';
+          this.ringEl.style.display = 'none';
+          return;
+        }
+        const p = this.selectedPiece;
+        const px = this.gridOffsetX + (p.c + 0.5) * this.cellSize;
+        const py = this.gridOffsetY + (p.r + 0.5) * this.cellSize;
+
+        this.ringEl.style.display = 'block';
+        this.ringEl.style.left = `${px}px`;
+        this.ringEl.style.top = `${py}px`;
+
+        this.toolbarEl.style.display = 'flex';
+        this.toolbarEl.style.left = `${px}px`;
+        this.toolbarEl.style.top = `${py - this.cellSize * 0.55}px`;
+      }
+
+      rotatePiece(piece, angleDelta) {
+        this.recordHistory();
+        piece.angle = (piece.angle + angleDelta + 360) % 360;
+        this.moveCount++;
+        this.sound.playRotate();
+        if (navigator.vibrate) navigator.vibrate(15);
+      }
+
+      removePiece(piece) {
+        this.recordHistory();
+        const idx = this.placedElements.indexOf(piece);
+        if (idx >= 0) {
+          this.placedElements.splice(idx, 1);
+          // Return to inventory
+          const invItem = this.inventory.find(i => i.type === piece.type);
+          if (invItem) invItem.count++;
+          this.renderInventory();
+          this.deselectPiece();
+          this.sound.playClick();
+        }
+      }
+
+      recordHistory() {
+        this.undoStack.push({
+          placed: JSON.parse(JSON.stringify(this.placedElements)),
+          inventory: JSON.parse(JSON.stringify(this.inventory)),
+          moveCount: this.moveCount
+        });
+        if (this.undoStack.length > 30) this.undoStack.shift();
+      }
+
+      undoMove() {
+        if (!this.undoStack.length) {
+          this.showToast('无法继续撤销');
+          return;
+        }
+        const state = this.undoStack.pop();
+        this.placedElements = state.placed;
+        this.inventory = state.inventory;
+        this.moveCount = state.moveCount;
+        this.deselectPiece();
+        this.renderInventory();
+        this.sound.playClick();
+        this.showToast('已撤销上一步');
+      }
+
+      resetLevel() {
+        this.loadLevel(this.currentLevelIndex);
+        this.showToast('关卡已重置');
+      }
+
+      triggerHint() {
+        const lvl = LEVELS[this.currentLevelIndex];
+        if (!lvl || !lvl.hint) {
+          this.showToast('当前关卡暂无额外提示，尝试观察水晶颜色需求！');
+          return;
+        }
+        const h = lvl.hint;
+        this.showToast(`提示：在坐标 (${h.c + 1}, ${h.r + 1}) 放置 ${h.type}，角度 ${h.angle}°`);
+        // Highlight cell
+        this.hintHighlight = { ...h, alpha: 1.0 };
+      }
+
+      loadLevel(index) {
+        this.currentLevelIndex = index;
+        const lvl = LEVELS[index];
+        this.cols = lvl.cols || 9;
+        this.rows = lvl.rows || 7;
+        this.emitters = JSON.parse(JSON.stringify(lvl.emitters || []));
+        this.crystals = JSON.parse(JSON.stringify(lvl.crystals || []));
+        this.shards = JSON.parse(JSON.stringify(lvl.shards || []));
+        this.blockers = JSON.parse(JSON.stringify(lvl.blockers || []));
+        this.portals = JSON.parse(JSON.stringify(lvl.portals || []));
+
+        // Count items
+        const invMap = {};
+        for (const item of lvl.inventory || []) {
+          if (!invMap[item.type]) invMap[item.type] = { type: item.type, count: 0, angle: item.angle || 45 };
+          invMap[item.type].count++;
+        }
+        this.inventory = Object.values(invMap);
+        this.placedElements = JSON.parse(JSON.stringify(lvl.preplaced || []));
+
+        this.moveCount = 0;
+        this.undoStack = [];
+        this.solved = false;
+        this.selectedInventoryItem = null;
+        this.deselectPiece();
+
+        // Update HUD
+        document.getElementById('hud-level-title').textContent = `${lvl.id}. ${lvl.title}`;
+        const chapter = CHAPTERS.find(c => c.id === lvl.chapter);
+        document.getElementById('hud-chapter-title').textContent = chapter ? chapter.name : '';
+        document.getElementById('stat-target-moves').textContent = lvl.targetMoves || 3;
+
+        this.renderInventory();
+        this.resize();
+      }
+
+      renderInventory() {
+        const tray = document.getElementById('inventory-tray');
+        tray.innerHTML = '';
+
+        this.inventory.forEach(item => {
+          const isSelected = this.selectedInventoryItem === item;
+          const div = document.createElement('div');
+          div.className = `inventory-item ${item.count <= 0 ? 'disabled' : ''} ${isSelected ? 'selected' : ''}`;
+          
+          const iconCanvas = document.createElement('canvas');
+          iconCanvas.className = 'item-icon';
+          iconCanvas.width = 40;
+          iconCanvas.height = 40;
+          this.drawItemIcon(iconCanvas, item.type, item.angle);
+
+          div.innerHTML = `
+            <div class="inventory-badge">${item.count}</div>
+            <div class="inventory-label">${this.getItemLabel(item.type)}</div>
+          `;
+          div.insertBefore(iconCanvas, div.firstChild);
+
+          // Click / Tap to select item
+          div.onclick = (e) => {
+            if (item.count <= 0) return;
+            this.sound.init();
+            if (this.selectedInventoryItem === item) {
+              this.selectedInventoryItem = null;
+            } else {
+              this.selectedInventoryItem = item;
+              this.deselectPiece();
+              this.showToast(`已选择${this.getItemLabel(item.type)}，点击棋盘空白处即可放置`);
+            }
+            this.sound.playClick();
+            this.renderInventory();
+          };
+
+          // Drag from inventory
+          div.onmousedown = (e) => {
+            if (item.count <= 0) return;
+            this.draggedItem = { inventoryItem: item };
+            this.dragPos = { x: e.clientX, y: e.clientY };
+          };
+          div.ontouchstart = (e) => {
+            if (item.count <= 0) return;
+            const t = e.touches[0];
+            this.draggedItem = { inventoryItem: item };
+            this.dragPos = { x: t.clientX, y: t.clientY };
+          };
+
+          tray.appendChild(div);
+        });
+      }
+
+      getItemLabel(type) {
+        switch (type) {
+          case 'mirror': return '反射镜';
+          case 'prism': return '三棱镜';
+          case 'combiner': return '混色镜';
+          case 'splitter': return '分束镜';
+          case 'portal': return '星门';
+          default: return '元件';
+        }
+      }
+
+      drawItemIcon(canvas, type, angle = 45) {
+        const ctx = canvas.getContext('2d');
+        const cx = 20, cy = 20;
+        ctx.clearRect(0, 0, 40, 40);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle * Math.PI / 180);
+
+        if (type === 'mirror') {
+          ctx.strokeStyle = '#00f2fe';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(-12, 0);
+          ctx.lineTo(12, 0);
+          ctx.stroke();
+          // Bevel
+          ctx.fillStyle = 'rgba(255,255,255,0.7)';
+          ctx.fillRect(-10, -2, 20, 2);
+        } else if (type === 'prism') {
+          ctx.fillStyle = 'rgba(157, 78, 221, 0.45)';
+          ctx.strokeStyle = '#9d4edd';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, -13);
+          ctx.lineTo(13, 11);
+          ctx.lineTo(-13, 11);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (type === 'combiner') {
+          ctx.fillStyle = 'rgba(255, 190, 11, 0.4)';
+          ctx.strokeStyle = '#ffbe0b';
+          ctx.lineWidth = 2;
+          ctx.fillRect(-11, -11, 22, 22);
+          ctx.strokeRect(-11, -11, 22, 22);
+        } else if (type === 'splitter') {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([3, 2]);
+          ctx.strokeRect(-10, -10, 20, 20);
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(-10, 10);
+          ctx.lineTo(10, -10);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      resize() {
+        const hud = document.getElementById('top-hud');
+        const dock = document.getElementById('bottom-dock');
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        this.canvas.width = w * this.dpr;
+        this.canvas.height = h * this.dpr;
+        this.ctx.resetTransform?.();
+        this.ctx.scale(this.dpr, this.dpr);
+
+        const availableH = h - hud.offsetHeight - dock.offsetHeight - 24;
+        const availableW = w - 32;
+
+        const maxCellW = Math.floor(availableW / this.cols);
+        const maxCellH = Math.floor(availableH / this.rows);
+        this.cellSize = Math.min(maxCellW, maxCellH, 84);
+
+        this.gridOffsetX = Math.floor((w - this.cols * this.cellSize) / 2);
+        this.gridOffsetY = Math.floor(hud.offsetHeight + (availableH - this.rows * this.cellSize) / 2 + 12);
+
+        this.particles.initAmbient(w, h);
+        this.updateFloatingToolbarPos();
+      }
+
+      showToast(msg) {
+        this.toastEl.textContent = msg;
+        this.toastEl.classList.add('show');
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => {
+          this.toastEl.classList.remove('show');
+        }, 2200);
+      }
+
+      openModal(id) {
+        document.getElementById(id).classList.add('active');
+      }
+
+      closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+      }
+
+      updateStarHUD() {
+        let total = 0;
+        for (let lvl = 1; lvl <= LEVELS.length; lvl++) {
+          total += (this.levelStars[lvl] || 0);
+        }
+        document.getElementById('hud-star-count').textContent = `${total}/${LEVELS.length * 3}`;
+      }
+
+    // --- Optical Ray Tracing Algorithm ---
+    traceLightPaths() {
+      const rays = [];
+      const activeCrystalHits = new Map(); // crystal -> total mask
+      const collectedShardIndices = new Set();
+      const combinerInputs = new Map(); // piece -> { mask: number, dirs: [] }
+
+      const queue = [];
+      for (const em of this.emitters) {
+        queue.push({
+          c: em.c,
+          r: em.r,
+          dx: em.dir[0],
+          dy: em.dir[1],
+          mask: em.mask,
+          depth: 0
+        });
+      }
+
+      let passes = 0;
+      while (passes < 8) {
+        passes++;
+        let hadNewRay = false;
+
+        while (queue.length > 0) {
+          const ray = queue.shift();
+          if (ray.depth > 35 || ray.mask === 0) continue;
+
+          let currC = ray.c;
+          let currR = ray.r;
+          let dx = ray.dx;
+          let dy = ray.dy;
+          let mask = ray.mask;
+
+          let startX = this.gridOffsetX + (currC + 0.5) * this.cellSize;
+          let startY = this.gridOffsetY + (currR + 0.5) * this.cellSize;
+
+          let maxSteps = Math.max(this.cols, this.rows) + 2;
+
+          for (let step = 0; step < maxSteps; step++) {
+            currC += dx;
+            currR += dy;
+
+            // Check out of bounds
+            if (currC < 0 || currC >= this.cols || currR < 0 || currR >= this.rows) {
+              const endX = this.gridOffsetX + (currC + 0.5) * this.cellSize;
+              const endY = this.gridOffsetY + (currR + 0.5) * this.cellSize;
+              rays.push({ startX, startY, endX, endY, mask });
+              break;
+            }
+
+            const targetX = this.gridOffsetX + (currC + 0.5) * this.cellSize;
+            const targetY = this.gridOffsetY + (currR + 0.5) * this.cellSize;
+
+            // Check shard collision
+            this.shards.forEach((s, idx) => {
+              if (s.c === currC && s.r === currR) collectedShardIndices.add(idx);
+            });
+
+            // Check blocker
+            if (this.blockers.some(b => b.c === currC && b.r === currR)) {
+              rays.push({ startX, startY, endX: targetX, endY: targetY, mask });
+              break;
+            }
+
+            // Check Crystal
+            const crystal = this.crystals.find(cr => cr.c === currC && cr.r === currR);
+            if (crystal) {
+              rays.push({ startX, startY, endX: targetX, endY: targetY, mask });
+              const prev = activeCrystalHits.get(crystal) || 0;
+              activeCrystalHits.set(crystal, prev | mask);
+              break;
+            }
+
+            // Check Quantum Portal
+            const portal = this.portals.find(p => p.c === currC && p.r === currR);
+            if (portal) {
+              rays.push({ startX, startY, endX: targetX, endY: targetY, mask });
+              const otherPortal = this.portals.find(p => p !== portal && p.id === (portal.id === 'A' ? 'B' : 'A'));
+              if (otherPortal) {
+                queue.push({
+                  c: otherPortal.c,
+                  r: otherPortal.r,
+                  dx, dy, mask,
+                  depth: ray.depth + 1
+                });
+                hadNewRay = true;
+              }
+              break;
+            }
+
+            // Check Optical Elements
+            const piece = this.placedElements.find(p => p.c === currC && p.r === currR);
+            if (piece) {
+              rays.push({ startX, startY, endX: targetX, endY: targetY, mask });
+
+              const angle = (piece.angle % 360 + 360) % 360;
+
+              if (piece.type === 'mirror') {
+                // Diagonal mirror (45° or 225°: /; 135° or 315°: \)
+                let newDx = 0, newDy = 0;
+                if (angle === 45 || angle === 225) {
+                  newDx = -dy;
+                  newDy = -dx;
+                } else if (angle === 135 || angle === 315) {
+                  newDx = dy;
+                  newDy = dx;
+                } else if (angle === 0 || angle === 180) {
+                  if (dx !== 0) newDx = -dx; else newDy = dy;
+                } else if (angle === 90 || angle === 270) {
+                  if (dy !== 0) newDy = -dy; else newDx = dx;
+                }
+
+                if (newDx !== 0 || newDy !== 0) {
+                  queue.push({ c: currC, r: currR, dx: newDx, dy: newDy, mask, depth: ray.depth + 1 });
+                  hadNewRay = true;
+                }
+              } else if (piece.type === 'prism') {
+                // Dispersive Prism: Splits White into R (turn right), G (straight), B (turn left)
+                if (mask === MASK_WHITE) {
+                  queue.push({ c: currC, r: currR, dx: -dy, dy: dx, mask: MASK_RED, depth: ray.depth + 1 });
+                  queue.push({ c: currC, r: currR, dx, dy, mask: MASK_GREEN, depth: ray.depth + 1 });
+                  queue.push({ c: currC, r: currR, dx: dy, dy: -dx, mask: MASK_BLUE, depth: ray.depth + 1 });
+                  hadNewRay = true;
+                } else {
+                  if (mask === MASK_RED) {
+                    queue.push({ c: currC, r: currR, dx: -dy, dy: dx, mask, depth: ray.depth + 1 });
+                  } else if (mask === MASK_BLUE) {
+                    queue.push({ c: currC, r: currR, dx: dy, dy: -dx, mask, depth: ray.depth + 1 });
+                  } else {
+                    queue.push({ c: currC, r: currR, dx, dy, mask, depth: ray.depth + 1 });
+                  }
+                  hadNewRay = true;
+                }
+              } else if (piece.type === 'combiner') {
+                // Collect incoming light to combiner
+                const currentData = combinerInputs.get(piece) || { mask: 0, emitted: false };
+                currentData.mask |= mask;
+                combinerInputs.set(piece, currentData);
+              } else if (piece.type === 'splitter') {
+                // 50/50 splitter: one beam straight, one beam 90 deg
+                queue.push({ c: currC, r: currR, dx, dy, mask, depth: ray.depth + 1 });
+                queue.push({ c: currC, r: currR, dx: -dy, dy: dx, mask, depth: ray.depth + 1 });
+                hadNewRay = true;
+              }
+
+              break;
+            }
+          }
+        }
+
+        // Process combiners that have accumulated incoming beams
+        for (const [piece, data] of combinerInputs.entries()) {
+          if (data.mask > 0 && !data.emitted) {
+            data.emitted = true;
+            const forward = this.angleToDir((piece.angle % 360 + 360) % 360);
+            queue.push({
+              c: piece.c,
+              r: piece.r,
+              dx: forward.dx,
+              dy: forward.dy,
+              mask: data.mask,
+              depth: 1
+            });
+            hadNewRay = true;
+          }
+        }
+
+        if (!hadNewRay) break;
+      }
+
+      return { rays, activeCrystalHits, collectedShardIndices };
+    }
+
+      angleToDir(angle) {
+        if (angle === 0) return { dx: 1, dy: 0 };
+        if (angle === 90) return { dx: 0, dy: 1 };
+        if (angle === 180) return { dx: -1, dy: 0 };
+        return { dx: 0, dy: -1 };
+      }
+
+      checkVictory(activeCrystalHits, collectedShardIndices) {
+        if (this.solved || this.isSandbox) return;
+
+        let allActive = this.crystals.length > 0;
+        for (const cr of this.crystals) {
+          const hitMask = activeCrystalHits.get(cr) || 0;
+          if ((hitMask & cr.reqMask) !== cr.reqMask) {
+            allActive = false;
+            break;
+          }
+        }
+
+        if (allActive) {
+          this.solved = true;
+          this.sound.playVictory();
+          this.particles.spawnVictory(window.innerWidth, window.innerHeight);
+
+          // Calculate Stars
+          const lvl = LEVELS[this.currentLevelIndex];
+          let stars = 1; // 1 star for clearing
+          if (this.moveCount <= (lvl.targetMoves || 4)) stars++;
+          if (collectedShardIndices.size >= this.shards.length) stars++;
+
+          this.levelStars[lvl.id] = Math.max(this.levelStars[lvl.id] || 0, stars);
+          localStorage.setItem('chroma_stars', JSON.stringify(this.levelStars));
+          this.updateStarHUD();
+
+          // Show Victory Dialog
+          setTimeout(() => {
+            const v1 = document.getElementById('v-star-1');
+            const v2 = document.getElementById('v-star-2');
+            const v3 = document.getElementById('v-star-3');
+            v1.className = `victory-star ${stars >= 1 ? 'awarded' : ''}`;
+            v2.className = `victory-star ${stars >= 2 ? 'awarded' : ''}`;
+            v3.className = `victory-star ${stars >= 3 ? 'awarded' : ''}`;
+
+            document.getElementById('victory-stats-text').innerHTML = `
+              本关步数：<strong>${this.moveCount}</strong> / 完美目标：${lvl.targetMoves || 4}<br>
+              星光碎片：${collectedShardIndices.size} / ${this.shards.length}
+            `;
+            this.openModal('modal-victory');
+          }, 600);
+        }
+      }
+
+      // --- Rendering Loop ---
+      loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+      }
+
+      update() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        this.particles.update(w, h);
+
+        if (this.pulseTime > 0) {
+          this.pulseTime = Math.max(0, this.pulseTime - 0.025);
+        }
+
+        document.getElementById('stat-moves').textContent = this.moveCount;
+      }
+
+      draw() {
+        const ctx = this.ctx;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Ambient stardust
+        this.particles.drawAmbient(ctx);
+
+        // Draw Sacred Geometry Constellation in background
+        this.drawBackgroundSacredRings(ctx, w * 0.5, h * 0.45);
+
+        // Draw Board Grid
+        this.drawGrid(ctx);
+
+        // Trace light paths
+        const { rays, activeCrystalHits, collectedShardIndices } = this.traceLightPaths();
+
+        // Check victory condition
+        this.checkVictory(activeCrystalHits, collectedShardIndices);
+
+        // Draw Laser Beams with Multi-pass Glow
+        this.drawLaserRays(ctx, rays);
+
+        // Draw Board Objects
+        this.drawBlockers(ctx);
+        this.drawPortals(ctx);
+        this.drawShards(ctx, collectedShardIndices);
+        this.drawCrystals(ctx, activeCrystalHits);
+        this.drawEmitters(ctx);
+        this.drawPlacedElements(ctx);
+
+        // Draw Sparks & Confetti
+        this.particles.drawSparks(ctx);
+        this.particles.drawVictory(ctx);
+
+        // Draw Drag Ghosting
+        if (this.draggedItem) {
+          this.drawDragGhost(ctx);
+        }
+      }
+
+      drawBackgroundSacredRings(ctx, cx, cy) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.04)';
+        ctx.lineWidth = 1;
+        const time = Date.now() * 0.0003;
+
+        for (let r = 80; r <= 320; r += 80) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(time);
+        ctx.strokeRect(-120, -120, 240, 240);
+        ctx.rotate(Math.PI / 4);
+        ctx.strokeRect(-120, -120, 240, 240);
+        ctx.restore();
+
+        ctx.restore();
+      }
+
+      drawGrid(ctx) {
+        ctx.save();
+        for (let r = 0; r < this.rows; r++) {
+          for (let c = 0; c < this.cols; c++) {
+            const x = this.gridOffsetX + c * this.cellSize;
+            const y = this.gridOffsetY + r * this.cellSize;
+
+            // Subtle frosted tile
+            ctx.fillStyle = (c + r) % 2 === 0 ? 'rgba(255, 255, 255, 0.015)' : 'rgba(255, 255, 255, 0.025)';
+            ctx.fillRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
+
+            // Subtle corner brackets
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 2, y + 2, this.cellSize - 4, this.cellSize - 4);
+          }
+        }
+
+        // Highlight hovered cell
+        if (this.hoverCell && !this.draggedItem) {
+          const hx = this.gridOffsetX + this.hoverCell.c * this.cellSize;
+          const hy = this.gridOffsetY + this.hoverCell.r * this.cellSize;
+          ctx.strokeStyle = 'rgba(0, 242, 254, 0.3)';
+          ctx.strokeRect(hx + 3, hy + 3, this.cellSize - 6, this.cellSize - 6);
+        }
+
+        ctx.restore();
+      }
+
+      drawLaserRays(ctx, rays) {
+        if (!rays.length) return;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+
+        const pulseScale = 1.0 + this.pulseTime * 0.8;
+
+        for (const ray of rays) {
+          const colorInfo = getColorInfo(ray.mask);
+          const rgb = colorInfo.rgb;
+
+          // Pass 1: Wide diffuse glow
+          ctx.strokeStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${0.25 * pulseScale})`;
+          ctx.lineWidth = 14 * pulseScale;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(ray.startX, ray.startY);
+          ctx.lineTo(ray.endX, ray.endY);
+          ctx.stroke();
+
+          // Pass 2: Medium beam body
+          ctx.strokeStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.75)`;
+          ctx.lineWidth = 5 * pulseScale;
+          ctx.stroke();
+
+          // Pass 3: Ultra-bright beam core
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.lineWidth = 2 * pulseScale;
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      drawBlockers(ctx) {
+        ctx.save();
+        for (const b of this.blockers) {
+          const cx = this.gridOffsetX + (b.c + 0.5) * this.cellSize;
+          const cy = this.gridOffsetY + (b.r + 0.5) * this.cellSize;
+          const s = this.cellSize * 0.38;
+
+          ctx.fillStyle = '#0f1424';
+          ctx.strokeStyle = '#2d3748';
+          ctx.lineWidth = 2;
+
+          ctx.beginPath();
+          ctx.moveTo(cx - s, cy - s * 0.6);
+          ctx.lineTo(cx, cy - s);
+          ctx.lineTo(cx + s, cy - s * 0.4);
+          ctx.lineTo(cx + s * 0.8, cy + s * 0.8);
+          ctx.lineTo(cx - s * 0.5, cy + s);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          // Inner obsidian crystal veins
+          ctx.strokeStyle = 'rgba(157, 78, 221, 0.4)';
+          ctx.beginPath();
+          ctx.moveTo(cx - s * 0.4, cy);
+          ctx.lineTo(cx + s * 0.3, cy + s * 0.2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      drawPortals(ctx) {
+        ctx.save();
+        const time = Date.now() * 0.003;
+        for (const p of this.portals) {
+          const cx = this.gridOffsetX + (p.c + 0.5) * this.cellSize;
+          const cy = this.gridOffsetY + (p.r + 0.5) * this.cellSize;
+          const rad = this.cellSize * 0.35;
+
+          const portalColor = p.id === 'A' ? '#00f2fe' : '#ff2fd4';
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(time * (p.id === 'A' ? 1 : -1));
+
+          // Swirling cosmic ring
+          ctx.strokeStyle = portalColor;
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.arc(0, 0, rad, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Center event horizon
+          ctx.fillStyle = 'rgba(6, 9, 20, 0.85)';
+          ctx.beginPath();
+          ctx.arc(0, 0, rad * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+
+          // Portal label
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(p.id, cx, cy);
+        }
+        ctx.restore();
+      }
+
+      drawShards(ctx, collectedIndices) {
+        ctx.save();
+        const time = Date.now() * 0.003;
+        this.shards.forEach((s, idx) => {
+          if (collectedIndices.has(idx)) return; // Already collected this cycle
+
+          const cx = this.gridOffsetX + (s.c + 0.5) * this.cellSize;
+          const cy = this.gridOffsetY + (s.c + 0.5) * this.cellSize + Math.sin(time + idx) * 3;
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(time * 0.5);
+
+          ctx.fillStyle = '#ffbe0b';
+          ctx.shadowColor = 'rgba(255, 190, 11, 0.8)';
+          ctx.shadowBlur = 10;
+
+          // 4-pointed star
+          ctx.beginPath();
+          for (let i = 0; i < 8; i++) {
+            const r = i % 2 === 0 ? 12 : 5;
+            const a = (i * Math.PI) / 4;
+            if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+            else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.restore();
+        });
+        ctx.restore();
+      }
+
+      drawCrystals(ctx, activeCrystalHits) {
+        ctx.save();
+        for (const cr of this.crystals) {
+          const cx = this.gridOffsetX + (cr.c + 0.5) * this.cellSize;
+          const cy = this.gridOffsetY + (cr.r + 0.5) * this.cellSize;
+          const rad = this.cellSize * 0.36;
+
+          const hitMask = activeCrystalHits.get(cr) || 0;
+          const isSatisfied = (hitMask & cr.reqMask) === cr.reqMask;
+          const colorInfo = getColorInfo(cr.reqMask);
+
+          if (isSatisfied) {
+            // Luminous Aura
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = `rgba(${colorInfo.rgb[0]}, ${colorInfo.rgb[1]}, ${colorInfo.rgb[2]}, 0.35)`;
+            ctx.beginPath();
+            ctx.arc(cx, cy, rad * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // 3D Faceted Octahedral Gemstone
+          ctx.save();
+          ctx.translate(cx, cy);
+
+          // Outer facets
+          ctx.beginPath();
+          ctx.moveTo(0, -rad);
+          ctx.lineTo(rad * 0.85, 0);
+          ctx.lineTo(0, rad);
+          ctx.lineTo(-rad * 0.85, 0);
+          ctx.closePath();
+
+          ctx.fillStyle = isSatisfied ? colorInfo.css : 'rgba(255, 255, 255, 0.1)';
+          ctx.fill();
+          ctx.strokeStyle = colorInfo.css;
+          ctx.lineWidth = isSatisfied ? 3 : 1.5;
+          ctx.stroke();
+
+          // Inner facet lines
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(0, -rad); ctx.lineTo(0, rad);
+          ctx.moveTo(-rad * 0.85, 0); ctx.lineTo(rad * 0.85, 0);
+          ctx.stroke();
+
+          // Target color indicator pip in center
+          ctx.fillStyle = colorInfo.css;
+          ctx.beginPath();
+          ctx.arc(0, 0, 5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      drawEmitters(ctx) {
+        ctx.save();
+        for (const em of this.emitters) {
+          const cx = this.gridOffsetX + (em.c + 0.5) * this.cellSize;
+          const cy = this.gridOffsetY + (em.r + 0.5) * this.cellSize;
+          const colorInfo = getColorInfo(em.mask);
+
+          const ang = Math.atan2(em.dir[1], em.dir[0]);
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(ang);
+
+          // Metallic housing
+          ctx.fillStyle = '#1e293b';
+          ctx.strokeStyle = '#475569';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(-16, -14, 24, 28, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          // Lens nozzle
+          ctx.fillStyle = colorInfo.css;
+          ctx.shadowColor = colorInfo.css;
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(8, 0, 7, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      drawPlacedElements(ctx) {
+        for (const p of this.placedElements) {
+          const cx = this.gridOffsetX + (p.c + 0.5) * this.cellSize;
+          const cy = this.gridOffsetY + (p.r + 0.5) * this.cellSize;
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(p.angle * Math.PI / 180);
+
+          if (p.type === 'mirror') {
+            // Elegant Beveled Silver Mirror
+            ctx.strokeStyle = '#00f2fe';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = 'rgba(0, 242, 254, 0.6)';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(-this.cellSize * 0.38, 0);
+            ctx.lineTo(this.cellSize * 0.38, 0);
+            ctx.stroke();
+
+            // Brass brackets
+            ctx.fillStyle = '#ffbe0b';
+            ctx.fillRect(-this.cellSize * 0.38 - 3, -4, 4, 8);
+            ctx.fillRect(this.cellSize * 0.38 - 1, -4, 4, 8);
+          } else if (p.type === 'prism') {
+            // Triangular Refractive Crystal
+            const s = this.cellSize * 0.38;
+            ctx.fillStyle = 'rgba(157, 78, 221, 0.45)';
+            ctx.strokeStyle = '#9d4edd';
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = 'rgba(157, 78, 221, 0.7)';
+            ctx.shadowBlur = 10;
+
+            ctx.beginPath();
+            ctx.moveTo(0, -s);
+            ctx.lineTo(s, s * 0.86);
+            ctx.lineTo(-s, s * 0.86);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          } else if (p.type === 'combiner') {
+            // Dichroic Beam Combiner Cube
+            const s = this.cellSize * 0.32;
+            ctx.fillStyle = 'rgba(255, 190, 11, 0.35)';
+            ctx.strokeStyle = '#ffbe0b';
+            ctx.lineWidth = 2.5;
+            ctx.fillRect(-s, -s, s * 2, s * 2);
+            ctx.strokeRect(-s, -s, s * 2, s * 2);
+
+            // Forward Arrow indicator
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.moveTo(s * 0.6, 0);
+            ctx.lineTo(0, -s * 0.4);
+            ctx.lineTo(0, s * 0.4);
+            ctx.closePath();
+            ctx.fill();
+          } else if (p.type === 'splitter') {
+            // Beam Splitter 50/50
+            const s = this.cellSize * 0.32;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 3]);
+            ctx.strokeRect(-s, -s, s * 2, s * 2);
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.moveTo(-s, s);
+            ctx.lineTo(s, -s);
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        }
+      }
+
+      drawDragGhost(ctx) {
+        ctx.save();
+        const { x, y } = this.dragPos;
+        ctx.translate(x, y);
+        ctx.globalAlpha = 0.8;
+
+        const type = this.draggedItem.piece ? this.draggedItem.piece.type : this.draggedItem.inventoryItem.type;
+        const angle = this.draggedItem.piece ? this.draggedItem.piece.angle : 45;
+
+        ctx.rotate(angle * Math.PI / 180);
+        if (type === 'mirror') {
+          ctx.strokeStyle = '#00f2fe';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
+          ctx.stroke();
+        } else if (type === 'prism') {
+          ctx.fillStyle = 'rgba(157, 78, 221, 0.6)';
+          ctx.strokeStyle = '#9d4edd';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, -18); ctx.lineTo(16, 14); ctx.lineTo(-16, 14);
+          ctx.closePath();
+          ctx.fill(); ctx.stroke();
+        } else if (type === 'combiner') {
+          ctx.fillStyle = 'rgba(255, 190, 11, 0.6)';
+          ctx.fillRect(-15, -15, 30, 30);
+        } else if (type === 'splitter') {
+          ctx.strokeStyle = '#fff';
+          ctx.strokeRect(-15, -15, 30, 30);
+        }
+        ctx.restore();
+      }
+    }
+
+    // Initialize Game on Load
+    window.addEventListener('DOMContentLoaded', () => {
+      window.game = new ChromaPrismGame();
+    });
+  </script>
+</body>
+</html>

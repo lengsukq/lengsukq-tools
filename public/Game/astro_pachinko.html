@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>星穹弹珠：符文工坊 (Astro Pachinko: Rune Forge)</title>
+  <style>
+    :root {
+      --bg-dark: #080c1d;
+      --bg-card: rgba(16, 24, 52, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.12);
+      --border-glow: rgba(245, 158, 11, 0.45);
+      --gold: #fbbf24;
+      --amber: #f59e0b;
+      --cyan: #06b6d4;
+      --cyan-glow: #22d3ee;
+      --purple: #8b5cf6;
+      --magenta: #ec4899;
+      --emerald: #10b981;
+      --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: manipulation;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: var(--font-stack);
+      color: #fff;
+    }
+
+    #game-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 15%, #182247 0%, #080c1d 85%);
+    }
+
+    /* Ambient Canvas */
+    #game-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: block;
+    }
+
+    /* Top HUD Navigation */
+    #top-hud {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      padding-top: max(10px, env(safe-area-inset-top));
+      background: linear-gradient(180deg, rgba(8, 12, 29, 0.92) 0%, rgba(8, 12, 29, 0.5) 80%, transparent 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .hud-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .hud-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: var(--amber);
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+      color: #fff;
+    }
+    .hud-btn:active {
+      transform: scale(0.96);
+    }
+
+    .hud-title-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .hud-stage-name {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, #fff, var(--gold));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hud-stage-sub {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.55);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .hud-stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .hud-stat-pill strong {
+      color: var(--gold);
+    }
+
+    /* Bottom Control Bar */
+    #bottom-dock {
+      position: relative;
+      z-index: 10;
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      background: linear-gradient(0deg, rgba(8, 12, 29, 0.95) 0%, rgba(8, 12, 29, 0.6) 80%, transparent 100%);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .orb-tray {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      max-width: 65%;
+      padding: 2px 0;
+    }
+
+    .orb-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 50px;
+      height: 50px;
+      border-radius: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .orb-item:hover, .orb-item.active {
+      border-color: var(--gold);
+      background: rgba(30, 44, 90, 0.9);
+      box-shadow: 0 0 14px rgba(251, 191, 36, 0.35);
+      transform: translateY(-2px);
+    }
+    .orb-icon {
+      font-size: 20px;
+    }
+    .orb-count {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: var(--amber);
+      color: #080c1d;
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 16px;
+      height: 16px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+    .orb-name {
+      font-size: 8px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 1px;
+    }
+
+    .fire-action-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-fire {
+      padding: 10px 22px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--gold), #ea580c);
+      color: #080c1d;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 4px 18px rgba(245, 158, 11, 0.4);
+      transition: all 0.2s;
+    }
+    .btn-fire:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(245, 158, 11, 0.6);
+    }
+    .btn-fire:active {
+      transform: scale(0.96);
+    }
+    .btn-fire.disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Modals & Overlays */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: rgba(4, 6, 16, 0.82);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: linear-gradient(145deg, rgba(20, 30, 65, 0.96) 0%, rgba(10, 15, 36, 0.96) 100%);
+      border: 1px solid var(--border-glow);
+      border-radius: 20px;
+      padding: 24px;
+      max-width: 520px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 24px rgba(245, 158, 11, 0.25);
+      transform: scale(0.92);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-backdrop.active .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .modal-title {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #fff, var(--gold));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    /* Upgrade Drafting Cards */
+    .draft-cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .draft-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .draft-card:hover {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--gold);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.25);
+    }
+    .draft-card-icon {
+      font-size: 32px;
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .draft-card-info h4 {
+      font-size: 15px;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .draft-card-info p {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.4;
+    }
+
+    /* Toast */
+    #toast {
+      position: absolute;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      z-index: 100;
+      background: rgba(16, 24, 52, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--gold);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 158, 11, 0.3);
+      border-radius: 20px;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      pointer-events: none;
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 640px) {
+      .hud-btn span.label-text { display: none; }
+      .orb-item { width: 44px; height: 44px; }
+      .btn-fire { padding: 8px 16px; font-size: 13px; }
+      .modal-card { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Top HUD Navigation -->
+    <header id="top-hud">
+      <div class="hud-group">
+        <a href="/" class="hud-btn" id="btn-back-home" title="返回在线工具主站">
+          <span>←</span>
+          <span class="label-text">主站</span>
+        </a>
+        <button class="hud-btn" id="btn-level-select" title="关卡选择">
+          <span>❖</span>
+          <span class="label-text">星区</span>
+        </button>
+        <button class="hud-btn" id="btn-relics" title="已获神器与构筑">
+          <span>💎</span>
+          <span class="label-text">神器</span>
+        </button>
+      </div>
+
+      <div class="hud-title-badge">
+        <div class="hud-stage-name" id="hud-stage-title">第 1 关 · 启程星野</div>
+        <div class="hud-stage-sub" id="hud-stage-sub">TARGET: 1,500 PTS</div>
+      </div>
+
+      <div class="hud-group">
+        <div class="hud-stat-pill" title="当前分数 / 目标">
+          <span>得分:</span>
+          <strong id="stat-score">0</strong>
+        </div>
+        <button class="hud-btn" id="btn-speed" title="切换模拟速度 (1x / 2x)">
+          <span id="speed-text">1x</span>
+        </button>
+        <button class="hud-btn" id="btn-audio" title="音效开关">
+          <span id="audio-icon">🔊</span>
+        </button>
+        <button class="hud-btn" id="btn-help" title="玩法指南">
+          <span>?</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Bottom Controls -->
+    <footer id="bottom-dock">
+      <div class="orb-tray" id="orb-tray"></div>
+      <div class="fire-action-group">
+        <div class="hud-stat-pill">
+          <span>余弹:</span>
+          <strong id="stat-balls-left">5</strong>
+        </div>
+        <button class="btn-fire" id="btn-fire-ball">
+          <span>⚡</span>
+          <span>发射 (SPACE)</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast">提示信息</div>
+
+  <!-- Draft Reward Modal -->
+  <div class="modal-backdrop" id="modal-draft">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">✨ 星穹馈赠 · 选择战利品</h3>
+      </div>
+      <p style="font-size: 13px; color: rgba(255,255,255,0.7);">
+        本关完美达成！在下列三项符文弹珠或古老神器中挑选一项加入你的星穹构筑：
+      </p>
+      <div class="draft-cards" id="draft-cards-list"></div>
+    </div>
+  </div>
+
+  <!-- Help & Manual Modal -->
+  <div class="modal-backdrop" id="modal-help">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">📖 星穹弹珠 · 炼金战术指南</h3>
+        <button class="modal-close" data-close="modal-help">✕</button>
+      </div>
+      <div style="font-size: 13px; line-height: 1.7; color: rgba(255,255,255,0.85);">
+        <h4 style="color:var(--gold); margin-bottom: 6px;">🎮 操作与瞄准</h4>
+        <p>• <b>电脑</b>：鼠标在屏幕上方移动瞄准，点击左键或按 <b>[空格键 Space]</b> 发射弹珠。<br>
+        • <b>触屏/手机</b>：手指在瞄准区拖拽调整虚线轨迹，松手或轻按【发射】按钮投放弹珠！</p>
+        
+        <h4 style="color:var(--gold); margin: 12px 0 6px;">🔮 特殊符文钉机制</h4>
+        <p>• <b>常规秘法钉 (蓝/紫)</b>：碰撞提供基础积分，随连击产生和弦音阶！<br>
+        • <b>爆裂火曜钉 (红)</b>：碰撞触发范围爆炸冲击波，震碎周围所有钉子！<br>
+        • <b>连锁雷霆钉 (金)</b>：产生闪电电弧，连锁电击邻近 3 枚钉子。<br>
+        • <b>双生分形钉 (青)</b>：被击中后让弹珠瞬间分裂为 2 颗子弹珠！<br>
+        • <b>重置回响钉 (绿)</b>：碰撞后立即重置并刷新全场所有已被消灭的钉子！<br>
+        • <b>弹射风暴蘑菇</b>：提供极强的反弹冲力，大幅延长滞空弹跳连击时间！</p>
+
+        <h4 style="color:var(--gold); margin: 12px 0 6px;">🏆 底部倍率赏金槽</h4>
+        <p>弹珠落入底部不同的槽位，将按 <b>1x / 2x / 4x / 8x 黄金大奖 (JACKPOT)</b> 结算本轮连击积分！</p>
+      </div>
+      <div style="margin-top: 18px; text-align: right;">
+        <button class="hud-btn" data-close="modal-help" style="padding: 10px 20px; font-weight:700;">明白，开始挑战</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Relics Modal -->
+  <div class="modal-backdrop" id="modal-relics">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">💎 已装备星穹神器</h3>
+        <button class="modal-close" data-close="modal-relics">✕</button>
+      </div>
+      <div id="relics-list-container" style="font-size: 13px; line-height: 1.6;"></div>
+    </div>
+  </div>
+
+  <!-- Stage Select Modal -->
+  <div class="modal-backdrop" id="modal-stages">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">❖ 星区选择</h3>
+        <button class="modal-close" data-close="modal-stages">✕</button>
+      </div>
+      <div id="stages-grid-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px;"></div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 星穹弹珠：符文工坊 (Astro Pachinko: Rune Forge)
+     * High-Fidelity Physics Engine + Roguelike Bag-Building + Procedural Pentatonic Synthesizer
+     */
+
+    // --- Procedural Sound Synthesizer ---
+    class PachinkoAudio {
+      constructor() {
+        this.ctx = null;
+        this.muted = localStorage.getItem('pachinko_muted') === 'true';
+        this.scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50]; // Pentatonic
+      }
+
+      init() {
+        if (this.ctx) {
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+          return;
+        }
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        } catch (e) {}
+      }
+
+      setMuted(m) {
+        this.muted = m;
+        localStorage.setItem('pachinko_muted', m ? 'true' : 'false');
+      }
+
+      playPegHit(combo) {
+        if (!this.ctx || this.muted) return;
+        const noteIdx = Math.min(combo, this.scale.length - 1);
+        const freq = this.scale[noteIdx];
+        const now = this.ctx.currentTime;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.08);
+
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
+
+      playExplosion() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.35);
+
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+
+      playBumper() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(640, now + 0.1);
+
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+
+      playJackpot() {
+        if (!this.ctx || this.muted) return;
+        const chords = [523.25, 659.25, 783.99, 1046.50];
+        const now = this.ctx.currentTime;
+        chords.forEach((freq, idx) => {
+          const t = now + idx * 0.08;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, t);
+          gain.gain.setValueAtTime(0.25, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.4);
+        });
+      }
+
+      playLaunch() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+    }
+
+    // --- Orb Types ---
+    const ORB_TYPES = {
+      standard: { id: 'standard', name: '星辉弹', icon: '⚪', color: '#ffffff', desc: '标准星辉弹珠，回弹均衡。' },
+      meteor:   { id: 'meteor', name: '陨星弹', icon: '🔥', color: '#f97316', desc: '碰撞爆裂，产生火焰冲击波！' },
+      tesla:    { id: 'tesla', name: '雷暴弹', icon: '⚡', color: '#38bdf8', desc: '碰撞向周围放电连锁。' },
+      split:    { id: 'split', name: '双生弹', icon: '🌀', color: '#a855f7', desc: '命中第 4 次后分裂为两枚子弹！' },
+      ghost:    { id: 'ghost', name: '虚空幽浮', icon: '👻', color: '#c084fc', desc: '能穿透障碍物与黑洞深入底部。' }
+    };
+
+    // --- Relics Collection ---
+    const RELIC_POOL = [
+      { id: 'bouncy', name: '弹性凝胶', icon: '🫧', desc: '弹珠弹性提升 20%，弹跳更加剧烈。' },
+      { id: 'magnet', name: '磁引漏斗', icon: '🧲', desc: '扩大底部 8x 黄金奖槽的吸引判定范围。' },
+      { id: 'overcharge', name: '超导线圈', icon: '⚡', desc: '单次投掷连击超过 12 次后，得分翻倍！' },
+      { id: 'multidrop', name: '星核复制器', icon: '💠', desc: '每关开始额外补充 1 枚随机特殊弹珠。' }
+    ];
+
+    // --- Peg Types ---
+    const PEG_TYPES = {
+      NORMAL: 'normal',
+      BOMB: 'bomb',
+      LIGHTNING: 'lightning',
+      SPLIT: 'split',
+      REFRESH: 'refresh',
+      BUMPER: 'bumper'
+    };
+
+    // --- Game Engine Class ---
+    class AstroPachinkoGame {
+      constructor() {
+        this.canvas = document.getElementById('game-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.audio = new PachinkoAudio();
+
+        this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+
+        // Game Play State
+        this.stage = 1;
+        this.targetScore = 1500;
+        this.currentScore = 0;
+        this.roundScore = 0;
+        this.ballsLeft = 5;
+        this.simSpeed = 1;
+
+        // Player Deck
+        this.orbsInventory = [
+          { type: 'standard', count: 3 },
+          { type: 'meteor', count: 1 },
+          { type: 'tesla', count: 1 }
+        ];
+        this.selectedOrbIndex = 0;
+        this.relics = [];
+
+        // Physics Entities
+        this.balls = []; // active in air
+        this.pegs = [];
+        this.buckets = [];
+        this.particles = [];
+        this.floatingTexts = [];
+
+        // Aiming State
+        this.aimX = this.width * 0.5;
+        this.aimY = 120;
+        this.isAiming = false;
+        this.cannonX = this.width * 0.5;
+        this.cannonY = 80;
+
+        // Screen shake
+        this.shakeTime = 0;
+
+        this.initDOM();
+        this.initEvents();
+        this.resize();
+        this.loadStage(1);
+        this.loop();
+      }
+
+      initDOM() {
+        this.renderOrbTray();
+
+        // Modal close buttons
+        document.querySelectorAll('[data-close]').forEach(b => {
+          b.onclick = () => document.getElementById(b.getAttribute('data-close')).classList.remove('active');
+        });
+
+        // Stage select modal
+        document.getElementById('btn-level-select').onclick = () => {
+          const grid = document.getElementById('stages-grid-container');
+          grid.innerHTML = '';
+          for (let s = 1; s <= 12; s++) {
+            const btn = document.createElement('div');
+            btn.className = 'hud-btn';
+            btn.style.padding = '14px 8px';
+            btn.style.textAlign = 'center';
+            btn.textContent = `星区 ${s}`;
+            btn.onclick = () => {
+              this.loadStage(s);
+              document.getElementById('modal-stages').classList.remove('active');
+            };
+            grid.appendChild(btn);
+          }
+          document.getElementById('modal-stages').classList.add('active');
+        };
+
+        // Relics modal
+        document.getElementById('btn-relics').onclick = () => {
+          const c = document.getElementById('relics-list-container');
+          if (!this.relics.length) {
+            c.innerHTML = '<p style="color:rgba(255,255,255,0.5);">当前暂未装备神器，通关关卡后可获得！</p>';
+          } else {
+            c.innerHTML = this.relics.map(r => `
+              <div style="background:rgba(255,255,255,0.06); padding:10px 14px; border-radius:10px; margin-bottom:8px;">
+                <strong>${r.icon} ${r.name}</strong>: ${r.desc}
+              </div>
+            `).join('');
+          }
+          document.getElementById('modal-relics').classList.add('active');
+        };
+
+        // Help modal
+        document.getElementById('btn-help').onclick = () => {
+          document.getElementById('modal-help').classList.add('active');
+        };
+
+        // Audio toggle
+        document.getElementById('btn-audio').onclick = () => {
+          this.audio.init();
+          const next = !this.audio.muted;
+          this.audio.setMuted(next);
+          document.getElementById('audio-icon').textContent = next ? '🔇' : '🔊';
+          this.showToast(next ? '音效已静音' : '音效已开启');
+        };
+
+        // Speed toggle
+        document.getElementById('btn-speed').onclick = () => {
+          this.simSpeed = this.simSpeed === 1 ? 2 : 1;
+          document.getElementById('speed-text').textContent = `${this.simSpeed}x`;
+          this.showToast(`模拟速度: ${this.simSpeed}x`);
+        };
+
+        // Fire button
+        document.getElementById('btn-fire-ball').onclick = () => this.fireCurrentBall();
+      }
+
+      initEvents() {
+        window.addEventListener('resize', () => this.resize());
+
+        // Mouse Aiming
+        window.addEventListener('mousemove', (e) => {
+          this.aimX = e.clientX;
+          this.aimY = Math.max(100, e.clientY);
+        });
+
+        // Click to fire if above bottom dock
+        this.canvas.addEventListener('click', (e) => {
+          this.audio.init();
+          const dock = document.getElementById('bottom-dock').getBoundingClientRect();
+          if (e.clientY < dock.top) {
+            this.fireCurrentBall();
+          }
+        });
+
+        // Touch aiming
+        this.canvas.addEventListener('touchstart', (e) => {
+          this.audio.init();
+          const t = e.touches[0];
+          this.aimX = t.clientX;
+          this.aimY = Math.max(100, t.clientY);
+        }, { passive: true });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+          const t = e.touches[0];
+          this.aimX = t.clientX;
+          this.aimY = Math.max(100, t.clientY);
+        }, { passive: true });
+
+        // Spacebar to fire
+        window.addEventListener('keydown', (e) => {
+          this.audio.init();
+          if (e.code === 'Space') {
+            e.preventDefault();
+            this.fireCurrentBall();
+          }
+        });
+      }
+
+      resize() {
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+
+        this.canvas.width = this.width * this.dpr;
+        this.canvas.height = this.height * this.dpr;
+        this.ctx.resetTransform?.();
+        this.ctx.scale(this.dpr, this.dpr);
+
+        this.cannonX = this.width * 0.5;
+        this.cannonY = 70;
+
+        this.createBuckets();
+      }
+
+      createBuckets() {
+        this.buckets = [];
+        const hud = document.getElementById('bottom-dock');
+        const bottomY = this.height - (hud ? hud.offsetHeight : 80) - 20;
+
+        const count = 7;
+        const bucketWidth = Math.min(75, Math.floor((this.width - 20) / count));
+        const totalW = count * bucketWidth;
+        const startX = (this.width - totalW) * 0.5;
+
+        const mults = [1, 2, 4, 8, 4, 2, 1];
+        for (let i = 0; i < count; i++) {
+          this.buckets.push({
+            x: startX + i * bucketWidth,
+            y: bottomY,
+            w: bucketWidth,
+            h: 36,
+            mult: mults[i],
+            isJackpot: mults[i] === 8,
+            hitAnim: 0
+          });
+        }
+      }
+
+      renderOrbTray() {
+        const tray = document.getElementById('orb-tray');
+        tray.innerHTML = '';
+        this.orbsInventory.forEach((item, idx) => {
+          const info = ORB_TYPES[item.type] || ORB_TYPES.standard;
+          const div = document.createElement('div');
+          div.className = `orb-item ${idx === this.selectedOrbIndex ? 'active' : ''}`;
+          div.innerHTML = `
+            <div class="orb-icon">${info.icon}</div>
+            <div class="orb-count">${item.count}</div>
+            <div class="orb-name">${info.name}</div>
+          `;
+          div.onclick = () => {
+            this.selectedOrbIndex = idx;
+            this.renderOrbTray();
+            this.showToast(`已选弹珠: ${info.name} - ${info.desc}`);
+          };
+          tray.appendChild(div);
+        });
+
+        // Total balls left
+        const total = this.orbsInventory.reduce((acc, cur) => acc + cur.count, 0);
+        document.getElementById('stat-balls-left').textContent = total;
+      }
+
+      loadStage(num) {
+        this.stage = num;
+        this.targetScore = 1200 + num * 450;
+        this.currentScore = 0;
+        this.balls = [];
+        this.particles = [];
+        this.floatingTexts = [];
+
+        document.getElementById('hud-stage-title').textContent = `第 ${num} 关 · 璀璨星图`;
+        document.getElementById('hud-stage-sub').textContent = `TARGET: ${this.targetScore.toLocaleString()} PTS`;
+        document.getElementById('stat-score').textContent = '0';
+
+        this.generatePegBoard(num);
+        this.showToast(`第 ${num} 关开启！达到 ${this.targetScore} 分通关`);
+      }
+
+      generatePegBoard(stage) {
+        this.pegs = [];
+        const startY = 140;
+        const hud = document.getElementById('bottom-dock');
+        const endY = this.height - (hud ? hud.offsetHeight : 80) - 70;
+        const boardH = endY - startY;
+
+        const rows = Math.min(11, Math.floor(boardH / 42));
+        const cols = Math.min(10, Math.floor((this.width - 40) / 46));
+        const spacingX = Math.min(48, (this.width - 50) / cols);
+        const spacingY = boardH / rows;
+
+        for (let r = 0; r < rows; r++) {
+          const isOdd = r % 2 === 1;
+          const rowCols = isOdd ? cols - 1 : cols;
+          const offsetX = (this.width - (rowCols - 1) * spacingX) * 0.5;
+
+          for (let c = 0; c < rowCols; c++) {
+            const x = offsetX + c * spacingX;
+            const y = startY + r * spacingY;
+
+            // Determine peg type
+            const rand = Math.random();
+            let type = PEG_TYPES.NORMAL;
+            if (rand < 0.08) type = PEG_TYPES.BOMB;
+            else if (rand < 0.16) type = PEG_TYPES.LIGHTNING;
+            else if (rand < 0.23) type = PEG_TYPES.SPLIT;
+            else if (rand < 0.28) type = PEG_TYPES.REFRESH;
+            else if (rand < 0.32 && r % 3 === 1) type = PEG_TYPES.BUMPER;
+
+            this.pegs.push({
+              x, y,
+              baseX: x, baseY: y,
+              radius: type === PEG_TYPES.BUMPER ? 16 : 8,
+              type,
+              popped: false,
+              pulse: Math.random() * Math.PI * 2,
+              squishX: 1, squishY: 1
+            });
+          }
+        }
+      }
+
+      fireCurrentBall() {
+        if (this.balls.length > 0) return; // Wait until current launch resolves
+        const currentOrb = this.orbsInventory[this.selectedOrbIndex];
+        if (!currentOrb || currentOrb.count <= 0) {
+          // Switch to first available orb
+          const avail = this.orbsInventory.findIndex(o => o.count > 0);
+          if (avail >= 0) {
+            this.selectedOrbIndex = avail;
+            this.renderOrbTray();
+          } else {
+            this.showToast('没有可用弹珠了！');
+            this.checkStageResolution();
+            return;
+          }
+        }
+
+        const orb = this.orbsInventory[this.selectedOrbIndex];
+        orb.count--;
+        this.renderOrbTray();
+
+        this.audio.playLaunch();
+
+        // Calculate fire direction
+        const dx = this.aimX - this.cannonX;
+        const dy = Math.max(20, this.aimY - this.cannonY);
+        const len = Math.hypot(dx, dy);
+        const speed = 7.5;
+
+        this.balls.push({
+          x: this.cannonX,
+          y: this.cannonY,
+          vx: (dx / len) * speed,
+          vy: (dy / len) * speed,
+          radius: 9,
+          type: orb.type,
+          combo: 0,
+          scoreAccum: 0,
+          trail: []
+        });
+      }
+
+      // --- Physics Update Loop ---
+      updatePhysics() {
+        const gravity = 0.24;
+        const restitution = this.relics.some(r => r.id === 'bouncy') ? 0.92 : 0.78;
+
+        for (let bIdx = this.balls.length - 1; bIdx >= 0; bIdx--) {
+          const ball = this.balls[bIdx];
+
+          // Sub-steps for tunneling prevention
+          const steps = 3;
+          for (let step = 0; step < steps; step++) {
+            ball.vy += (gravity / steps);
+            ball.x += (ball.vx / steps) * this.simSpeed;
+            ball.y += (ball.vy / steps) * this.simSpeed;
+
+            // Trail recording
+            if (step === 0) {
+              ball.trail.push({ x: ball.x, y: ball.y });
+              if (ball.trail.length > 14) ball.trail.shift();
+            }
+
+            // Screen boundary bounce
+            if (ball.x < ball.radius + 12) {
+              ball.x = ball.radius + 12;
+              ball.vx = -ball.vx * restitution;
+            } else if (ball.x > this.width - ball.radius - 12) {
+              ball.x = this.width - ball.radius - 12;
+              ball.vx = -ball.vx * restitution;
+            }
+
+            // Peg Collisions
+            for (const peg of this.pegs) {
+              if (peg.popped && peg.type !== PEG_TYPES.BUMPER) continue;
+
+              const cdx = ball.x - peg.x;
+              const cdy = ball.y - peg.y;
+              const dist = Math.hypot(cdx, cdy);
+              const minDist = ball.radius + peg.radius;
+
+              if (dist < minDist) {
+                // Collision normal
+                const nx = cdx / (dist || 1);
+                const ny = cdy / (dist || 1);
+
+                // Separate
+                const overlap = minDist - dist;
+                ball.x += nx * overlap;
+                ball.y += ny * overlap;
+
+                // Reflect velocity
+                const dot = ball.vx * nx + ball.vy * ny;
+                const bRest = peg.type === PEG_TYPES.BUMPER ? 1.45 : restitution;
+                ball.vx = (ball.vx - 2 * dot * nx) * bRest;
+                ball.vy = (ball.vy - 2 * dot * ny) * bRest;
+
+                // Handle hit
+                this.handlePegHit(ball, peg);
+              }
+            }
+          }
+
+          // Check if ball fell below screen / entered buckets
+          const bottomLimit = this.height - 70;
+          if (ball.y >= bottomLimit) {
+            this.handleBallBucketLanding(ball);
+            this.balls.splice(bIdx, 1);
+          }
+        }
+
+        // If all balls are done, check stage status
+        if (this.balls.length === 0) {
+          this.checkStageResolution();
+        }
+      }
+
+      handlePegHit(ball, peg) {
+        ball.combo++;
+        peg.squishX = 1.4;
+        peg.squishY = 0.7;
+
+        if (peg.type === PEG_TYPES.BUMPER) {
+          this.audio.playBumper();
+          this.spawnSparks(peg.x, peg.y, '#f59e0b', 12);
+          this.spawnFloatingText(peg.x, peg.y - 12, 'BUMP! +200', '#f59e0b');
+          ball.scoreAccum += 200;
+          return;
+        }
+
+        peg.popped = true;
+        this.audio.playPegHit(ball.combo);
+
+        let pts = 100 + ball.combo * 25;
+        if (this.relics.some(r => r.id === 'overcharge') && ball.combo > 12) pts *= 2;
+        ball.scoreAccum += pts;
+
+        // Visual FX
+        this.spawnSparks(peg.x, peg.y, '#38bdf8', 6);
+        this.spawnFloatingText(peg.x, peg.y, `+${pts}`, '#fff');
+
+        // Type specific actions
+        if (peg.type === PEG_TYPES.BOMB || ball.type === 'meteor') {
+          this.triggerBombExplosion(peg.x, peg.y);
+        } else if (peg.type === PEG_TYPES.LIGHTNING || ball.type === 'tesla') {
+          this.triggerLightningChain(peg);
+        } else if (peg.type === PEG_TYPES.SPLIT || (ball.type === 'split' && ball.combo === 4)) {
+          this.splitBall(ball);
+        } else if (peg.type === PEG_TYPES.REFRESH) {
+          this.refreshAllPegs();
+        }
+      }
+
+      triggerBombExplosion(cx, cy) {
+        this.audio.playExplosion();
+        this.shakeTime = 14;
+        this.spawnSparks(cx, cy, '#f97316', 30);
+        this.spawnFloatingText(cx, cy - 20, '💥 轰爆!', '#f97316');
+
+        const blastRadius = 90;
+        for (const p of this.pegs) {
+          if (!p.popped && Math.hypot(p.x - cx, p.y - cy) < blastRadius) {
+            p.popped = true;
+            this.spawnSparks(p.x, p.y, '#fbbf24', 5);
+          }
+        }
+      }
+
+      triggerLightningChain(sourcePeg) {
+        let hits = 0;
+        for (const p of this.pegs) {
+          if (!p.popped && p !== sourcePeg && Math.hypot(p.x - sourcePeg.x, p.y - sourcePeg.y) < 110) {
+            p.popped = true;
+            this.spawnSparks(p.x, p.y, '#22d3ee', 8);
+            hits++;
+            if (hits >= 3) break;
+          }
+        }
+        if (hits > 0) {
+          this.spawnFloatingText(sourcePeg.x, sourcePeg.y, '⚡ 连锁!', '#22d3ee');
+        }
+      }
+
+      splitBall(ball) {
+        this.spawnFloatingText(ball.x, ball.y, '🌀 分身双生!', '#c084fc');
+        this.balls.push({
+          x: ball.x,
+          y: ball.y,
+          vx: ball.vx * 0.8 + 2.5,
+          vy: ball.vy * 0.8 - 2,
+          radius: 8,
+          type: 'standard',
+          combo: ball.combo,
+          scoreAccum: ball.scoreAccum * 0.5,
+          trail: []
+        });
+      }
+
+      refreshAllPegs() {
+        this.spawnFloatingText(this.width * 0.5, 200, '🌿 全场重置刷新!', '#10b981');
+        for (const p of this.pegs) {
+          p.popped = false;
+        }
+      }
+
+      handleBallBucketLanding(ball) {
+        let landedBucket = null;
+        for (const b of this.buckets) {
+          if (ball.x >= b.x && ball.x <= b.x + b.w) {
+            landedBucket = b;
+            break;
+          }
+        }
+        if (!landedBucket) landedBucket = this.buckets[0];
+
+        landedBucket.hitAnim = 1.0;
+        const mult = landedBucket.mult;
+        const totalRoundPts = Math.round(ball.scoreAccum * mult);
+        this.currentScore += totalRoundPts;
+
+        document.getElementById('stat-score').textContent = this.currentScore.toLocaleString();
+
+        if (landedBucket.isJackpot) {
+          this.audio.playJackpot();
+          this.shakeTime = 18;
+          this.spawnFloatingText(landedBucket.x + landedBucket.w * 0.5, landedBucket.y - 30, `🎉 JACKPOT x8! +${totalRoundPts}`, '#fbbf24');
+        } else {
+          this.spawnFloatingText(landedBucket.x + landedBucket.w * 0.5, landedBucket.y - 20, `x${mult}! +${totalRoundPts}`, '#fff');
+        }
+      }
+
+      checkStageResolution() {
+        if (this.currentScore >= this.targetScore) {
+          // Stage cleared!
+          this.audio.playJackpot();
+          this.openDraftRewardModal();
+        } else {
+          // Check if no balls left
+          const totalBalls = this.orbsInventory.reduce((acc, cur) => acc + cur.count, 0);
+          if (totalBalls <= 0 && this.balls.length === 0) {
+            this.showToast(`未达成目标分数 (${this.currentScore} / ${this.targetScore})，重新挑战！`);
+            setTimeout(() => {
+              this.orbsInventory.forEach(o => o.count += 2);
+              this.loadStage(this.stage);
+            }, 1800);
+          }
+        }
+      }
+
+      openDraftRewardModal() {
+        const modal = document.getElementById('modal-draft');
+        const container = document.getElementById('draft-cards-list');
+        container.innerHTML = '';
+
+        // Pick 3 random rewards
+        const candidates = [
+          { type: 'orb', item: ORB_TYPES.meteor },
+          { type: 'orb', item: ORB_TYPES.tesla },
+          { type: 'orb', item: ORB_TYPES.split },
+          { type: 'relic', item: RELIC_POOL[Math.floor(Math.random() * RELIC_POOL.length)] }
+        ];
+
+        candidates.slice(0, 3).forEach(c => {
+          const card = document.createElement('div');
+          card.className = 'draft-card';
+          card.innerHTML = `
+            <div class="draft-card-icon">${c.item.icon}</div>
+            <div class="draft-card-info">
+              <h4>${c.type === 'orb' ? '【符文弹珠】' : '【远古神器】'} ${c.item.name}</h4>
+              <p>${c.item.desc}</p>
+            </div>
+          `;
+          card.onclick = () => {
+            if (c.type === 'orb') {
+              const existing = this.orbsInventory.find(o => o.type === c.item.id);
+              if (existing) existing.count += 2;
+              else this.orbsInventory.push({ type: c.item.id, count: 2 });
+            } else {
+              this.relics.push(c.item);
+            }
+            // Replenish standard orbs
+            const std = this.orbsInventory.find(o => o.type === 'standard');
+            if (std) std.count += 3;
+
+            this.renderOrbTray();
+            modal.classList.remove('active');
+            this.loadStage(this.stage + 1);
+          };
+          container.appendChild(card);
+        });
+
+        modal.classList.add('active');
+      }
+
+      spawnSparks(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = Math.random() * 3 + 1;
+          this.particles.push({
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            color,
+            alpha: 1,
+            size: Math.random() * 3 + 1
+          });
+        }
+      }
+
+      spawnFloatingText(x, y, text, color) {
+        this.floatingTexts.push({
+          x, y, text, color,
+          alpha: 1,
+          vy: -1.2
+        });
+      }
+
+      showToast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+      }
+
+      // --- Rendering Loop ---
+      loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+      }
+
+      update() {
+        this.updatePhysics();
+
+        // Particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.alpha -= 0.03;
+          if (p.alpha <= 0) this.particles.splice(i, 1);
+        }
+
+        // Floating texts
+        for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+          const t = this.floatingTexts[i];
+          t.y += t.vy;
+          t.alpha -= 0.02;
+          if (t.alpha <= 0) this.floatingTexts.splice(i, 1);
+        }
+
+        // Screen shake decay
+        if (this.shakeTime > 0) this.shakeTime--;
+
+        // Squish return
+        for (const peg of this.pegs) {
+          peg.squishX += (1 - peg.squishX) * 0.1;
+          peg.squishY += (1 - peg.squishY) * 0.1;
+        }
+
+        for (const b of this.buckets) {
+          b.hitAnim = Math.max(0, b.hitAnim - 0.05);
+        }
+      }
+
+      draw() {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, this.width, this.height);
+
+        ctx.save();
+        if (this.shakeTime > 0) {
+          const sx = (Math.random() - 0.5) * 6;
+          const sy = (Math.random() - 0.5) * 6;
+          ctx.translate(sx, sy);
+        }
+
+        // Draw Aiming Guide Line
+        if (this.balls.length === 0) {
+          this.drawAimGuide(ctx);
+        }
+
+        // Draw Buckets
+        this.drawBuckets(ctx);
+
+        // Draw Pegs
+        this.drawPegs(ctx);
+
+        // Draw Balls & Trails
+        this.drawBalls(ctx);
+
+        // Draw Particles
+        this.drawParticles(ctx);
+
+        // Draw Floating Texts
+        this.drawFloatingTexts(ctx);
+
+        // Draw Cannon Launcher
+        this.drawCannon(ctx);
+
+        ctx.restore();
+      }
+
+      drawAimGuide(ctx) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+
+        const dx = this.aimX - this.cannonX;
+        const dy = Math.max(20, this.aimY - this.cannonY);
+        const len = Math.hypot(dx, dy);
+
+        ctx.beginPath();
+        ctx.moveTo(this.cannonX, this.cannonY);
+        ctx.lineTo(this.cannonX + (dx / len) * 220, this.cannonY + (dy / len) * 220);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      drawCannon(ctx) {
+        ctx.save();
+        ctx.translate(this.cannonX, this.cannonY);
+
+        const dx = this.aimX - this.cannonX;
+        const dy = Math.max(20, this.aimY - this.cannonY);
+        const ang = Math.atan2(dy, dx);
+        ctx.rotate(ang - Math.PI / 2);
+
+        // Cannon barrel
+        ctx.fillStyle = '#1e293b';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-10, 0, 20, 28, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      drawPegs(ctx) {
+        for (const p of this.pegs) {
+          if (p.popped && p.type !== PEG_TYPES.BUMPER) continue;
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.scale(p.squishX, p.squishY);
+
+          if (p.type === PEG_TYPES.BUMPER) {
+            ctx.fillStyle = '#f59e0b';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          } else {
+            let color = '#38bdf8';
+            if (p.type === PEG_TYPES.BOMB) color = '#ef4444';
+            else if (p.type === PEG_TYPES.LIGHTNING) color = '#facc15';
+            else if (p.type === PEG_TYPES.SPLIT) color = '#c084fc';
+            else if (p.type === PEG_TYPES.REFRESH) color = '#10b981';
+
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+      }
+
+      drawBalls(ctx) {
+        for (const b of this.balls) {
+          // Trail
+          ctx.save();
+          for (let i = 0; i < b.trail.length; i++) {
+            const t = b.trail[i];
+            const a = (i / b.trail.length) * 0.4;
+            ctx.fillStyle = `rgba(251, 191, 36, ${a})`;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, b.radius * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Main Ball
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = '#f59e0b';
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+      }
+
+      drawBuckets(ctx) {
+        for (const b of this.buckets) {
+          ctx.save();
+          const boost = b.hitAnim * 8;
+          ctx.fillStyle = b.isJackpot ? 'rgba(245, 158, 11, 0.3)' : 'rgba(255, 255, 255, 0.08)';
+          ctx.strokeStyle = b.isJackpot ? '#fbbf24' : 'rgba(255, 255, 255, 0.2)';
+          ctx.lineWidth = b.isJackpot ? 2.5 : 1;
+
+          ctx.beginPath();
+          ctx.roundRect(b.x + 2, b.y - boost, b.w - 4, b.h + boost, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          // Label
+          ctx.fillStyle = b.isJackpot ? '#fbbf24' : '#ffffff';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(b.isJackpot ? '8x JP' : `${b.mult}x`, b.x + b.w * 0.5, b.y + b.h * 0.5 - boost * 0.5);
+
+          ctx.restore();
+        }
+      }
+
+      drawParticles(ctx) {
+        ctx.save();
+        for (const p of this.particles) {
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      drawFloatingTexts(ctx) {
+        ctx.save();
+        for (const t of this.floatingTexts) {
+          ctx.fillStyle = t.color;
+          ctx.globalAlpha = Math.max(0, t.alpha);
+          ctx.font = 'bold 13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(t.text, t.x, t.y);
+        }
+        ctx.restore();
+      }
+    }
+
+    // Launch game
+    window.addEventListener('DOMContentLoaded', () => {
+      window.game = new AstroPachinkoGame();
+    });
+  </script>
+</body>
+</html>
