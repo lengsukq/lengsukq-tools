@@ -55,7 +55,9 @@ assert.equal(Boolean(ghost.weapons.abyssal_possession),true);
 // Active spells cost mana and cause real authoritative hits.
 assert.equal(ships.runAbility(mage,'onAction',game,'meteor'),true);
 assert.ok(hits.some(hit=>hit.owner===mage));
-assert.equal(ships.runAbility(mage,'onAction',game,'meteor'),false,'Mana/CD gate');
+assert.equal(ships.runAbility(mage,'onAction',game,'meteor'),true,'0 CD allows consecutive meteor cast');
+while(ships.runAbility(mage,'onAction',game,'meteor')) {}
+assert.equal(ships.runAbility(mage,'onAction',game,'meteor'),false,'Mana gate when mana is exhausted');
 const position={x:mage.x,y:mage.y};
 assert.equal(ships.runAbility(mage,'onAction',game,{kind:'blink',direction:{x:1,y:0}}),true);
 assert.ok(mage.x>position.x);

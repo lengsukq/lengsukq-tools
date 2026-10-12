@@ -1242,8 +1242,12 @@
         };
 
         document.getElementById('btn-resume').onclick = () => this.resumeGame();
-        document.getElementById('btn-restart-pause').onclick = () => this.startNewGame();
+        document.getElementById('btn-restart-pause').onclick = () => this.showStartMenu();
+        const btnRestartQuick = document.getElementById('btn-restart-quick');
+        if (btnRestartQuick) btnRestartQuick.onclick = () => this.startNewGame();
         document.getElementById('btn-restart-over').onclick = () => this.showStartMenu();
+        const btnQuickOver = document.getElementById('btn-quick-over');
+        if (btnQuickOver) btnQuickOver.onclick = () => this.startNewGame();
         document.getElementById('btn-restart-vic').onclick = () => this.showStartMenu();
         document.getElementById('btn-endless').onclick = () => {
           this.modalVictory.classList.remove('active');
@@ -2048,9 +2052,14 @@
           this.notifySkillFeedback(`⏳ 死印斩击冷却中 (${ghost.strikeCooldown.toFixed(1)}s)`, '#f43f5e');
           return false;
         }
+        if ((ghost?.ectoplasm || 0) < 15) {
+          this.notifySkillFeedback(`⚠️ 灵质不足 (需15/当前${Math.floor(ghost?.ectoplasm || 0)})`, '#c084fc');
+          try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
+          return false;
+        }
         const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'strike') === true;
         if (ok) {
-          this.notifySkillFeedback('🗡️ 幽魂死印斩！范围减速并施加死印 (+25%易伤)', '#00f0ff');
+          this.notifySkillFeedback('🗡️ 幽魂死印斩！消耗15灵质 (范围减速施印)', '#00f0ff');
           try { this.sound?.playZap?.(); } catch (_) {}
         }
         return ok;
@@ -2141,6 +2150,14 @@
         if (this.state === 'playing' && this.player?.shipId &&
             this.player.shipId !== 'riftblade') {
           if (!this.player.downed && this.player.hp > 0) {
+            if (this.player.shipId === 'astra') {
+              const astraState = window.NeonAstra?.state(this.player);
+              if (astraState?.wardActive) {
+                this.notifySkillFeedback('⚠️ 炮台重装定锚中，无法闪现！', '#c084fc');
+                try { this.sound?.playLaser?.(180, 'sine'); } catch (_) {}
+                return;
+              }
+            }
             const isPhantom = this.player.shipId === 'phantom';
             const ghost = isPhantom ? window.NeonPhantom?.state(this.player) : null;
             if (ghost && !ghost.shiftActive) {
@@ -3248,18 +3265,18 @@
 
           if (shipId === 'astra') {
             skillsBar.innerHTML = `
-              <button type="button" class="combat-skill-btn" id="btn-skill-ward" title="天界结界 [J]：展开神圣圣域，友方减伤60%消弹，圈内敌方易伤+40%并减速">
+              <button type="button" class="combat-skill-btn" id="btn-skill-ward" title="天界结界 [J]：开启/关闭重装移动炮台，移速-80%禁闪现，法阵跟随移动，自身增伤+70%，持续燃能，核心防弹推怪，瓦解后获护盾加速">
                 <span class="skill-hotkey">J</span>
                 <span class="skill-icon">🛡️</span>
                 <span class="skill-name">天界结界</span>
-                <span class="skill-cost" id="cost-skill-ward">60星能</span>
+                <span class="skill-cost" id="cost-skill-ward">持续燃能</span>
                 <div class="skill-cd-mask" id="mask-skill-ward"></div>
               </button>
-              <button type="button" class="combat-skill-btn" id="btn-skill-meteor" title="苍穹星陨 [K]：低能耗高频定点轰炸，范围伤害与群体击晕">
+              <button type="button" class="combat-skill-btn" id="btn-skill-meteor" title="苍穹星陨 [K]：【0 CD】无冷却定点轰炸，消耗20星能/发，命中≥3怪返还星能(最多8点)并缩减结界/闪现CD，高频范围伤害与群体击晕">
                 <span class="skill-hotkey">K</span>
                 <span class="skill-icon">☄️</span>
                 <span class="skill-name">苍穹星陨</span>
-                <span class="skill-cost" id="cost-skill-meteor">22星能</span>
+                <span class="skill-cost" id="cost-skill-meteor">20星能</span>
                 <div class="skill-cd-mask" id="mask-skill-meteor"></div>
               </button>
               <button type="button" class="combat-skill-btn" id="btn-skill-blink" title="相位闪现 [空格]：超维闪现，附带落地移速爆发">
@@ -3281,11 +3298,11 @@
             });
           } else if (shipId === 'phantom') {
             skillsBar.innerHTML = `
-              <button type="button" class="combat-skill-btn" id="btn-skill-reap" title="死印斩击 [J]：朝前方扇面释放幽能波，范围减速并施加死印（使目标承受伤害+25%）">
+              <button type="button" class="combat-skill-btn" id="btn-skill-reap" title="死印斩击 [J]：消耗15灵质，朝前方扇面释放幽能波，范围减速并施加死印（使目标承受伤害+25%）">
                 <span class="skill-hotkey">J</span>
                 <span class="skill-icon">🗡️</span>
                 <span class="skill-name">死印斩击</span>
-                <span class="skill-cost" id="cost-skill-reap">减速施印</span>
+                <span class="skill-cost" id="cost-skill-reap">15灵质</span>
                 <div class="skill-cd-mask" id="mask-skill-reap"></div>
               </button>
               <button type="button" class="combat-skill-btn" id="btn-skill-dock" title="战术共生 / 幽影疾行 [K]：联机靠近队友挂载 / 单人无消耗移速爆发冲刺">
@@ -3331,24 +3348,28 @@
         // 2. Real-time updates for buttons & status banner
         if (shipId === 'astra') {
           const astraState = window.NeonAstra?.state(this.player);
-          const wardRemaining = astraState?.wardRemaining || 0;
+          const wardActive = Boolean(astraState?.wardActive);
           const wardCd = astraState?.cooldowns?.ward || 0;
-          const meteorCd = astraState?.cooldowns?.meteor || 0;
           const mana = Math.floor(astraState?.mana || 0);
 
           const wardBtn = document.getElementById('btn-skill-ward');
           const wardMask = document.getElementById('mask-skill-ward');
           if (wardBtn && wardMask) {
-            if (wardRemaining > 0) {
+            if (wardActive) {
               wardBtn.classList.add('active-state');
               wardMask.style.height = '100%';
               wardMask.style.background = 'rgba(168, 85, 247, 0.45)';
-              wardMask.textContent = wardRemaining.toFixed(1) + 's';
+              wardMask.textContent = `运转中 (${mana})`;
             } else if (wardCd > 0) {
               wardBtn.classList.remove('active-state');
-              wardMask.style.height = `${Math.min(100, (wardCd / 16) * 100)}%`;
+              wardMask.style.height = `${Math.min(100, (wardCd / 8) * 100)}%`;
               wardMask.style.background = 'rgba(0, 0, 0, 0.76)';
               wardMask.textContent = Math.ceil(wardCd) + 's';
+            } else if (mana < 20) {
+              wardBtn.classList.remove('active-state');
+              wardMask.style.height = '100%';
+              wardMask.style.background = 'rgba(0, 0, 0, 0.55)';
+              wardMask.textContent = '需20';
             } else {
               wardBtn.classList.remove('active-state');
               wardMask.style.height = '0%';
@@ -3359,9 +3380,10 @@
           const meteorBtn = document.getElementById('btn-skill-meteor');
           const meteorMask = document.getElementById('mask-skill-meteor');
           if (meteorBtn && meteorMask) {
-            if (meteorCd > 0) {
-              meteorMask.style.height = `${Math.min(100, (meteorCd / 3.2) * 100)}%`;
-              meteorMask.textContent = meteorCd.toFixed(1) + 's';
+            if (mana < 20) {
+              meteorMask.style.height = '100%';
+              meteorMask.style.background = 'rgba(0, 0, 0, 0.55)';
+              meteorMask.textContent = '需20';
             } else {
               meteorMask.style.height = '0%';
               meteorMask.textContent = '';
@@ -3369,18 +3391,15 @@
           }
 
           if (statusText) {
-            if (wardRemaining > 0) {
+            if (wardActive) {
               if (statusDot) statusDot.style.background = '#c084fc';
-              statusText.textContent = `🛡️ 天界圣域运转中 · 友方减伤60%消弹 · 敌方易伤+40%减速 (剩余 ${wardRemaining.toFixed(1)}s)`;
-            } else if (mana >= 60) {
-              if (statusDot) statusDot.style.background = '#00f3ff';
-              statusText.textContent = `🔮 星能充盈 (${mana}/100) · [J]结界 / [K]星陨已就绪`;
-            } else if (mana >= 22) {
+              statusText.textContent = `🛡️ 移动炮台运转中 (星能 ${mana}) · 自身增伤+70% · [K]星陨连轰0 CD · 核心防弹推怪`;
+            } else if (mana >= 20) {
               if (statusDot) statusDot.style.background = '#38bdf8';
-              statusText.textContent = `🔮 星能充沛 (${mana}/100) · [K]星陨轰炸已就绪 (低耗控场)`;
+              statusText.textContent = `🔮 星能充沛 (${mana}/100) · [J]开启炮台 / [K]星陨连轰 (0 CD · 群中返能)`;
             } else {
               if (statusDot) statusDot.style.background = '#f59e0b';
-              statusText.textContent = `⚡ 星能回复中 (${mana}/100) · 自动追踪星梭持续集能`;
+              statusText.textContent = `⚡ 星能回复中 (${mana}/100) · 普攻星梭持续集能`;
             }
           }
         } else if (shipId === 'phantom') {
@@ -3403,8 +3422,16 @@
                 reapMask.style.background = 'rgba(0, 0, 0, 0.76)';
                 reapMask.textContent = strikeCd.toFixed(1) + 's';
               }
+            } else if (ecto < 15) {
+              reapBtn.classList.remove('active-state');
+              reapCost.textContent = '需15灵质';
+              if (reapMask) {
+                reapMask.style.height = '0%';
+                reapMask.textContent = '';
+              }
             } else {
-              reapCost.textContent = marks > 0 ? `已标记 ${marks} 敌` : '按J斩击施印';
+              reapBtn.classList.remove('active-state');
+              reapCost.textContent = '15灵质';
               if (reapMask) {
                 reapMask.style.height = '0%';
                 reapMask.textContent = '';
@@ -3872,16 +3899,16 @@
         if (target.isBoss && target.rogueAffixes?.includes('armored')) finalDamage *= 0.83;
         finalDamage = window.NeonLanEncounters?.modifyBossDamage(this, target, finalDamage) ?? finalDamage;
 
-        // Celestial Ward amplification: enemies caught within Astra's ward take +40% extra damage!
+        // Celestial Ward amplification: Astra standing within ward gets +70% personal damage amp!
         if (window.NeonAstra?.wardDamageBonus) {
-          const wardBonus = window.NeonAstra.wardDamageBonus(this, target);
+          const wardBonus = window.NeonAstra.wardDamageBonus(this, target, owner);
           if (wardBonus > 1.0) {
             finalDamage *= wardBonus;
             if (this.texts.length < 28 && Math.random() < 0.2) {
               this.texts.push({
                 x: target.x,
                 y: target.y - 24,
-                text: '✨结界易伤+40%',
+                text: '✨炮台超频+70%',
                 color: '#d8b4fe',
                 size: 11,
                 life: 0.4,
@@ -4955,8 +4982,10 @@
             const phantomSprint = this.player.shipId === 'phantom' &&
               ((this.player.phantom?.sprintTimer || 0) > 0) ?
               1.0 + ((this.player.phantom.sprintTimer / 3.0) * 0.8) : 1;
-            this.player.vx = normX * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint;
-            this.player.vy = normY * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint;
+            const astraTurretAnchor = this.player.shipId === 'astra' &&
+              this.player.astra?.wardActive ? 0.20 : 1;
+            this.player.vx = normX * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint * astraTurretAnchor;
+            this.player.vy = normY * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint * astraTurretAnchor;
           } else {
             this.player.vx *= 0.8;
             this.player.vy *= 0.8;
@@ -5054,6 +5083,20 @@
         // Class-specific weapon and mana ticks are dispatched once through
         // NeonShips.onTick above for EVERY registered pilot. Never duplicate.
         window.NeonAstra?.tickShields(this, dt);
+        // Celestial Ward Continuous Holy Burn DoT in live combat
+        if (!this.player.downed && this.player.shipId === 'astra') {
+          const astraState = this.player.astra;
+          if (astraState && astraState.wardRemaining > 0) {
+            const wardR = 160 * (window.NeonAstraArsenal?.modifiers(this.player)?.areaFactor || 1);
+            const dotDmg = (32 + (this.player.level || 1) * 3.5) * dt * (this.player.dmgMultiplier || 1);
+            for (const e of this.enemies) {
+              if (!e || e.dead || e.hp <= 0) continue;
+              if (Vec.dist(astraState.wardX, astraState.wardY, e.x, e.y) <= wardR) {
+                this.dealDamage(e, dotDmg, 'astra_ward_burn', false, this.player);
+              }
+            }
+          }
+        }
         // All pilots now share one firing pipeline; timers belong to the
         // pilot, while effects/kill accounting remain authoritative on game.
         window.NeonWeaponSystem?.update(this, this.player, dt);

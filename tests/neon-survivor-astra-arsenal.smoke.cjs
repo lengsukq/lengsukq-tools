@@ -88,6 +88,7 @@ for (const card of a.catalog.filter(c=>c.type==='dash')) {
 assert.equal(Object.keys(pilot.dashUpgrades).length,7);
 assert.equal(a.state(pilot).warpUpgrades.star_gate,1);
 assert.equal(a.state(pilot).warpUpgrades.phase_self_guard,1);
+a.finishWard(pilot,game);
 game.survivalTime=31;
 const oldX=pilot.x;
 assert.equal(a.blink(pilot,game,{x:1,y:0},31),true);

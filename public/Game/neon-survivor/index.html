@@ -167,11 +167,12 @@
         <!-- Dynamic -->
       </div>
 
-      <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+      <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
         <button class="cyber-btn" id="btn-resume">继续战斗</button>
         <button class="cyber-btn" id="btn-pause-help" style="border-color:#9d00ff; color:#d880ff;">📖 游戏说明</button>
         <button class="cyber-btn" id="btn-pause-settings">⚙ 游戏设置</button>
-        <button class="cyber-btn danger" id="btn-restart-pause">重新开始</button>
+        <button class="cyber-btn" id="btn-restart-quick" style="border-color:#00f3ff; color:#00f3ff;">⚡ 快速重开</button>
+        <button class="cyber-btn danger" id="btn-restart-pause">🛸 返回机库 (重选战舰/进阶)</button>
       </div>
     </div>
   </div>
@@ -277,9 +278,9 @@
               </ul>
               <p><b>独有主动技能与放风筝机制</b>：</p>
               <ul>
-                <li><b>天界织界神圣结界 (Ward)</b>：快捷键 <b>J</b>（手机/界面直接点击）。消耗 60 星能，展开神圣符文结界持续 7.5 秒：处于法阵内<b>友方减免 60% 所受伤害</b>且持续消解敌机子弹；<b>踏入法阵的敌人受到强力减速 45% 且承受全额伤害提升 +40%（攻守兼备的圣域主场）</b>，离开法阵保留 3 秒虚相护盾！</li>
-                <li><b>苍穹星陨 (Meteor)</b>：快捷键 <b>K</b>（手机/界面直接点击）。<b>超低能耗（22星能）与超短冷却（3.2秒）高频小技能</b>，呼唤天外流星定点轰炸，造成范围伤害与 <b>1.2 秒群体击晕</b>，极度适合频繁轰炸进行伤害补刀与控场断节奏！</li>
-                <li><b>相位闪现 (Phase Blink)</b>：按<b>空格 / 折跃键</b>超维闪现 190px，释放斥力波将周围敌群强力推开，且闪现落地后立即获得 <b>2 秒内 +50% 移动速度爆发</b>，专为拉开距离远程放风筝设计！</li>
+                <li><b>天界织界神圣结界 (Celestial Ward)</b>：快捷键 <b>J</b>（手机/界面直接点击）。<b>开启/关闭重装移动炮台形态（法阵跟随战机移动）</b>：需 ≥20 星能开启，每秒持续消耗 20 星能；<b>全域敌人减速 50% 与神圣灼烧 DoT</b>，<b>中心核心力场绝对推开怪物且湮灭敌弹</b>，<b>自身专属超频增伤 +70%</b>！<b>【严苛限制防无限续杯】</b>：炮台开启期间<b>移动速度降低 80% 且禁止闪现</b>（避免高速冲撞怪群），且<b>自然回能暂停、武器回能严格锁死 6.0/秒上限</b>（怪海中净流失 ≥14/秒，至多 6~7 秒必然耗尽瓦解）！<b>【防暴毙脱困机制】</b>：法阵瓦解或关闭时，立即获得 <b>35 点临时护盾</b>与 <b>2.5 秒内 +50% 移速爆发</b>并向外释放退散冲击波，确保平滑脱困！</li>
+                <li><b>苍穹星陨 (Meteor)</b>：快捷键 <b>K</b>（手机/界面直接点击）。<b>【0 CD】彻底移除冷却！纯星能驱动的高频轰炸</b>，基础消耗 <b>20 星能/发</b>：定点轰杀敌群并附带 <b>1.2 秒群体击晕</b>！<b>【多重命中返还机制】</b>：单发星陨同时命中 ≥3 个敌人时，每多中 1 怪<b>返还 1.5 点星能（最多返还 8 点，砸入怪堆净消耗仅需 12 星能）</b>，并同时<b>缩减结界冷却 0.3 秒/怪（最多 1.5 秒）</b>且加速闪现充能！只要星能充足即可狂轰连击；在移动炮台 +70% 增伤下更是核爆级轰炸！</li>
+                <li><b>相位闪现 (Phase Blink)</b>：按<b>空格 / 折跃键</b>超维闪现 160px，落地后获得 <b>2 秒内 +50% 移动速度爆发</b>（结界炮台开启期间能量锁闭，关闭后立即恢复正常）。</li>
               </ul>
               <p style="margin-top: 6px; color: #d8b4fe;"><b>专属升级</b>：24 张星界专属卡牌（棱镜分光、时序束缚、月蚀法印、奇点咏唱、星能护符等）。极致放风筝与神圣结界阵地战核心！</p>
             </div>
@@ -292,9 +293,9 @@
               <p><b>初始主武</b>：<b>幽魂之镰 (Phantom Scythe)</b> — 掷出双刃死神回旋战镰贯穿切割；最远端悬停旋转为灵魂黑洞漩涡撕裂聚集敌群，随后二次收割吸附返航。</p>
               <p><b>独有战术机制与技能</b>：</p>
               <ul>
-                <li><b>死印斩击 (Spectral Strike)</b>：快捷键 <b>J</b>（手机/界面直接点击）。<b>范围减速与死印标记战术技（4.5秒CD）</b>：向准星前方 300px 扇面斩出幽能波，对最多 10 名敌人造成适度伤害、<b>强力减速 40% (持续1.6秒)</b> 并植入「灵魂死印」；被死印标记的敌人在此期间<b>受到幽灵战舰的所有攻击伤害提升 +25%（死印易伤加深）</b>！命中还可稳定汲取灵质，绝佳的起手增伤技。</li>
+                <li><b>死印斩击 (Spectral Strike)</b>：快捷键 <b>J</b>（手机/界面直接点击）。<b>消耗 15 灵质（4.5秒CD）</b>：向准星前方 300px 扇面斩出幽能波，对最多 10 名敌人造成适度伤害、<b>强力减速 40% (持续1.6秒)</b> 并植入「灵魂死印」；被死印标记的敌人在此期间<b>受到幽灵战舰的所有攻击伤害提升 +25%（死印易伤加深）</b>！不白嫖回能，需先用战镰普攻有效汲取灵质后战术释放。</li>
                 <li><b>战术共生 / 幽影疾行 (Dock Link / Phantom Sprint)</b>：快捷键 <b>K</b>。<b>联机模式</b>靠近队友挂载共生，提供后方 40% 减伤与自愈；<b>单人模式切换为幽影疾行</b>：<b>无任何能量消耗（仅5秒CD）</b>，启动瞬间获得<b>+80% 移速爆发</b>并在 3 秒内平滑衰减，绝佳的拉扯脱困技！</li>
-                <li><b>幽灵化身 / 退出引爆 (Ghost Form / Spectral Phasing)</b>：快捷键 <b>空格 / 界面点击</b>。彻底摒弃折跃充能，<b>根据持续消耗灵质进入幽灵状态</b>（需 ≥15 灵质开启，每秒消耗 20 灵质）：幽灵状态下<b>无实体穿透免撞</b>（穿行怪群免受肉身碰撞伤害），穿透敌群自动施加死印；若承受远程弹幕或范围轰击，<b>受击震荡损耗灵质代扣</b>（承受过多火力时灵质耗尽提前瓦解引爆）；<b>随时再次按空格或灵质耗尽时退出引爆</b>！</li>
+                <li><b>幽灵化身 / 退出引爆 (Ghost Form / Spectral Phasing)</b>：快捷键 <b>空格 / 界面点击</b>。彻底摒弃折跃充能，<b>根据持续消耗灵质进入幽灵状态</b>（需 ≥15 灵质开启，初始每秒消耗 20 灵质）：幽灵状态下<b>无实体穿透免撞</b>，穿透敌群自动施加死印，<b>且幽灵状态下灵质回复受严格硬上限限制（初始每秒最多回收 8 点，防止无限续杯无敌）</b>；若承受远程弹幕轰击将损耗灵质；<b>随时再次按空格或灵质耗尽时退出引爆</b>！升级「虚空漫步」可降低流失率并提高回充上限，「灵能超蓄」与「幽冥核心」大幅扩充灵质容量（最高近 200 点），后期间歇可大幅延长！</li>
               </ul>
               <p style="margin-top: 6px; color: #67e8f9;"><b>专属升级</b>：24 张虚空专属卡牌（幽魂飞镖、深渊拟态、灵魂图腾、虚无天谴、拟态重构等）。单人强力死印收割，联机最强共生挂载！</p>
             </div>
@@ -436,7 +437,10 @@
 
       <div class="stats-table" id="gameover-stats"></div>
 
-      <button class="cyber-btn" id="btn-restart-over">重新部署</button>
+      <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+        <button class="cyber-btn" id="btn-quick-over" style="border-color:#00f3ff; color:#00f3ff;">⚡ 快速再次出击</button>
+        <button class="cyber-btn danger" id="btn-restart-over">🛸 返回机库 (重选战舰/进阶)</button>
+      </div>
     </div>
   </div>
 
@@ -448,9 +452,9 @@
 
       <div class="stats-table" id="victory-stats"></div>
 
-      <div style="display: flex; justify-content: center; gap: 16px;">
+      <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
         <button class="cyber-btn" id="btn-endless">进入无尽炼狱</button>
-        <button class="cyber-btn danger" id="btn-restart-vic">重开新局</button>
+        <button class="cyber-btn danger" id="btn-restart-vic">🛸 返回机库 (重选战舰/进阶)</button>
       </div>
     </div>
   </div>

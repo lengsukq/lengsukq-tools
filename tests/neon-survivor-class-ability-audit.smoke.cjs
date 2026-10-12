@@ -64,6 +64,7 @@ mage.dashUpgrades={star_gate:1,prism_veil:1,spatial_disturb:1,
 mage.astra.warpUpgrades={...mage.dashUpgrades};
 mage.astra.blinkCharges=2;
 mage.starWeave.anchors=[{x:80,y:0,life:4}];
+env.window.NeonAstra.finishWard(mage,game);
 assert.equal(env.window.NeonAstra.blink(mage,game,{x:1,y:0},game.survivalTime),true);
 assert.ok(mage.astraTempShield?.value>0,'Self-only fold shield');
 assert.ok(mage.astraArsenal.mirrorEchoPending,'Mirror passive charges next hit');

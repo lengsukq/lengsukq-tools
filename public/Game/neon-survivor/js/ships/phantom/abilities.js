@@ -14,6 +14,8 @@
     shiftCooldown: 0,
     shiftDrainPerSecond: 20,        // Drains 20 ectoplasm per second
     shiftMinActivationEcto: 15,     // Minimum 15 ectoplasm required to enter
+    strikeEctoCost: 15,             // Spectral strike consumes 15 ectoplasm
+    maxShiftEctoplasmPerSecond: 8.0,// Hard cap on ectoplasm gained while shifted
     baseDashCharges: 2,
     maxDashCharges: 3,
     dashRecharge: 5.5,
@@ -58,7 +60,7 @@
     soul_gatherer: '幽灵专属武器每次命中额外回收灵质',
     death_reversal: '本局首次致命伤害触发一次紧急重构（已消耗则不再触发）',
     dual_mind: '提高灵质系统提供的暴击概率',
-    spectral_extend: '降低幽灵形态灵质消耗速度（每级-20%消耗），大幅延长维持时间',
+    spectral_extend: '降低幽灵形态灵质消耗速度（每级-20%消耗），并小幅提升潜行灵质吸收上限，大幅延长维持时间',
     soul_detonation: '提高烙印引爆范围与伤害',
     charge_overflow: '灵能超蓄：提高灵质上限25点并降低化身门槛至10灵质',
     ghost_trail: '潜行期间每0.36秒产生近距离冥火伤害与特效',
@@ -132,7 +134,8 @@
       lastEjectAt: -Infinity,
       slingshotBuffUntil: 0,
       shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0,
-      sprintTimer: 0, sprintCooldown: 0, strikeCooldown: 0
+      sprintTimer: 0, sprintCooldown: 0, strikeCooldown: 0,
+      shiftEctoGainedThisSec: 0, shiftEctoTimer: 0
     };
   }
 
@@ -147,8 +150,19 @@
   function addEctoplasm(pilot, amount) {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || !Number.isFinite(amount) || amount <= 0) return 0;
+
+    let allowed = amount;
+    if (s.shiftActive) {
+      const extendTier = s.warpUpgrades?.spectral_extend || 0;
+      const maxPerSec = (BASE.maxShiftEctoplasmPerSecond || 8.0) + extendTier * 1.5;
+      const budgetLeft = Math.max(0, maxPerSec - (s.shiftEctoGainedThisSec || 0));
+      allowed = Math.min(amount, budgetLeft);
+      if (allowed <= 0) return 0;
+      s.shiftEctoGainedThisSec = (s.shiftEctoGainedThisSec || 0) + allowed;
+    }
+
     const bonusFlow = 1 + (s.passiveUpgrades.spiritual_flow || 0) * 0.15;
-    const gain = Math.min(s.maxEctoplasm - s.ectoplasm, amount * bonusFlow);
+    const gain = Math.min(s.maxEctoplasm - s.ectoplasm, allowed * bonusFlow);
     s.ectoplasm += gain;
     return gain;
   }
@@ -185,6 +199,8 @@
 
     if (s.dashCharges > 0) s.dashCharges--;
     s.shiftActive = true;
+    s.shiftEctoGainedThisSec = 0;
+    s.shiftEctoTimer = 0;
     const extraDuration = (s.warpUpgrades.spectral_extend || 0) * 0.5;
     s.shiftRemaining = Math.max(BASE.shiftDuration + extraDuration, s.ectoplasm > 0 ? s.ectoplasm / 15 : 0);
     s.shiftTrail.length = 0;
@@ -403,6 +419,11 @@
     s.sprintTimer = Math.max(0, (s.sprintTimer || 0) - dt);
     s.sprintCooldown = Math.max(0, (s.sprintCooldown || 0) - dt);
     s.strikeCooldown = Math.max(0, (s.strikeCooldown || 0) - dt);
+    s.shiftEctoTimer = (s.shiftEctoTimer || 0) + dt;
+    if (s.shiftEctoTimer >= 1.0) {
+      s.shiftEctoTimer -= 1.0;
+      s.shiftEctoGainedThisSec = 0;
+    }
     for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
       s.shiftTrail[i].life -= dt;
       if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i,1);
@@ -454,6 +475,10 @@
         }
       }
       s.shiftRemaining -= dt;
+      if (s.ectoplasm > 0) {
+        // As long as ectoplasm remains, prevent shift from prematurely ending
+        s.shiftRemaining = Math.max(s.shiftRemaining, 0.5);
+      }
       if (s.shiftRemaining <= 0 || (s.ectoplasm <= 0 && s.dashCharges <= 0)) {
         finishShift(pilot, game, false);
       }
@@ -569,6 +594,9 @@
     if (!validPilot(pilot) || game?.state !== 'playing') return false;
     const s = state(pilot);
     if (!s || (s.strikeCooldown || 0) > 0) return false;
+    const cost = BASE.strikeEctoCost || 15;
+    if ((s.ectoplasm || 0) < cost) return false;
+    s.ectoplasm -= cost;
     s.strikeCooldown = 4.5;
 
     const now = game.survivalTime || 0;
@@ -595,8 +623,6 @@
       e.freezeTimer = Math.max(e.freezeTimer || 0, 1.6);
       hitCount++;
     }
-
-    addEctoplasm(pilot, 8 + Math.min(6, hitCount));
 
     window.NeonPhantomVisual?.emit(pilot, 'beam',
       { x: pilot.x, y: pilot.y },

@@ -200,9 +200,14 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   const BASE = Object.freeze({
     initialMana: 60, maxMana: 100, naturalRegen: 2,
     maxHitRegenPerSecond: 12, hitRegenInterval: 1.5,
-    meteorCost: 22, meteorCooldown: 3.2, meteorDamage: 48,
+    meteorCost: 20, meteorCooldown: 0, meteorDamage: 48,
     meteorRadius: 125, meteorMaxTargets: 12,
-    wardCost: 60, wardCooldown: 16, wardDuration: 5,
+    meteorRefundThreshold: 3, meteorRefundPerTarget: 1.5, maxMeteorManaRefund: 8.0,
+    meteorWardCdrPerTarget: 0.3, maxMeteorWardCdr: 1.5,
+    wardCost: 15, wardMinActivationMana: 20,
+    wardCooldown: 8, wardDuration: 999,
+    wardDrainPerSecond: 20, maxWardManaPerSecond: 6.0,
+    wardExitShield: 35, wardExitSpeedDuration: 2.5,
     wardRadius: 160, wardReduction: .25,
     blinkDistance: 160, blinkInvulnerability: .12,
     blinkRegen: 5, maxCharges: 4,
@@ -278,23 +283,23 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     star_talisman: ['✣','增加自身星能上限，使进攻防御法术衔接更灵活',
       ['最大星能+20','最大星能+40','最大星能+60','最大星能+80','最大星能+100']],
     ley_conduit: ['≋','加快法术资源自然恢复',
-      ['每秒额外恢复0.65星能','每秒额外恢复1.3星能',
-       '每秒额外恢复1.95星能','每秒额外恢复2.6星能','每秒额外恢复3.25星能']],
+      ['每秒额外恢复1.0星能','每秒额外恢复2.0星能',
+       '每秒额外恢复3.0星能','每秒额外恢复4.0星能','每秒额外恢复5.0星能']],
     weave_focus: ['◈','缩短武器与两种主动术式的冷却时间',
-      ['法术冷却-6%','法术冷却-12%','法术冷却-18%',
-       '法术冷却-24%','法术冷却-30%']],
+      ['法术冷却-7%','法术冷却-14%','法术冷却-21%',
+       '法术冷却-28%','法术冷却-35%']],
     shield_refraction: ['◈','承受被护盾阻挡的攻击时周期性反击',
       ['每4秒最多触发一次伤害折射','增加折射伤害',
        '强化反制伤害','更多伤害被折射','高级折光反制']],
     star_mark_hunt: ['⌖','攻击带星痕的目标可以造成更多伤害',
-      ['标记目标伤害+8%','标记目标伤害+16%','标记目标伤害+24%',
-       '标记目标伤害+32%','标记目标伤害+40%']],
+      ['标记目标伤害+10%','标记目标伤害+20%','标记目标伤害+30%',
+       '标记目标伤害+40%','标记目标伤害+50%']],
     glyph_extent: ['◌','扩大范围法阵和魔法攻击的覆盖面积',
-      ['范围+10%','范围+20%','范围+30%','范围+40%','范围+50%']],
+      ['范围+12%','范围+24%','范围+36%','范围+48%','范围+60%']],
     danger_resonance: ['⚑','低生命值时提高输出并增强自身伤害减免',
-      ['低生命攻击+8%及减伤+2%','低血攻击+16%及减伤+4%',
-       '低血攻击+24%及减伤+6%','低血攻击+32%及减伤+8%',
-       '低血攻击+40%及减伤+10%']],
+      ['低生命攻击+10%及减伤+3%','低血攻击+20%及减伤+6%',
+       '低血攻击+30%及减伤+9%','低血攻击+40%及减伤+12%',
+       '低血攻击+50%及减伤+15%']],
     dual_harmony: ['☯','交替使用进攻与防御法术能够获得强化',
       ['双相轮换增益+8%','双相轮换增益+16%','双相轮换增益+24%',
        '双相轮换增益+32%','双相轮换增益+40%']],
@@ -340,6 +345,8 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       mana: BASE.initialMana, maxMana: BASE.maxMana,
       talentLevel: 1, hitWindow: new Map(),
       hitBudgetSecond: -1, hitBudgetRemaining: BASE.maxHitRegenPerSecond,
+      wardManaTimer: 0, wardManaGainedThisSec: 0,
+      wardActive: false,
       cooldowns: { meteor: 0, ward: 0 },
       wardRemaining: 0, wardX: 0, wardY: 0,
       blinkCharges: 2, blinkRecharge: 0,
@@ -368,12 +375,62 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       s.hitWindow.delete(s.hitWindow.keys().next().value);
     }
     s.hitWindow.set(enemy, timeSeconds);
-    const reward = Math.min(s.hitBudgetRemaining,
-      [3, 4, 5][Math.max(0, Math.min(2, s.talentLevel - 1))], s.maxMana - s.mana);
+
+    let maxGain = [3, 4, 5][Math.max(0, Math.min(2, s.talentLevel - 1))];
+    if (s.wardActive) {
+      const budgetLeft = Math.max(0, BASE.maxWardManaPerSecond - (s.wardManaGainedThisSec || 0));
+      maxGain = Math.min(maxGain, budgetLeft);
+      if (maxGain <= 0) return 0;
+      s.wardManaGainedThisSec = (s.wardManaGainedThisSec || 0) + maxGain;
+    }
+
+    const reward = Math.min(s.hitBudgetRemaining, maxGain, s.maxMana - s.mana);
     s.hitBudgetRemaining -= reward;
     s.mana += reward;
     return reward;
   }
+  function finishWard(pilot, game, reason = 'manual') {
+    const s = state(pilot);
+    if (!s || !s.wardActive) return false;
+    s.wardActive = false;
+    s.wardRemaining = 0;
+    s.wardHarmonyBonus = 0;
+    s.isTurretAnchored = false;
+
+    // 1. Emergency Astral Shield to prevent being swarmed
+    pilot.astraTempShield = { value: BASE.wardExitShield, remaining: 3.5 };
+
+    // 2. Disengagement Speed Surge (+50% speed for 2.5s)
+    s.kiteSpeedTimer = BASE.wardExitSpeedDuration;
+
+    // 3. Radial Disperse Shockwave to repel close enemies
+    if (game && Array.isArray(game.enemies)) {
+      for (const e of game.enemies) {
+        if (!e || e.dead || e.hp <= 0) continue;
+        const d = Math.hypot(e.x - pilot.x, e.y - pilot.y);
+        if (d <= 150) {
+          const angle = Math.atan2(e.y - pilot.y, e.x - pilot.x) || 0;
+          e.x += Math.cos(angle) * 80;
+          e.y += Math.sin(angle) * 80;
+          e.vx = (e.vx || 0) + Math.cos(angle) * 160;
+          e.vy = (e.vy || 0) + Math.sin(angle) * 160;
+        }
+      }
+    }
+    if ((game?.shockwaves?.length || 0) < 40) {
+      game?.shockwaves?.push({
+        x: pilot.x, y: pilot.y,
+        radius: 12, maxRadius: 150,
+        color: '#c084fc', alpha: 0.85
+      });
+    }
+    window.NeonAstraVisual?.emit(pilot, 'shield', pilot, null, 70, .6);
+
+    const m = modifiers(pilot);
+    s.cooldowns.ward = BASE.wardCooldown * m.cooldownFactor;
+    return true;
+  }
+
   function tick(pilot, game, dt) {
     const s = state(pilot);
     if (!s || !validPilot(pilot) || !Number.isFinite(dt) || dt <= 0 ||
@@ -387,29 +444,71 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     s.dangerVisualActive = dangerActive;
     s.talentLevel = level >= 12 ? 3 : level >= 6 ? 2 : 1;
     s.maxMana = m.maxMana;
-    s.mana = Math.min(s.maxMana, s.mana + m.manaRegen * dt);
+
+    // 1-second window reset for throttled mana gain during ward
+    s.wardManaTimer = (s.wardManaTimer || 0) + dt;
+    if (s.wardManaTimer >= 1.0) {
+      s.wardManaTimer -= 1.0;
+      s.wardManaGainedThisSec = 0;
+    }
+
+    // Natural mana regen halts while ward is active!
+    if (!s.wardActive) {
+      s.mana = Math.min(s.maxMana, s.mana + m.manaRegen * dt);
+    }
+
     for (const spell of Object.values(SPELLS)) {
       s.cooldowns[spell] = Math.max(0, s.cooldowns[spell] - dt);
     }
-    s.wardRemaining = Math.max(0, s.wardRemaining - dt);
-    if (s.wardRemaining <= 0) s.wardHarmonyBonus = 0;
-    else if (Array.isArray(game?.enemies)) {
-      // Continuous slow & bullet dissolve inside active ward
-      const wardRadius = BASE.wardRadius * m.areaFactor;
-      for (const e of game.enemies) {
-        if (e && !e.dead && e.hp > 0 && Math.hypot(e.x - s.wardX, e.y - s.wardY) <= wardRadius) {
-          e.freezeTimer = Math.max(e.freezeTimer || 0, 0.35);
+
+    if (s.wardActive) {
+      // Mobile Sanctuary: ward follows the ship continuously!
+      s.wardX = pilot.x;
+      s.wardY = pilot.y;
+      s.wardRemaining = 999;
+      s.isTurretAnchored = true;
+
+      // Continuous mana drain
+      s.mana = Math.max(0, s.mana - dt * BASE.wardDrainPerSecond);
+      if (s.mana <= 0) {
+        finishWard(pilot, game, 'exhausted');
+      } else {
+        const wardRadius = BASE.wardRadius * m.areaFactor;
+        const innerCoreRadius = wardRadius * 0.45;
+
+        // Continuous slow and inner core repulsion for enemies
+        if (Array.isArray(game?.enemies)) {
+          for (const e of game.enemies) {
+            if (!e || e.dead || e.hp <= 0) continue;
+            const dist = Math.hypot(e.x - s.wardX, e.y - s.wardY);
+            if (dist <= wardRadius) {
+              e.freezeTimer = Math.max(e.freezeTimer || 0, 0.35);
+              if (dist < innerCoreRadius) {
+                const angle = Math.atan2(e.y - s.wardY, e.x - s.wardX) || 0;
+                const pushDist = innerCoreRadius + (e.radius || 14);
+                e.x = s.wardX + Math.cos(angle) * pushDist;
+                e.y = s.wardY + Math.sin(angle) * pushDist;
+                e.vx = (e.vx || 0) + Math.cos(angle) * 120;
+                e.vy = (e.vy || 0) + Math.sin(angle) * 120;
+              }
+            }
+          }
         }
-      }
-      if (Array.isArray(game?.enemyBullets)) {
-        for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
-          const eb = game.enemyBullets[b];
-          if (Math.hypot(eb.x - s.wardX, eb.y - s.wardY) <= wardRadius) {
-            game.enemyBullets.splice(b, 1);
+        // Absolute Bullet Dissolve
+        if (Array.isArray(game?.enemyBullets)) {
+          for (let b = game.enemyBullets.length - 1; b >= 0; b--) {
+            const eb = game.enemyBullets[b];
+            if (Math.hypot(eb.x - s.wardX, eb.y - s.wardY) <= wardRadius) {
+              game.enemyBullets.splice(b, 1);
+            }
           }
         }
       }
+    } else {
+      s.wardRemaining = Math.max(0, (s.wardRemaining || 0) - dt);
+      s.isTurretAnchored = false;
     }
+
     s.kiteSpeedTimer = Math.max(0, (s.kiteSpeedTimer || 0) - dt);
     s.phaseVeilRemaining = Math.max(0, s.phaseVeilRemaining - dt);
     if (s.blinkFx) {
@@ -434,9 +533,9 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     const arcane = window.NeonAstraArsenal?.state(pilot);
     const alternating = Boolean(arcane?.harmonyLast && arcane.harmonyLast !== spell);
     const harmonyBonus = alternating ? m.harmony * .08 : 0;
-    const cost = spell === SPELLS.meteor ? BASE.meteorCost : BASE.wardCost;
-    if (s.mana < cost || s.cooldowns[spell] > 0) return false;
+
     if (spell === SPELLS.meteor) {
+      if (s.mana < BASE.meteorCost) return false;
       const enemies = (game.enemies || []).filter(enemy => !enemy.dead && enemy.hp > 0);
       let focus = null, nearest = 650;
       for (const e of enemies) {
@@ -448,7 +547,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         const aim = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : 0;
         focus = { x: pilot.x + Math.cos(aim) * 320, y: pilot.y + Math.sin(aim) * 320, radius: 12 };
       }
-      s.mana -= cost;
+      s.mana -= BASE.meteorCost;
       const targets = enemies.filter(e => within(e, focus, BASE.meteorRadius * m.areaFactor))
         .sort((a, b) => Math.hypot(a.x - focus.x, a.y - focus.y) -
           Math.hypot(b.x - focus.x, b.y - focus.y))
@@ -461,18 +560,61 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
         // Stun enemies hit by meteor
         enemy.stunnedUntil = Math.max(enemy.stunnedUntil || 0, (game.survivalTime || 0) + 1.2);
       }
+
+      // Multi-hit refund & CDR mechanics
+      const hitCount = targets.length;
+      if (hitCount >= BASE.meteorRefundThreshold) {
+        const extraHits = hitCount - (BASE.meteorRefundThreshold - 1);
+        const manaRefund = Math.min(BASE.maxMeteorManaRefund, extraHits * BASE.meteorRefundPerTarget);
+        s.mana = Math.min(s.maxMana, s.mana + manaRefund);
+
+        // Reduce Ward cooldown if ward is on cooldown
+        if (s.cooldowns.ward > 0) {
+          const wardCdr = Math.min(BASE.maxMeteorWardCdr, extraHits * BASE.meteorWardCdrPerTarget);
+          s.cooldowns.ward = Math.max(0, s.cooldowns.ward - wardCdr);
+        }
+
+        // Accelerate Blink recharge
+        const maxBlink = Math.min(BASE.maxCharges, 2 + (s.warpUpgrades.star_gate || 0));
+        if (s.blinkCharges < maxBlink) {
+          s.blinkRecharge = (s.blinkRecharge || 0) + 0.8;
+        }
+
+        if (game?.texts && game.texts.length < 28 && hitCount >= 5) {
+          game.texts.push({
+            x: focus.x, y: focus.y - 20,
+            text: `☄️群体轰击! +${manaRefund.toFixed(0)}星能`,
+            color: '#c084fc', size: 12, life: 0.5, maxLife: 0.5
+          });
+        }
+      }
       window.NeonAstraVisual?.emit(pilot,'burst',focus,null,
         BASE.meteorRadius * m.areaFactor,.6);
       if ((game.shockwaves?.length || 0) < 40) game.shockwaves?.push({
         x: focus.x, y: focus.y, radius: 12, maxRadius: BASE.meteorRadius,
         color: '#b38dff', alpha: .95
       });
+      if (alternating && m.harmony > 0)
+        window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.7);
+      if (arcane) arcane.harmonyLast = spell;
+      s.cooldowns.meteor = 0; // 0 CD!
+      return true;
     } else {
+      // Celestial Ward toggle
+      if (s.wardActive) {
+        return finishWard(pilot, game, 'manual');
+      }
+      if (s.cooldowns.ward > 0 || s.mana < BASE.wardMinActivationMana) return false;
+      const cost = BASE.wardCost;
       s.mana -= cost;
-      s.wardRemaining = BASE.wardDuration + (alternating ? m.harmony * .2 : 0);
+      s.wardActive = true;
+      s.wardRemaining = 999;
       s.wardX = pilot.x;
       s.wardY = pilot.y;
       s.wardHarmonyBonus = alternating ? m.harmony * .012 : 0;
+      s.wardManaGainedThisSec = 0;
+      s.wardManaTimer = 0;
+
       // Dissolve all enemy bullets within ward radius on cast
       if (Array.isArray(game?.enemyBullets)) {
         const wardRadius = BASE.wardRadius * m.areaFactor;
@@ -485,13 +627,11 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
       }
       window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,
         BASE.wardRadius * m.areaFactor,.8);
+      if (alternating && m.harmony > 0)
+        window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.7);
+      if (arcane) arcane.harmonyLast = spell;
+      return true;
     }
-    if (alternating && m.harmony > 0)
-      window.NeonAstraVisual?.emit(pilot,'shield',pilot,null,50,.7);
-    if (arcane) arcane.harmonyLast = spell;
-    s.cooldowns[spell] = (spell === SPELLS.meteor ? BASE.meteorCooldown :
-      BASE.wardCooldown) * m.cooldownFactor;
-    return true;
   }
   function wardReduction(game, target) {
     if (!target || target.hp <= 0 || target.downed) return 0;
@@ -508,14 +648,26 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     }
     return 0; // Wards do not stack with one another.
   }
-  function wardDamageBonus(game, target) {
+  function wardDamageBonus(game, target, attacker) {
     if (!target || target.dead || target.hp <= 0) return 1.0;
+    // Personal turret amplification: Astra deals +70% extra damage while positioned within Celestial Ward!
+    if (attacker && attacker.shipId === 'astra') {
+      const s = attacker.astra;
+      if (s && s.wardRemaining > 0) {
+        const radius = BASE.wardRadius * modifiers(attacker).areaFactor;
+        if (within({ x: s.wardX, y: s.wardY }, attacker, radius)) {
+          return 1.70;
+        }
+      }
+      return 1.0;
+    }
+    // Fallback: check all active Astra pilots
     for (const pilot of pilots(game)) {
       if (pilot?.shipId !== 'astra' || pilot.hp <= 0 || pilot.downed ||
           !pilot.astra || pilot.astra.wardRemaining <= 0) continue;
       const radius = BASE.wardRadius * modifiers(pilot).areaFactor;
-      if (within({ x: pilot.astra.wardX, y: pilot.astra.wardY }, target, radius)) {
-        return 1.40; // Enemies within celestial ward take +40% extra damage!
+      if (within({ x: pilot.astra.wardX, y: pilot.astra.wardY }, pilot, radius)) {
+        return 1.70;
       }
     }
     return 1.0;
@@ -568,6 +720,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     if (!validPilot(pilot) || game?.state !== 'playing' ||
         !Number.isFinite(timeSeconds)) return false;
     const s = state(pilot);
+    if (s.wardActive) return false; // 炮台重装定锚中能量锁闭，禁止闪现！
     if (s.blinkCharges < 1) return false;
     const dx = Number(direction?.x), dy = Number(direction?.y);
     const length = Math.hypot(dx, dy);
@@ -661,6 +814,18 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     }
     ctx.restore();
 
+    // 4.5. Inner Core Sanctuary (Repulsion Barrier & Bulletproof Core)
+    const coreR = radius * 0.45;
+    ctx.beginPath();
+    ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(216, 180, 254, ${0.16 + Math.sin(timeSec * 5) * 0.05})`;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(233, 213, 255, 0.9)';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
     // 5. Ambient Stardust Motes floating within ward boundary
     ctx.fillStyle = 'rgba(245, 243, 255, 0.7)';
     for (let i = 0; i < 4; i++) {
@@ -675,7 +840,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   }
   window.NeonAstra = Object.freeze({
     BASE, SPELLS, catalog, createState, state, regenOnHit,
-    tick, cast, wardReduction, wardDamageBonus, foldShield, tickShields, incomingDamage, blink, renderWard
+    tick, cast, finishWard, wardReduction, wardDamageBonus, foldShield, tickShields, incomingDamage, blink, renderWard
   });
 })();
 
@@ -1103,12 +1268,12 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
     const low = pilot?.hp <= (pilot?.maxHp || 95) * .4;
     return {
       maxMana: 100 + talisman * 20,
-      manaRegen: 2 + conduit * .65,
-      cooldownFactor: clamp(1 - focus * .06, .7, 1),
-      areaFactor: 1 + extent * .10,
-      markBonus: 1 + mark * .08,
-      dangerBonus: low ? 1 + danger * .08 : 1,
-      shieldReduction: low ? danger * .02 : 0,
+      manaRegen: 2 + conduit * 1.0,
+      cooldownFactor: clamp(1 - focus * .07, .65, 1),
+      areaFactor: 1 + extent * .12,
+      markBonus: 1 + mark * .10,
+      dangerBonus: low ? 1 + danger * .10 : 1,
+      shieldReduction: low ? danger * .03 : 0,
       refraction: rank(pilot, 'shield_refraction'),
       harmony: rank(pilot, 'dual_harmony')
     };
@@ -1787,6 +1952,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     shiftCooldown: 0,
     shiftDrainPerSecond: 20,        // Drains 20 ectoplasm per second
     shiftMinActivationEcto: 15,     // Minimum 15 ectoplasm required to enter
+    strikeEctoCost: 15,             // Spectral strike consumes 15 ectoplasm
+    maxShiftEctoplasmPerSecond: 8.0,// Hard cap on ectoplasm gained while shifted
     baseDashCharges: 2,
     maxDashCharges: 3,
     dashRecharge: 5.5,
@@ -1831,7 +1998,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     soul_gatherer: '幽灵专属武器每次命中额外回收灵质',
     death_reversal: '本局首次致命伤害触发一次紧急重构（已消耗则不再触发）',
     dual_mind: '提高灵质系统提供的暴击概率',
-    spectral_extend: '降低幽灵形态灵质消耗速度（每级-20%消耗），大幅延长维持时间',
+    spectral_extend: '降低幽灵形态灵质消耗速度（每级-20%消耗），并小幅提升潜行灵质吸收上限，大幅延长维持时间',
     soul_detonation: '提高烙印引爆范围与伤害',
     charge_overflow: '灵能超蓄：提高灵质上限25点并降低化身门槛至10灵质',
     ghost_trail: '潜行期间每0.36秒产生近距离冥火伤害与特效',
@@ -1905,7 +2072,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       lastEjectAt: -Infinity,
       slingshotBuffUntil: 0,
       shiftTrail: [], shiftTrailTimer: 0, shiftFlash: 0, reapFlash: 0,
-      sprintTimer: 0, sprintCooldown: 0, strikeCooldown: 0
+      sprintTimer: 0, sprintCooldown: 0, strikeCooldown: 0,
+      shiftEctoGainedThisSec: 0, shiftEctoTimer: 0
     };
   }
 
@@ -1920,8 +2088,19 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   function addEctoplasm(pilot, amount) {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || !Number.isFinite(amount) || amount <= 0) return 0;
+
+    let allowed = amount;
+    if (s.shiftActive) {
+      const extendTier = s.warpUpgrades?.spectral_extend || 0;
+      const maxPerSec = (BASE.maxShiftEctoplasmPerSecond || 8.0) + extendTier * 1.5;
+      const budgetLeft = Math.max(0, maxPerSec - (s.shiftEctoGainedThisSec || 0));
+      allowed = Math.min(amount, budgetLeft);
+      if (allowed <= 0) return 0;
+      s.shiftEctoGainedThisSec = (s.shiftEctoGainedThisSec || 0) + allowed;
+    }
+
     const bonusFlow = 1 + (s.passiveUpgrades.spiritual_flow || 0) * 0.15;
-    const gain = Math.min(s.maxEctoplasm - s.ectoplasm, amount * bonusFlow);
+    const gain = Math.min(s.maxEctoplasm - s.ectoplasm, allowed * bonusFlow);
     s.ectoplasm += gain;
     return gain;
   }
@@ -1958,6 +2137,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
     if (s.dashCharges > 0) s.dashCharges--;
     s.shiftActive = true;
+    s.shiftEctoGainedThisSec = 0;
+    s.shiftEctoTimer = 0;
     const extraDuration = (s.warpUpgrades.spectral_extend || 0) * 0.5;
     s.shiftRemaining = Math.max(BASE.shiftDuration + extraDuration, s.ectoplasm > 0 ? s.ectoplasm / 15 : 0);
     s.shiftTrail.length = 0;
@@ -2176,6 +2357,11 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     s.sprintTimer = Math.max(0, (s.sprintTimer || 0) - dt);
     s.sprintCooldown = Math.max(0, (s.sprintCooldown || 0) - dt);
     s.strikeCooldown = Math.max(0, (s.strikeCooldown || 0) - dt);
+    s.shiftEctoTimer = (s.shiftEctoTimer || 0) + dt;
+    if (s.shiftEctoTimer >= 1.0) {
+      s.shiftEctoTimer -= 1.0;
+      s.shiftEctoGainedThisSec = 0;
+    }
     for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
       s.shiftTrail[i].life -= dt;
       if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i,1);
@@ -2227,6 +2413,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
         }
       }
       s.shiftRemaining -= dt;
+      if (s.ectoplasm > 0) {
+        // As long as ectoplasm remains, prevent shift from prematurely ending
+        s.shiftRemaining = Math.max(s.shiftRemaining, 0.5);
+      }
       if (s.shiftRemaining <= 0 || (s.ectoplasm <= 0 && s.dashCharges <= 0)) {
         finishShift(pilot, game, false);
       }
@@ -2342,6 +2532,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (!validPilot(pilot) || game?.state !== 'playing') return false;
     const s = state(pilot);
     if (!s || (s.strikeCooldown || 0) > 0) return false;
+    const cost = BASE.strikeEctoCost || 15;
+    if ((s.ectoplasm || 0) < cost) return false;
+    s.ectoplasm -= cost;
     s.strikeCooldown = 4.5;
 
     const now = game.survivalTime || 0;
@@ -2368,8 +2561,6 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       e.freezeTimer = Math.max(e.freezeTimer || 0, 1.6);
       hitCount++;
     }
-
-    addEctoplasm(pilot, 8 + Math.min(6, hitCount));
 
     window.NeonPhantomVisual?.emit(pilot, 'beam',
       { x: pilot.x, y: pilot.y },
@@ -2498,7 +2689,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (!s || s.scythes.length >= MAX_ACTIVE_SCYTHES) return null;
 
     const baseDist = level >= 2 ? 290 : 230;
-    const damage = 18 + (level - 1) * 5;
+    const damage = 22 + (level - 1) * 7;
     const scythe = {
       x: pilot.x,
       y: pilot.y,
@@ -2794,7 +2985,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   function damage(pilot,game,enemy,base,source) {
     if (!alive(enemy)) return false;
     const hpPercent = enemy.hp / Math.max(enemy.maxHp || enemy.hp,1);
-    const execute = (rank(pilot,'execute_master') * (hpPercent < .35 ? .08 : 0));
+    const execute = (rank(pilot,'execute_master') * (hpPercent < .35 ? .12 : 0));
     const ecto = window.NeonPhantom?.state(pilot)?.ectoplasm || 0;
     const bonus = Math.min(.35, ecto / 500) + execute;
     game.dealDamage(enemy,base * (1 + bonus) * (pilot.dmgMultiplier || 1),source,

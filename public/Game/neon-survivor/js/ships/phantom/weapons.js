@@ -34,7 +34,7 @@
     if (!s || s.scythes.length >= MAX_ACTIVE_SCYTHES) return null;
 
     const baseDist = level >= 2 ? 290 : 230;
-    const damage = 18 + (level - 1) * 5;
+    const damage = 22 + (level - 1) * 7;
     const scythe = {
       x: pilot.x,
       y: pilot.y,

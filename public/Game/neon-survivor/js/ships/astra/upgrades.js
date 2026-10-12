@@ -35,12 +35,12 @@
     const low = pilot?.hp <= (pilot?.maxHp || 95) * .4;
     return {
       maxMana: 100 + talisman * 20,
-      manaRegen: 2 + conduit * .65,
-      cooldownFactor: clamp(1 - focus * .06, .7, 1),
-      areaFactor: 1 + extent * .10,
-      markBonus: 1 + mark * .08,
-      dangerBonus: low ? 1 + danger * .08 : 1,
-      shieldReduction: low ? danger * .02 : 0,
+      manaRegen: 2 + conduit * 1.0,
+      cooldownFactor: clamp(1 - focus * .07, .65, 1),
+      areaFactor: 1 + extent * .12,
+      markBonus: 1 + mark * .10,
+      dangerBonus: low ? 1 + danger * .10 : 1,
+      shieldReduction: low ? danger * .03 : 0,
       refraction: rank(pilot, 'shield_refraction'),
       harmony: rank(pilot, 'dual_harmony')
     };

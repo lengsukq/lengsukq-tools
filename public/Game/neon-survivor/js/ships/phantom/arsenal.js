@@ -23,7 +23,7 @@
   function damage(pilot,game,enemy,base,source) {
     if (!alive(enemy)) return false;
     const hpPercent = enemy.hp / Math.max(enemy.maxHp || enemy.hp,1);
-    const execute = (rank(pilot,'execute_master') * (hpPercent < .35 ? .08 : 0));
+    const execute = (rank(pilot,'execute_master') * (hpPercent < .35 ? .12 : 0));
     const ecto = window.NeonPhantom?.state(pilot)?.ectoplasm || 0;
     const bonus = Math.min(.35, ecto / 500) + execute;
     game.dealDamage(enemy,base * (1 + bonus) * (pilot.dmgMultiplier || 1),source,

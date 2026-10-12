@@ -45,36 +45,52 @@ game.enemies=Array.from({length:20},(_,i)=>({x:80+i*.1,y:0,hp:1000}));
 assert.equal(a.cast(wizard,game,'meteor'),true);
 assert.equal(hits.length,12,'Meteor AoE stops at 12 targets');
 assert.ok(hits.every(h=>h.owner===wizard&&h.damage===48&&h.source==='astra_meteor'));
-assert.equal(s.mana,50,'Meteor spends 22 mana; hit budget is exhausted');
-assert.equal(a.cast(wizard,game,'meteor'),false,'Cooldown prevents casting');
-assert.equal(s.cooldowns.meteor,3.2);
+assert.equal(s.mana,60,'Meteor spends 20 mana and refunds 8 for 12 hits (72 - 20 + 8 = 60)');
+
+// Zero cooldown: consecutive meteor cast is immediately allowed as long as mana permits!
+assert.equal(a.cast(wizard,game,'meteor'),true,'Zero cooldown allows immediate consecutive cast');
+assert.equal(s.mana,48,'Second meteor spends net 12 mana (60 - 12 = 48)');
+assert.equal(s.cooldowns.meteor,0);
+assert.equal(a.cast(wizard,game,'meteor'),true,'Third meteor');
+assert.equal(s.mana,36);
+assert.equal(a.cast(wizard,game,'meteor'),true,'Fourth meteor');
+assert.equal(s.mana,24);
+assert.equal(a.cast(wizard,game,'meteor'),true,'Fifth meteor');
+assert.equal(s.mana,12);
+assert.equal(a.cast(wizard,game,'meteor'),false,'Insufficient mana (12 < 20) prevents casting');
+
 wizard.level=12;
 a.tick(wizard,game,5);
 assert.equal(s.talentLevel,3);
 assert.equal(s.cooldowns.meteor,0);
-assert.equal(s.mana,60);
+assert.equal(s.mana,22);
 assert.equal(a.regenOnHit(wizard,one,16),5,'Talent lv3 returns 5 mana per target');
-assert.equal(s.mana,65);
+assert.equal(s.mana,27);
 
-// Distinct ward and meteor cooldowns; position-based protection only.
+// Distinct ward and meteor mechanics; mobile sanctuary follows caster.
 s.mana=100;
 assert.equal(a.cast(wizard,game,'ward'),true);
-assert.equal(s.mana,40);
-assert.equal(s.wardRemaining,5);
+assert.equal(s.mana,85);
+assert.equal(s.wardActive,true);
 assert.equal(a.wardReduction(game,partner),.25);
 assert.equal(a.wardReduction(game,far),0);
 assert.equal(a.wardReduction(game,dead),0);
 assert.equal(s.wardX,0);
 assert.equal(s.wardY,0);
+
 wizard.x=500;
-assert.equal(a.wardReduction(game,partner),.25,
-  'Sanctuary stays where cast rather than following the mage');
-assert.equal(a.wardReduction(game,wizard),0,
-  'Caster leaving the zone loses its damage reduction');
+a.tick(wizard,game,0.01);
+assert.equal(s.wardX,500,'Mobile sanctuary follows the wizard');
+assert.equal(a.wardReduction(game,partner),0,'Partner is now far from moving sanctuary');
 wizard.x=0;
+a.tick(wizard,game,0.01);
+assert.equal(s.wardX,0);
+assert.equal(a.wardReduction(game,partner),.25);
 assert.equal(a.incomingDamage(game,partner,100),75);
 assert.equal(a.incomingDamage(game,far,100),100);
-assert.equal(a.cast(wizard,game,'ward'),false);
+
+// Ward blocks blinking while active
+assert.equal(a.blink(wizard,game,{x:1,y:0},20),false,'Turret mode prevents blinking');
 
 // Phase self-guard never shields teammates; LAN resonance owns all team shields.
 s.warpUpgrades.phase_self_guard=1;
@@ -93,6 +109,13 @@ assert.equal(wizard.astraTempShield.value,20);
 a.tickShields(game,2.6);
 assert.equal(wizard.astraTempShield,null,'Temp shield expires after 2.5 seconds');
 
+// Toggling / finishing ward grants exit shield, speed boost, and initiates cooldown
+assert.equal(a.finishWard(wizard,game),true,'Finishing ward triggers exit protection');
+assert.equal(s.wardActive,false);
+assert.equal(wizard.astraTempShield.value,35,'Ward exit grants 35 temporary shield');
+assert.ok(s.kiteSpeedTimer>=2.0,'Ward exit grants speed boost');
+assert.ok(s.cooldowns.ward>0,'Ward enters cooldown after closing');
+
 // Blink uses separate 2→4 charges and never performs Riftblade path slashes.
 s.blinkCharges=2;
 s.warpUpgrades.star_gate=2;
@@ -107,7 +130,7 @@ assert.equal(a.blink(wizard,game,{x:0,y:0},31),false);
 assert.equal(s.blinkCharges,1);
 a.tick(wizard,game,5.1);
 assert.equal(s.blinkCharges,2);
-assert.equal(hits.length,12,'Blink and shields do not produce hidden attacks');
+assert.equal(hits.length,60,'Blink and shields do not produce hidden attacks');
 game.state='paused';
 const pausedMana=s.mana;
 a.tick(wizard,game,20);
