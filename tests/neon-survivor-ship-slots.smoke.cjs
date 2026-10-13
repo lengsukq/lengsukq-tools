@@ -23,7 +23,7 @@ for (const file of ['ships','ships.generated','core']) {
 const registry = ctx.window.NeonShips;
 const proto = vm.runInContext('NeonSurvivorGame.prototype',ctx);
 for (const [id, hp, speed, regen, skillCount] of [
-  ['riftblade',100,240,.8,0], ['astra',95,235,.8,2], ['phantom',85,260,.5,2]
+  ['riftblade',100,240,.8,0], ['astra',95,235,.8,2], ['phantom',92,265,.75,2]
 ]) {
   const ship = registry.get(id);
   assert.equal(ship.playable,true);

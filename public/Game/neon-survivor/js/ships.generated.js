@@ -363,7 +363,7 @@ window.NeonShips.registerRenderer('astra', (ctx, fighter, profile) => {
   function attackScale(pilot) {
     const baseMult = pilot?.dmgMultiplier || 1;
     const level = Math.max(1, pilot?.level || 1);
-    const levelScale = 1 + (level - 1) * 0.06;
+    const levelScale = 1 + (level - 1) * 0.02;
     if (pilot?._arsenalInDmgMult) return baseMult * levelScale;
     const weapTotal = Object.values(pilot?.weapons || {}).reduce((a, b) => a + (b || 0), 0);
     const extraWeap = Math.max(0, weapTotal - 1);
@@ -2423,7 +2423,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   function attackScale(pilot) {
     const baseMult = pilot?.dmgMultiplier || 1;
     const level = Math.max(1, pilot?.level || 1);
-    const levelScale = 1 + (level - 1) * 0.06;
+    const levelScale = 1 + (level - 1) * 0.02;
     if (pilot?._arsenalInDmgMult) return baseMult * levelScale;
     const weapTotal = Object.values(pilot?.weapons || {}).reduce((a, b) => a + (b || 0), 0);
     const extraWeap = Math.max(0, weapTotal - 1);

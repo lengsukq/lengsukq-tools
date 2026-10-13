@@ -769,6 +769,7 @@
           extraProjectiles: 0,
           dashSlashDmgMult: 1.0,
           dashSlashWidthMult: 1.0,
+          riftSurgeTimer: 0,
           hasPlasmaTrail: false,
           dashUpgrades: {},
           aegisTimer: 0,
@@ -1000,7 +1001,7 @@
 
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
           touchArea.style.display = 'block';
-          document.documentElement.classList.add('neon-touch-enabled');
+          document.documentElement?.classList?.add('neon-touch-enabled');
         }
 
         // Only one specific finger owns the joystick. Dash touches are independent.
@@ -1838,6 +1839,7 @@
         this.player.extraProjectiles = 0;
         this.player.dashSlashDmgMult = 1.0;
         this.player.dashSlashWidthMult = 1.0;
+        this.player.riftSurgeTimer = 0;
         this.player.hasPlasmaTrail = false;
         this.player.dashUpgrades = {};
         this.player.aegisTimer = 0;
@@ -2261,6 +2263,11 @@
               }
               this.sound?.playDash?.();
               this.lanCoop?.onHostDash();
+              window.NeonRogueEndless?.onDash(this);
+              const nearestEnemy = this.findNearestEnemy(180);
+              if (nearestEnemy) {
+                window.NeonRogueEndless?.onPreciseDash(this, nearestEnemy);
+              }
             }
           }
           return;
@@ -3657,6 +3664,7 @@
          6. WEAPON FIRING LOGIC
          ======================================================================== */
       findNearestEnemy(range = 700) {
+        if (!Array.isArray(this.enemies) || !this.enemies.length) return null;
         let nearest = null;
         let minDistSq = range * range;
         for (const e of this.enemies) {
@@ -4038,6 +4046,12 @@
           }
         }
 
+        // Riftblade Assault Surge: +30% damage boost following a warp slash
+        const isRiftblade = !attacker?.shipId || attacker?.shipId === 'riftblade';
+        if (isRiftblade && (attacker?.riftSurgeTimer || 0) > 0) {
+          finalDamage *= 1.30;
+        }
+
         target.hp -= finalDamage;
         this.totalDamageDealt += finalDamage;
         if (this.endlessMode) window.NeonRogueFusions?.onDamage(this, target, finalDamage, source);
@@ -4313,7 +4327,7 @@
 
         // "时间越到后面 越难才对"：后期间隙与怪物硬度随时间平滑阶梯攀升（已放缓）
         const timeMin = this.survivalTime / 60;
-        const timeEscalation = 1.0 + timeMin * 0.14 + Math.pow(Math.max(0, timeMin - 3.0), 1.35) * 0.15;
+        const timeEscalation = 1.0 + timeMin * 0.15 + Math.pow(Math.max(0, timeMin - 3.5), 1.20) * 0.10;
 
         return timeEscalation * (1.0 + Math.max(0, potency));
       }
@@ -4329,10 +4343,10 @@
         this.spawnTimer += dt;
 
         const timeMin = this.survivalTime / 60;
-        // As time advances, spawn interval accelerates from 1.25s down to 0.12s
+        // As time advances, spawn interval accelerates from 1.25s down to 0.16s
         const coopSpawnMultiplier = window.NeonLanEncounters?.active(this)
           ? window.NeonLanEncounters.TUNING.spawnInterval : 1;
-        const spawnInterval = Math.max(0.12, (1.25 - timeMin * 0.12) /
+        const spawnInterval = Math.max(0.16, (1.25 - timeMin * 0.12) /
           this.getDifficultyRules().enemyCount * coopSpawnMultiplier);
 
         // Boss spawn at 3 minutes (180s), and periodically in endless mode
@@ -4907,6 +4921,9 @@
         if (this.player.lastSlashFx && this.player.lastSlashFx.life > 0) {
           this.player.lastSlashFx.life = Math.max(0, this.player.lastSlashFx.life - dt);
         }
+        if (this.player.riftSurgeTimer > 0) {
+          this.player.riftSurgeTimer = Math.max(0, this.player.riftSurgeTimer - dt);
+        }
 
         // Dash 3-Charge Recharge System
         if (this.player.shipId === 'phantom') {
@@ -5029,6 +5046,23 @@
             if (!this.player.dashPreciseHit) {
               this.player.dashCombo = 0;
               this.player.dashComboUntil = 0;
+            }
+
+            // Riftblade Assault Surge stance (+30% weapon damage) and landing safety repulsion
+            if (!this.player.shipId || this.player.shipId === 'riftblade') {
+              this.player.riftSurgeTimer = 2.5;
+              for (const e of this.enemies) {
+                if (!e.isBoss && !e.isElite && !e.dead) {
+                  const bdx = e.x - this.player.x;
+                  const bdy = e.y - this.player.y;
+                  const distSq = bdx * bdx + bdy * bdy;
+                  if (distSq < 48 * 48 && distSq > 0) {
+                    const d = Math.sqrt(distSq);
+                    e.vx += (bdx / d) * 180;
+                    e.vy += (bdy / d) * 180;
+                  }
+                }
+              }
             }
 
             // Trigger Destination Nova Blast if upgraded!

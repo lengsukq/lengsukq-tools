@@ -31,7 +31,7 @@ const game = Object.create(proto);
 game.state = 'playing';
 game.touch = {active:true, identifier:1};
 const casts = [];
-for (const fn of ['castAstraWard','castAstraMeteor','triggerPhantomStrike','togglePhantomDock','triggerDash']) {
+for (const fn of ['castAstraWard','castAstraMeteor','triggerPhantomVortex','togglePhantomDock','triggerDash']) {
   game[fn] = () => casts.push(fn);
 }
 game.setupTouchControls();
@@ -59,7 +59,7 @@ assert.deepEqual(press('btn-skill-dock','lan-client'),{prevented:true,stopped:tr
 assert.deepEqual(press('btn-skill-blink','playing'),{prevented:true,stopped:true});
 assert.equal(press('btn-skill-ward','levelup').prevented,false);
 assert.deepEqual(casts,[
-  'castAstraWard','castAstraMeteor','triggerPhantomStrike','togglePhantomDock','triggerDash'
+  'castAstraWard','castAstraMeteor','triggerPhantomVortex','togglePhantomDock','triggerDash'
 ], 'touchstart dispatches each tactical skill while movement joystick is held');
 
 vm.runInContext(fs.readFileSync(root+'js/network/prediction.js','utf8'),context);

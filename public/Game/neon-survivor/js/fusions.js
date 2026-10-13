@@ -11,13 +11,31 @@
     { id: 'phase_blade_dance', name: '时空刃舞', rarity: 'legendary', requires: ['orbit', 'dash_charge'],
       desc: '精准折跃穿透时，激发相位刃追斩附近敌群。' },
     { id: 'gravity_reversal', name: '引力反转', rarity: 'legendary', requires: ['nova', 'blackhole'],
-      desc: '超新星爆发前拉拢敌人，冲击伤害强化并扩散减速。' }
+      desc: '超新星爆发前拉拢敌人，冲击伤害强化并扩散减速。' },
+    { id: 'celestial_tempest', name: '天界风暴', rarity: 'legendary', requires: ['star_weave', 'tesla'],
+      desc: '星梭连线触发连锁雷暴，星网坍缩时引发大范围电浆轰击。' },
+    { id: 'soul_devourer', name: '噬魂黑洞', rarity: 'legendary', requires: ['phantom_scythe', 'blackhole'],
+      desc: '黑洞吸引死印目标时产生暗影殉爆，造成大量湮灭伤害。' }
   ]);
   const map = new Map(recipes.map(r => [r.id, r]));
   const owns = (game, id) => Boolean(game.endlessState?.fusions?.includes(id));
-  const level = (game, id) => (id.startsWith('dash_')
-    ? (game.player.dashUpgrades?.[id] || 0)
-    : (game.player.weapons?.[id] || 0));
+  const level = (game, id) => {
+    const p = game.player;
+    if (id === 'dash_fire') {
+      return (p.dashUpgrades?.dash_fire || 0) ||
+        (p.astra?.warpUpgrades?.star_gate || 0) ||
+        (p.phantom?.warpUpgrades?.void_step || 0) ||
+        Object.values(p.dashUpgrades || p.astra?.warpUpgrades || p.phantom?.warpUpgrades || {}).reduce((a, b) => a + (b || 0), 0);
+    }
+    if (id === 'dash_charge') {
+      return (p.dashUpgrades?.dash_charge || 0) ||
+        (p.astra?.warpUpgrades?.phase_shift || 0) ||
+        (p.phantom?.warpUpgrades?.charge_overflow || 0) ||
+        Object.values(p.dashUpgrades || p.astra?.warpUpgrades || p.phantom?.warpUpgrades || {}).reduce((a, b) => a + (b || 0), 0);
+    }
+    if (id.startsWith('dash_')) return p.dashUpgrades?.[id] || 0;
+    return (p.weapons?.[id] || 0) || (p.passives?.[id] || 0);
+  };
 
   function available(game) {
     if (!game.endlessMode) return [];
@@ -35,6 +53,8 @@
     if (owns(game, 'storm_lance') && (source === 'laser' || source === 'tesla')) mult *= 1.15;
     if (owns(game, 'singularity_swarm') && source === 'missile') mult *= 1.22;
     if (owns(game, 'gravity_reversal') && source === 'nova') mult *= 1.20;
+    if (owns(game, 'celestial_tempest') && (source === 'tesla' || source.startsWith('astra_'))) mult *= 1.20;
+    if (owns(game, 'soul_devourer') && (source === 'blackhole' || source.startsWith('phantom_'))) mult *= 1.20;
     return damage * mult;
   }
   function onDamage(game, target, finalDamage, source) {
@@ -55,6 +75,14 @@
       st.thermalReadyAt = game.survivalTime + 0.70;
       target.freezeTimer = 0;
       burst(game, target, 115, 125, '#ff8855');
+    } else if (owns(game, 'celestial_tempest') && (source.startsWith('astra_') || source === 'tesla')) {
+      if (game.survivalTime < (st.tempestReadyAt || 0)) return;
+      st.tempestReadyAt = game.survivalTime + 0.45;
+      burst(game, target, 120, 95, '#00f3ff');
+    } else if (owns(game, 'soul_devourer') && (source.startsWith('phantom_') || source === 'blackhole')) {
+      if (game.survivalTime < (st.devourReadyAt || 0)) return;
+      st.devourReadyAt = game.survivalTime + 0.55;
+      burst(game, target, 135, 110, '#a855f7');
     }
   }
   function burst(game, target, radius, damage, color) {

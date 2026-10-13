@@ -4,12 +4,13 @@
   const definitions = Object.freeze([
     { id: 'hunt', name: '清剿令', desc: '55秒内击败35名普通敌人', duration: 55, goal: 35, kind: 'normalKills' },
     { id: 'elites', name: '猎首行动', desc: '65秒内击破3名精英敌人', duration: 65, goal: 3, kind: 'eliteKills' },
-    { id: 'precision', name: '相位试炼', desc: '45秒内完成3次精准折跃', duration: 45, goal: 3, kind: 'precise' },
+    { id: 'precision', name: '相位试炼', desc: '45秒内完成3次精准折跃/相位穿梭', duration: 45, goal: 3, kind: 'precise' },
     { id: 'endurance', name: '坚持防线', desc: '存活45秒，坚持到底', duration: 45, goal: 45, kind: 'survive' },
     { id: 'untouched', name: '无伤突袭', desc: '40秒内不受到伤害', duration: 40, goal: 40, kind: 'noDamage' },
-    { id: 'no_dash', name: '禁跃挑战', desc: '35秒内不使用折跃', duration: 35, goal: 35, kind: 'noDash' },
+    { id: 'no_dash', name: '禁跃挑战', desc: '35秒内不使用折跃/闪现/潜行', duration: 35, goal: 35, kind: 'noDash' },
     { id: 'massacre', name: '血色潮汐', desc: '60秒内击败60名非Boss敌人', duration: 60, goal: 60, kind: 'allKills' },
-    { id: 'ambush', name: '精锐伏击', desc: '50秒内击破2名精英，战场补充精英单位', duration: 50, goal: 2, kind: 'eliteKills' }
+    { id: 'ambush', name: '精锐伏击', desc: '50秒内击破2名精英，战场补充精英单位', duration: 50, goal: 2, kind: 'eliteKills' },
+    { id: 'resonance_strike', name: '共振强袭', desc: '50秒内消灭4名被死印、星网或易伤影响的敌人', duration: 50, goal: 4, kind: 'resonance' }
   ]);
   const byId = new Map(definitions.map(d => [d.id, d]));
   function begin(game, random = Math.random) {
@@ -58,6 +59,7 @@
     if (kind === 'normalKills' && !enemy.isBoss && !enemy.isElite) event.progress++;
     if (kind === 'allKills' && !enemy.isBoss) event.progress++;
     if (kind === 'eliteKills' && enemy.isElite) event.progress++;
+    if (kind === 'resonance' && (enemy.marked || enemy.phantomMarked || (game.player?.astraArsenal?.marks?.has(enemy)) || (game.player?.riftSurgeTimer || 0) > 0)) event.progress++;
   }
   function onPreciseDash(game) {
     const event = game.endlessState?.event;

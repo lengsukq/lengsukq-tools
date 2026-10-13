@@ -196,7 +196,6 @@
         size -= JSON.stringify(last).length + (items.length > 1 ? 1 : 0);
         items.pop();
       }
-      this.roundId = packet.round;
       if (size <= LIMIT) return frame;
     }
     // Bosses survive priority culling; trim only regular enemies.

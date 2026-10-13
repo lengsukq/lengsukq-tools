@@ -17,7 +17,9 @@
     { id: 'danger_reactor', name: '孤注一掷', rarity: 'legendary', desc: '低于30%生命时伤害 +55%，不额外提供无敌。' },
     { id: 'piercing_emitter', name: '聚焦激光', rarity: 'common', desc: '激光伤害 +30%。' },
     { id: 'fusion_catalyst', name: '融合催化剂', rarity: 'legendary', desc: '已融合武器或折跃攻击伤害额外提升20%。' },
-    { id: 'magnet_cache', name: '拾荒缓存', rarity: 'common', desc: '获取时恢复15点生命并获得20晶体。' }
+    { id: 'magnet_cache', name: '拾荒缓存', rarity: 'common', desc: '获取时恢复15点生命并获得20晶体。' },
+    { id: 'void_resonance', name: '虚空共振仪', rarity: 'rare', desc: '敌人受到星网连线、死印或破虚突击影响时，承受伤害额外 +25%。' },
+    { id: 'warp_capacitor', name: '跃迁电容', rarity: 'legendary', desc: '处于折跃、闪现或潜行姿态时，伤害提升 28%。' }
   ]);
   const byId = new Map(definitions.map(def => [def.id, def]));
   const owns = (game, id) => Boolean(game.endlessState?.relics?.includes(id));
@@ -63,15 +65,28 @@
     if (owns(game, 'frost_core') && (target.freezeTimer || 0) > 0) multiplier *= 1.28;
     if (owns(game, 'overload_gauge') && p.hp <= p.maxHp * 0.5) multiplier *= 1.25;
     if (owns(game, 'danger_reactor') && p.hp <= p.maxHp * 0.3) multiplier *= 1.55;
-    if (owns(game, 'phase_hunter') && source === 'dash') multiplier *= 1.40;
-    if (owns(game, 'ember_engine') && source === 'fire') multiplier *= 1.45;
-    if (owns(game, 'orbital_matrix') && (source === 'orbit' || source === 'dash')) multiplier *= 1.25;
-    if (owns(game, 'ammo_forge') && (source === 'missile' || source === 'blaster')) multiplier *= 1.22;
-    if (owns(game, 'piercing_emitter') && source === 'laser') multiplier *= 1.30;
+    if (owns(game, 'phase_hunter') && (source === 'dash' || source === 'astra_fold' || source === 'phantom_eject' || source === 'phantom_scythe')) multiplier *= 1.40;
+    if (owns(game, 'ember_engine') && (source === 'fire' || source === 'astra_meteor' || source === 'astra_singularity')) multiplier *= 1.45;
+    if (owns(game, 'orbital_matrix') && (source === 'orbit' || source === 'dash' || source === 'astra_weave_link' || source === 'phantom_orb_decay')) multiplier *= 1.25;
+    if (owns(game, 'ammo_forge') && (source === 'missile' || source === 'blaster' || source === 'astra_weave_bolt' || source === 'astra_weave_burst' || source === 'phantom_orb_impact' || source === 'phantom_dart')) multiplier *= 1.22;
+    if (owns(game, 'piercing_emitter') && (source === 'laser' || source === 'astra_skyfall' || source === 'phantom_beam')) multiplier *= 1.30;
     if (owns(game, 'reaper_momentum') && game.survivalTime <= (game.endlessState.killStreakUntil || 0)) {
       multiplier *= 1 + Math.min(0.3, (game.endlessState.killStreak || 0) * 0.03);
     }
-    if (owns(game, 'fusion_catalyst') && (game.endlessState.fusions?.length || 0) && ['dash', 'laser', 'tesla', 'missile', 'cryo', 'fire', 'nova', 'fusion'].includes(source)) multiplier *= 1.20;
+    if (owns(game, 'void_resonance')) {
+      const isMarked = target.marked || target.phantomMarked ||
+        (p.astraArsenal?.marks?.has(target) && (p.astraArsenal.marks.get(target) || 0) > (game.survivalTime || 0)) ||
+        (p.riftSurgeTimer || 0) > 0;
+      if (isMarked) multiplier *= 1.25;
+    }
+    if (owns(game, 'warp_capacitor') && (p.invulnTimer > 0 || (p.riftSurgeTimer || 0) > 0 || p.dashTimeLeft > 0 || p.phantom?.shiftActive)) {
+      multiplier *= 1.28;
+    }
+    if (owns(game, 'fusion_catalyst') && (game.endlessState.fusions?.length || 0) &&
+        (['dash', 'laser', 'tesla', 'missile', 'cryo', 'fire', 'nova', 'fusion'].includes(source) ||
+         source.startsWith('astra_') || source.startsWith('phantom_'))) {
+      multiplier *= 1.20;
+    }
     return amount * multiplier;
   }
   function onKill(game, enemy, source) {
