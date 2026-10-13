@@ -685,12 +685,14 @@
       if (this.rtc.role === 'host' && message?.type === 'ship_action') {
         if (!sender || sender.shipId !== 'phantom' ||
             this.game.state !== 'playing' || sender.downed || sender.hp <= 0 ||
-            !['dock_toggle','strike'].includes(message.action) ||
+            !['dock_toggle','strike','sprint','vortex'].includes(message.action) ||
             !Number.isSafeInteger(message.seq) || message.seq < 0 ||
             message.seq <= (sender.lastShipActionSeq ?? -1)) return;
         sender.lastShipActionSeq = message.seq;
-        if (message.action === 'strike') {
-          window.NeonShips?.runAbility?.(sender, 'onAction', this.game, 'strike');
+        if (message.action === 'sprint') {
+          window.NeonShips?.runAbility?.(sender, 'onAction', this.game, 'sprint');
+        } else if (message.action === 'vortex' || message.action === 'strike') {
+          window.NeonShips?.runAbility?.(sender, 'onAction', this.game, 'vortex');
         } else if (sender.phantom?.docked) {
           window.NeonShips?.runAbility?.(sender, 'onAction', this.game,
             {kind:'undock',eject:true});
@@ -1364,7 +1366,7 @@
     requestGuestShipAction(action) {
       if (!this.guestMode || !this.rtc.connected ||
           this.latest?.phase !== 'playing' || this.latest?.guest?.shipId !== 'phantom' ||
-          this.latest?.guest?.downed || !['dock_toggle','strike'].includes(action)) return false;
+          this.latest?.guest?.downed || !['dock_toggle','strike','sprint','vortex'].includes(action)) return false;
       return this.rtc.send({ type: 'ship_action', seq: this.seq++, action });
     }
     updateGuest(dt) {
@@ -1450,11 +1452,11 @@
         const ship = this.latest.guest?.shipId;
         if (currentAbility.x && !prevAbility.x) {
           if (ship === 'astra') this.game.castAstraWard?.();
-          else if (ship === 'phantom') this.game.triggerPhantomStrike?.();
+          else if (ship === 'phantom') this.game.triggerPhantomSprint?.();
         }
         if (currentAbility.y && !prevAbility.y) {
           if (ship === 'astra') this.game.castAstraMeteor?.();
-          else if (ship === 'phantom') this.game.togglePhantomDock?.();
+          else if (ship === 'phantom') this.game.triggerPhantomVortex?.();
         }
       }
       // Predict local steering immediately (display-only, no damage or kills).

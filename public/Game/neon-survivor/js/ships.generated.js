@@ -2286,10 +2286,12 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     sprintDuration: 3.0,
     sprintCooldown: 4.5,
     sprintSpeedBonus: 0.75,         // Fixed +75% move speed during sprint
-    vortexDuration: 2.6,            // Follows player for 2.6s pulling enemies inward
+    vortexDuration: 2.6,            // Active field duration
     vortexCooldown: 6.0,
-    vortexRadius: 260,
-    vortexPullSpeed: 320,
+    vortexRadius: 260,              // Large pull radius when in stealth
+    repelRadius: 155,               // Smaller push/repel radius when out of stealth
+    vortexPullSpeed: 320,           // Pull speed when in stealth
+    vortexPushSpeed: 380,           // Push speed when out of stealth
     vortexSlowDuration: 1.8,
     dockMaxDistance: 150,
     dockMaxDuration: 14.0,          // 14s symbiote overheat cycle for active co-op rhythm
@@ -2315,10 +2317,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     apocalypse_scythe: '周期性大范围终焉镰刀斩击，最多影响16个敌人',
     abyssal_possession: '向最近敌人释放有单次上限的高伤侵蚀，普通敌人还会减速',
     phantom_core: '每级提升 +9% 暴击率 与 +12% 死印引爆伤害（最高 +45% 暴击率、+60% 引爆伤害）',
-    spiritual_flow: '每级提升 +14% 潜行充能恢复速度，并缩短 [J] 幽影疾行与 [K] 虚空聚拢冷却时间 -8%/级',
+    spiritual_flow: '每级提升 +14% 潜行充能恢复速度，并缩短 [J] 幽影疾行与 [K] 虚空力场冷却时间 -8%/级',
     stealth_armor: '潜行期间及低生命时提升生命自愈速度（每级 +0.35/s）',
     execute_master: '对生命低于 35% 或带有【灵魂死印】的敌人，幽灵专属武器伤害提高',
-    symbiosis_link: '每级扩大 [K] 虚空聚拢的牵引范围 +15% 与聚怪减速时长，同时提升联机共生支援效果',
+    symbiosis_link: '每级扩大 [K] 虚空力场的聚怪/推斥范围 +15% 与减速时长，同时提升联机共生支援效果',
     soul_gatherer: '专属武器每次命中带有【灵魂死印】的敌人，额外缩减潜行充能冷却并提高暴击伤害',
     death_reversal: '本局首次致命伤害触发紧急重构免死并回血',
     dual_mind: '处于 潜行 或 幽影疾行（加速） 状态时，全局暴击率额外提升 +5%/级，攻击速度/伤害提升',
@@ -2726,7 +2728,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     return true;
   }
 
-  // [K] 虚空聚拢: Player-following gravity vortex aura (0 energy cost, CD only)
+  // [K] 虚空力场: Player-following gravity vortex (Stealth = Pull Inward / Non-stealth = Repel Outward)
   function vortexPull(pilot, game) {
     if (!validPilot(pilot) || game?.state !== 'playing') return false;
     const s = state(pilot);
@@ -2742,8 +2744,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     s.vortexPulseTimer = 0.25;
 
     const now = game.survivalTime || 0;
-    const vRadius = (BASE.vortexRadius || 260) * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
-    const minDist = s.shiftActive ? 6 : ((pilot.radius || 16) + 26);
+    const isShift = Boolean(s.shiftActive);
+    // In stealth: large pull radius (260px). Out of stealth: smaller push radius (155px).
+    const baseR = isShift ? (BASE.vortexRadius || 260) : (BASE.repelRadius || 155);
+    const vRadius = baseR * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
     const vScale = attackScale(pilot);
     const initDamage = (28 + (pilot.level || 1) * 3.5) * vScale;
     let hitCount = 0;
@@ -2754,26 +2758,41 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       const dy = pilot.y - e.y;
       const dist = Math.hypot(dx, dy);
       if (dist > vRadius) continue;
-      if (dist > minDist && dist > 1) {
-        const pullFraction = e.isBoss ? 0.20 : 0.45;
-        const step = Math.min(dist - minDist, dist * pullFraction);
-        e.x += (dx / dist) * step;
-        e.y += (dy / dist) * step;
+
+      if (isShift) {
+        // 潜行状态：强力聚怪向自身拉拢
+        const minDist = 6;
+        if (dist > minDist && dist > 1) {
+          const pullFraction = e.isBoss ? 0.20 : 0.45;
+          const step = Math.min(dist - minDist, dist * pullFraction);
+          e.x += (dx / dist) * step;
+          e.y += (dy / dist) * step;
+        }
+        if (within(e, pilot, (e.radius || 14) + (pilot.radius || 16) + 22)) {
+          markEnemy(pilot, e, now);
+        }
+      } else {
+        // 非潜行状态：较小范围防暴毙推力排开敌人
+        if (dist > 0.1) {
+          const pushAmount = e.isBoss ? 45 : 110;
+          e.x -= (dx / dist) * pushAmount;
+          e.y -= (dy / dist) * pushAmount;
+        }
       }
+
       game.dealDamage(e, initDamage, 'phantom_vortex', false, pilot);
       e.freezeTimer = Math.max(e.freezeTimer || 0, 1.8 + linkLvl * 0.40);
-      if (s.shiftActive && within(e, pilot, (e.radius || 14) + (pilot.radius || 16) + 22)) {
-        markEnemy(pilot, e, now);
-      }
       if (++hitCount >= 24) break;
     }
 
-    window.NeonPhantomVisual?.emit(pilot, 'vortex', pilot, null, vRadius, 0.55);
+    const fxKind = isShift ? 'vortex' : 'repel';
+    window.NeonPhantomVisual?.emit(pilot, fxKind, pilot, null, vRadius, 0.55);
     if ((game.shockwaves?.length || 0) < 40) {
       game.shockwaves.push({
         x: pilot.x, y: pilot.y,
-        radius: 15, maxRadius: vRadius * 0.85,
-        color: '#a855f7', alpha: 0.85
+        radius: 15, maxRadius: vRadius * 0.88,
+        color: isShift ? '#a855f7' : '#00f0ff',
+        alpha: 0.85
       });
     }
     return true;
@@ -2823,30 +2842,45 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       }
     }
 
-    // Player-following Void Vortex Aura: follows pilot coordinates
+    // Player-following Void Field Aura: follows pilot coordinates
     if ((s.vortexTimer || 0) > 0) {
       s.vortexTimer = Math.max(0, s.vortexTimer - dt);
       const linkLvl = s.passiveUpgrades.symbiosis_link || pilot.passives?.symbiosis_link || 0;
-      const vRadius = (BASE.vortexRadius || 260) * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
-      const minDist = s.shiftActive ? 6 : ((pilot.radius || 16) + 26);
-      let pulled = 0;
+      const isShift = Boolean(s.shiftActive);
+      // In stealth: large pull radius (260px). Out of stealth: smaller push radius (155px).
+      const baseR = isShift ? (BASE.vortexRadius || 260) : (BASE.repelRadius || 155);
+      const vRadius = baseR * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
+      let affected = 0;
+
       for (const enemy of game.enemies || []) {
         if (!enemy || enemy.dead || enemy.hp <= 0) continue;
         const dx = pilot.x - enemy.x;
         const dy = pilot.y - enemy.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > vRadius || dist < 1) continue;
-        if (dist > minDist) {
-          const pullRate = (enemy.isBoss ? 90 : (BASE.vortexPullSpeed || 320)) * (1 + (vRadius - dist) / vRadius * 0.45);
-          const step = Math.min(dist - minDist, pullRate * dt);
-          enemy.x += (dx / dist) * step;
-          enemy.y += (dy / dist) * step;
+        if (dist > vRadius || dist < 0.1) continue;
+
+        if (isShift) {
+          // 潜行状态：向心吸怪聚拢
+          const minDist = 6;
+          if (dist > minDist) {
+            const pullRate = (enemy.isBoss ? 90 : (BASE.vortexPullSpeed || 320)) * (1 + (vRadius - dist) / vRadius * 0.45);
+            const step = Math.min(dist - minDist, pullRate * dt);
+            enemy.x += (dx / dist) * step;
+            enemy.y += (dy / dist) * step;
+          }
+          if (within(enemy, pilot, (enemy.radius || 14) + (pilot.radius || 16) + 22)) {
+            markEnemy(pilot, enemy, now);
+          }
+        } else {
+          // 非潜行状态：离心推开排斥
+          const pushRate = (enemy.isBoss ? 90 : (BASE.vortexPushSpeed || 380));
+          const step = pushRate * dt;
+          enemy.x -= (dx / dist) * step;
+          enemy.y -= (dy / dist) * step;
         }
+
         enemy.freezeTimer = Math.max(enemy.freezeTimer || 0, 0.5);
-        if (s.shiftActive && within(enemy, pilot, (enemy.radius || 14) + (pilot.radius || 16) + 22)) {
-          markEnemy(pilot, enemy, now);
-        }
-        if (++pulled >= 24) break;
+        if (++affected >= 24) break;
       }
 
       s.vortexPulseTimer = (s.vortexPulseTimer || 0) - dt;
@@ -2859,7 +2893,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
           game.dealDamage(enemy, pulseDmg, 'phantom_vortex', false, pilot);
           if (++hitCount >= 20) break;
         }
-        window.NeonPhantomVisual?.emit(pilot, 'vortex', pilot, null, vRadius, 0.42);
+        const fxKind = isShift ? 'vortex' : 'repel';
+        window.NeonPhantomVisual?.emit(pilot, fxKind, pilot, null, vRadius, 0.42);
       }
     }
 
@@ -3642,6 +3677,31 @@ const NeonPhantomVisual = (() => {
         ctx.beginPath();
         ctx.arc(event.x2, event.y2, 4 * alpha, 0, Math.PI * 2);
         ctx.fill();
+      } else if (event.kind === 'repel') {
+        const progress = 1 - alpha;
+        ctx.strokeStyle = '#00f0ff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 18;
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.arc(event.x, event.y, radius * (0.35 + 0.65 * progress), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.20 * alpha;
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        ctx.arc(event.x, event.y, radius * (0.2 + 0.8 * progress), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.0;
+        for (let sp = 0; sp < 8; sp++) {
+          const spAng = (sp * Math.PI) / 4 + progress * 0.4;
+          const r1 = radius * 0.45;
+          const r2 = radius * (0.7 + 0.3 * progress);
+          ctx.beginPath();
+          ctx.moveTo(event.x + Math.cos(spAng) * r1, event.y + Math.sin(spAng) * r1);
+          ctx.lineTo(event.x + Math.cos(spAng) * r2, event.y + Math.sin(spAng) * r2);
+          ctx.stroke();
+        }
       } else if (event.kind === 'vortex') {
         ctx.strokeStyle = '#a855f7';
         ctx.shadowColor = '#00f0ff';
@@ -3834,46 +3894,91 @@ function drawPhantomShift(ctx, spectral) {
     ctx.restore();
   }
 
-  // 3b. Player-Following Void Vortex Field (when [K] 虚空聚拢 is active)
+  // 3b. Player-Following Void Field (when [K] is active: stealth = inward vortex / non-stealth = outward repulsion)
   if (vortexing && Number.isFinite(spectral.x) && Number.isFinite(spectral.y)) {
     const vx = spectral.x;
     const vy = spectral.y;
-    const vR = 220;
-    const pullCycle = (nowSec * 1.8) % 1;
-    const collapseR = vR * (1 - pullCycle * 0.72);
+    const isShift = Boolean(spectral.shiftActive);
 
     ctx.save();
     ctx.translate(vx, vy);
 
-    // Outer boundary ring
-    ctx.globalAlpha = 0.42;
-    ctx.strokeStyle = '#a855f7';
-    ctx.shadowColor = '#a855f7';
-    ctx.shadowBlur = 14;
-    ctx.lineWidth = 2.0;
-    ctx.beginPath();
-    ctx.arc(0, 0, vR, 0, Math.PI * 2);
-    ctx.stroke();
+    if (isShift) {
+      // 潜行状态：大范围引力内聚漩涡 (半径 220px)
+      const vR = 220;
+      const pullCycle = (nowSec * 1.8) % 1;
+      const collapseR = vR * (1 - pullCycle * 0.72);
 
-    // Collapsing gravity suction wave ring
-    ctx.globalAlpha = (1 - pullCycle) * 0.65;
-    ctx.strokeStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.arc(0, 0, collapseR, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 6 Rotating inward spiral gravity arms
-    for (let arm = 0; arm < 6; arm++) {
-      const a = -nowSec * 4.2 + (arm * Math.PI) / 3;
-      ctx.globalAlpha = 0.55;
-      ctx.strokeStyle = arm % 2 === 0 ? '#00f0ff' : '#d946ef';
+      // Outer boundary ring
+      ctx.globalAlpha = 0.42;
+      ctx.strokeStyle = '#a855f7';
+      ctx.shadowColor = '#a855f7';
+      ctx.shadowBlur = 14;
       ctx.lineWidth = 2.0;
       ctx.beginPath();
-      ctx.arc(0, 0, vR * 0.55, a, a + 0.65);
+      ctx.arc(0, 0, vR, 0, Math.PI * 2);
       ctx.stroke();
+
+      // Collapsing gravity suction wave ring
+      ctx.globalAlpha = (1 - pullCycle) * 0.65;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, collapseR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 6 Rotating inward spiral gravity arms
+      for (let arm = 0; arm < 6; arm++) {
+        const a = -nowSec * 4.2 + (arm * Math.PI) / 3;
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = arm % 2 === 0 ? '#00f0ff' : '#d946ef';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(0, 0, vR * 0.55, a, a + 0.65);
+        ctx.stroke();
+      }
+    } else {
+      // 非潜行状态：较小范围排斥冲击力场 (半径 135px)
+      const rR = 135;
+      const pushCycle = (nowSec * 2.2) % 1;
+      const expandR = rR * (0.28 + pushCycle * 0.72);
+
+      // Boundary shield ring
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, rR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Outward expanding repulsion wave ring
+      ctx.globalAlpha = (1 - pushCycle) * 0.72;
+      ctx.strokeStyle = '#e879f9';
+      ctx.shadowColor = '#c084fc';
+      ctx.shadowBlur = 15;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, expandR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Outward kinetic force arrows
+      for (let arm = 0; arm < 6; arm++) {
+        const a = nowSec * 2.5 + (arm * Math.PI) / 3;
+        ctx.globalAlpha = 0.52 * (1 - pushCycle * 0.5);
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 2.0;
+        const p1 = rR * 0.42;
+        const p2 = rR * 0.92;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * p1, Math.sin(a) * p1);
+        ctx.lineTo(Math.cos(a) * p2, Math.sin(a) * p2);
+        ctx.stroke();
+      }
     }
+
     ctx.restore();
   }
 

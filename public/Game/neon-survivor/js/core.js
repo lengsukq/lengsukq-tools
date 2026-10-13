@@ -1168,14 +1168,21 @@
                 e.preventDefault();
               }
             } else if (shipId === 'phantom') {
-              if (key === 'j') {
+              if (key === 'j' || e.code === 'KeyJ') {
                 this.triggerPhantomSprint();
                 e.preventDefault();
-              } else if (key === 'k') {
+              } else if (key === 'k' || e.code === 'KeyK') {
                 this.triggerPhantomVortex();
                 e.preventDefault();
-              } else if (key === 'q' || key === 'e') {
+              } else if (key === 'q' || e.code === 'KeyQ') {
                 this.togglePhantomDock();
+                e.preventDefault();
+              } else if (key === 'e' || e.code === 'KeyE') {
+                if (this.lanCoop?.ally || this.lanCoop?.latest?.host) {
+                  this.togglePhantomDock();
+                } else {
+                  this.triggerPhantomSprint();
+                }
                 e.preventDefault();
               }
             }
@@ -1720,25 +1727,35 @@
           return;
         }
 
-        // 3. Gameplay Controls (state === 'playing')
-        if (this.state === 'playing') {
+        // 3. Gameplay Controls (state === 'playing' or 'lan-client')
+        if (this.state === 'playing' || this.state === 'lan-client') {
+          const shipId = this.state === 'playing' ? this.player?.shipId :
+            this.lanCoop?.latest?.guest?.shipId;
+
           // Pause: Start button (9)
           if (justPressed(9)) {
-            this.pauseGame();
+            if (this.state === 'playing') this.pauseGame();
             this.finishGamepadMenuFrame(gp);
             return;
           }
-          if (this.player?.shipId === 'astra') {
-            if (justPressed(2)) this.castAstraWard();
-            if (justPressed(3)) this.castAstraMeteor();
+          if (shipId === 'astra') {
+            if (justPressed(2)) this.castAstraWard();   // X
+            if (justPressed(3)) this.castAstraMeteor(); // Y
           }
-          if (this.player?.shipId === 'phantom') {
-            if (justPressed(2)) this.triggerPhantomStrike();
-            if (justPressed(3)) this.togglePhantomDock();
+          if (shipId === 'phantom') {
+            if (justPressed(2)) this.triggerPhantomSprint(); // X -> 幽影疾行
+            if (justPressed(3)) this.triggerPhantomVortex(); // Y -> 虚空聚拢/推斥
+            // LB (4, co-op), Back/View (8), or L3 (10) -> 战术共生挂载/脱离
+            if (justPressed(8) || justPressed(10) || (justPressed(4) && (this.lanCoop?.ally || this.lanCoop?.latest?.host))) {
+              this.togglePhantomDock();
+            }
           }
 
-          // Dash Trigger: A (0), B (1), RB (5), RT (7), LB (4), LT (6)
-          if (justPressed(0) || justPressed(1) || justPressed(5) || justPressed(7) || justPressed(4) || justPressed(6)) {
+          // Dash Trigger: A (0), B (1), RB (5), RT (7), LT (6), and LB (4, when not reserved for co-op dock)
+          const isCoopDockTarget = shipId === 'phantom' && (this.lanCoop?.ally || this.lanCoop?.latest?.host);
+          const isDashPressed = justPressed(0) || justPressed(1) || justPressed(5) || justPressed(6) || justPressed(7) ||
+            (justPressed(4) && !isCoopDockTarget);
+          if (isDashPressed) {
             this.triggerDash();
             this.vibrateGamepad(120, 0.6, 0.3);
           }
@@ -2100,6 +2117,10 @@
       }
 
       triggerPhantomSprint() {
+        if (this.state === 'lan-client') {
+          if (this.settingsOpen || this.lanCoop?.latest?.guest?.downed) return false;
+          return this.lanCoop?.requestGuestShipAction('sprint') === true;
+        }
         if (!this.player || this.player.shipId !== 'phantom' || this.state !== 'playing' ||
             this.player.downed || this.player.hp <= 0) return false;
         const ghost = this.player.phantom;
@@ -2124,12 +2145,17 @@
             this.settingsOpen || this.player?.downed || this.player.hp <= 0) return false;
         const ghost = this.player.phantom;
         if ((ghost?.vortexCooldown || 0) > 0) {
-          this.notifySkillFeedback(`⏳ 虚空聚拢冷却中 (${ghost.vortexCooldown.toFixed(1)}s)`, '#f43f5e');
+          this.notifySkillFeedback(`⏳ 虚空力场冷却中 (${ghost.vortexCooldown.toFixed(1)}s)`, '#f43f5e');
           return false;
         }
+        const wasShift = Boolean(ghost?.shiftActive);
         const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'vortex') === true;
         if (ok) {
-          this.notifySkillFeedback('🌀 虚空聚拢！引力坍缩强力聚拢 (跟随自身)', '#c084fc');
+          if (wasShift) {
+            this.notifySkillFeedback('🌀 虚空聚拢！大范围引力坍缩吸怪 (跟随自身)', '#c084fc');
+          } else {
+            this.notifySkillFeedback('💫 虚空推斥！近身强力斥力排斥敌群', '#00f0ff');
+          }
           try { this.sound?.playZap?.(); } catch (_) {}
         }
         return ok;
@@ -3386,18 +3412,18 @@
             });
           } else if (shipId === 'phantom') {
             skillsBar.innerHTML = `
-              <button type="button" class="combat-skill-btn" id="btn-skill-reap" title="死印斩击 [J]：消耗15灵质，朝前方扇面释放幽能波，范围减速并施加死印（使目标承受伤害+25%）">
+              <button type="button" class="combat-skill-btn" id="btn-skill-sprint" title="幽影疾行 [J]：无消耗加速，持续3秒可叠加，移速+75%">
                 <span class="skill-hotkey">J</span>
                 <span class="skill-icon" id="icon-skill-sprint">💨</span>
                 <span class="skill-name" id="name-skill-sprint">幽影疾行</span>
                 <span class="skill-cost" id="cost-skill-sprint">极速推进</span>
                 <div class="skill-cd-mask" id="mask-skill-sprint"></div>
               </button>
-              <button type="button" class="combat-skill-btn" id="btn-skill-vortex" title="虚空聚拢 [K]：无消耗聚怪，引力中心跟随自身，强力吸聚敌群并减速50%">
+              <button type="button" class="combat-skill-btn" id="btn-skill-vortex" title="虚空力场 [K]：潜行时为大范围虚空聚拢吸怪，非潜行时为近距虚空推斥排开敌群">
                 <span class="skill-hotkey">K</span>
-                <span class="skill-icon" id="icon-skill-vortex">🌀</span>
-                <span class="skill-name" id="name-skill-vortex">虚空聚拢</span>
-                <span class="skill-cost" id="cost-skill-vortex">跟随聚怪</span>
+                <span class="skill-icon" id="icon-skill-vortex">💫</span>
+                <span class="skill-name" id="name-skill-vortex">虚空推斥</span>
+                <span class="skill-cost" id="cost-skill-vortex">推斥就绪</span>
                 <div class="skill-cd-mask" id="mask-skill-vortex"></div>
               </button>
               <button type="button" class="combat-skill-btn" id="btn-skill-shift" title="幽灵潜行 / 退出引爆 [空格]：消耗1段充能，免疫碰撞与弹幕，穿透施印并在脱离时引爆死印">
@@ -3535,19 +3561,23 @@
             }
           }
 
-          // 2. [K] 虚空聚拢
+          // 2. [K] 虚空聚拢 (潜行) / 虚空推斥 (非潜行)
+          const vortexIcon = document.getElementById('icon-skill-vortex');
+          const vortexName = document.getElementById('name-skill-vortex');
           const vortexCost = document.getElementById('cost-skill-vortex');
           const vortexBtn = document.getElementById('btn-skill-vortex');
           const vortexMask = document.getElementById('mask-skill-vortex');
           const vTimer = ghostState?.vortexTimer || 0;
           const vCd = ghostState?.vortexCooldown || 0;
           if (vortexCost && vortexBtn) {
+            if (vortexIcon) vortexIcon.textContent = shiftActive ? '🌀' : '💫';
+            if (vortexName) vortexName.textContent = shiftActive ? '虚空聚拢' : '虚空推斥';
             if (vTimer > 0) {
               vortexBtn.classList.add('active-state');
-              vortexCost.textContent = `聚怪中 (${vTimer.toFixed(1)}s)`;
+              vortexCost.textContent = shiftActive ? `聚怪中 (${vTimer.toFixed(1)}s)` : `推怪中 (${vTimer.toFixed(1)}s)`;
               if (vortexMask) {
                 vortexMask.style.height = '100%';
-                vortexMask.style.background = 'rgba(168, 85, 247, 0.35)';
+                vortexMask.style.background = shiftActive ? 'rgba(168, 85, 247, 0.35)' : 'rgba(0, 240, 255, 0.35)';
                 vortexMask.textContent = vTimer.toFixed(1) + 's';
               }
             } else if (vCd > 0) {
@@ -3560,7 +3590,7 @@
               }
             } else {
               vortexBtn.classList.remove('active-state');
-              vortexCost.textContent = '聚拢就绪';
+              vortexCost.textContent = shiftActive ? '吸怪就绪' : '推斥就绪';
               if (vortexMask) {
                 vortexMask.style.height = '0%';
                 vortexMask.textContent = '';

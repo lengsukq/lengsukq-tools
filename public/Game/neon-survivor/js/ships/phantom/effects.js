@@ -90,6 +90,31 @@ const NeonPhantomVisual = (() => {
         ctx.beginPath();
         ctx.arc(event.x2, event.y2, 4 * alpha, 0, Math.PI * 2);
         ctx.fill();
+      } else if (event.kind === 'repel') {
+        const progress = 1 - alpha;
+        ctx.strokeStyle = '#00f0ff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 18;
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.arc(event.x, event.y, radius * (0.35 + 0.65 * progress), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.20 * alpha;
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        ctx.arc(event.x, event.y, radius * (0.2 + 0.8 * progress), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.0;
+        for (let sp = 0; sp < 8; sp++) {
+          const spAng = (sp * Math.PI) / 4 + progress * 0.4;
+          const r1 = radius * 0.45;
+          const r2 = radius * (0.7 + 0.3 * progress);
+          ctx.beginPath();
+          ctx.moveTo(event.x + Math.cos(spAng) * r1, event.y + Math.sin(spAng) * r1);
+          ctx.lineTo(event.x + Math.cos(spAng) * r2, event.y + Math.sin(spAng) * r2);
+          ctx.stroke();
+        }
       } else if (event.kind === 'vortex') {
         ctx.strokeStyle = '#a855f7';
         ctx.shadowColor = '#00f0ff';
@@ -282,46 +307,91 @@ function drawPhantomShift(ctx, spectral) {
     ctx.restore();
   }
 
-  // 3b. Player-Following Void Vortex Field (when [K] 虚空聚拢 is active)
+  // 3b. Player-Following Void Field (when [K] is active: stealth = inward vortex / non-stealth = outward repulsion)
   if (vortexing && Number.isFinite(spectral.x) && Number.isFinite(spectral.y)) {
     const vx = spectral.x;
     const vy = spectral.y;
-    const vR = 220;
-    const pullCycle = (nowSec * 1.8) % 1;
-    const collapseR = vR * (1 - pullCycle * 0.72);
+    const isShift = Boolean(spectral.shiftActive);
 
     ctx.save();
     ctx.translate(vx, vy);
 
-    // Outer boundary ring
-    ctx.globalAlpha = 0.42;
-    ctx.strokeStyle = '#a855f7';
-    ctx.shadowColor = '#a855f7';
-    ctx.shadowBlur = 14;
-    ctx.lineWidth = 2.0;
-    ctx.beginPath();
-    ctx.arc(0, 0, vR, 0, Math.PI * 2);
-    ctx.stroke();
+    if (isShift) {
+      // 潜行状态：大范围引力内聚漩涡 (半径 220px)
+      const vR = 220;
+      const pullCycle = (nowSec * 1.8) % 1;
+      const collapseR = vR * (1 - pullCycle * 0.72);
 
-    // Collapsing gravity suction wave ring
-    ctx.globalAlpha = (1 - pullCycle) * 0.65;
-    ctx.strokeStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.arc(0, 0, collapseR, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 6 Rotating inward spiral gravity arms
-    for (let arm = 0; arm < 6; arm++) {
-      const a = -nowSec * 4.2 + (arm * Math.PI) / 3;
-      ctx.globalAlpha = 0.55;
-      ctx.strokeStyle = arm % 2 === 0 ? '#00f0ff' : '#d946ef';
+      // Outer boundary ring
+      ctx.globalAlpha = 0.42;
+      ctx.strokeStyle = '#a855f7';
+      ctx.shadowColor = '#a855f7';
+      ctx.shadowBlur = 14;
       ctx.lineWidth = 2.0;
       ctx.beginPath();
-      ctx.arc(0, 0, vR * 0.55, a, a + 0.65);
+      ctx.arc(0, 0, vR, 0, Math.PI * 2);
       ctx.stroke();
+
+      // Collapsing gravity suction wave ring
+      ctx.globalAlpha = (1 - pullCycle) * 0.65;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, collapseR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 6 Rotating inward spiral gravity arms
+      for (let arm = 0; arm < 6; arm++) {
+        const a = -nowSec * 4.2 + (arm * Math.PI) / 3;
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = arm % 2 === 0 ? '#00f0ff' : '#d946ef';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(0, 0, vR * 0.55, a, a + 0.65);
+        ctx.stroke();
+      }
+    } else {
+      // 非潜行状态：较小范围排斥冲击力场 (半径 135px)
+      const rR = 135;
+      const pushCycle = (nowSec * 2.2) % 1;
+      const expandR = rR * (0.28 + pushCycle * 0.72);
+
+      // Boundary shield ring
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, rR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Outward expanding repulsion wave ring
+      ctx.globalAlpha = (1 - pushCycle) * 0.72;
+      ctx.strokeStyle = '#e879f9';
+      ctx.shadowColor = '#c084fc';
+      ctx.shadowBlur = 15;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, expandR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Outward kinetic force arrows
+      for (let arm = 0; arm < 6; arm++) {
+        const a = nowSec * 2.5 + (arm * Math.PI) / 3;
+        ctx.globalAlpha = 0.52 * (1 - pushCycle * 0.5);
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 2.0;
+        const p1 = rR * 0.42;
+        const p2 = rR * 0.92;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * p1, Math.sin(a) * p1);
+        ctx.lineTo(Math.cos(a) * p2, Math.sin(a) * p2);
+        ctx.stroke();
+      }
     }
+
     ctx.restore();
   }
 

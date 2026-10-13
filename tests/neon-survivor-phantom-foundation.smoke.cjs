@@ -62,10 +62,11 @@ assert.ok(s.sprintCooldown > 0);
 assert.equal(p.sprint(ghost, game), false, 'Sprint on cooldown');
 s.sprintCooldown = 0;
 
-// [K] Player-following Vortex
+// [K] Player-following Void Field (Non-stealth = Repel / Push outward)
 const enemyV1 = { x: 50, y: 0, hp: 1000, dead: false };
 game.enemies = [enemyV1];
 assert.equal(p.vortexPull(ghost, game), true);
+assert.ok(enemyV1.x > 50, 'Non-stealth pushes enemy away');
 assert.ok(s.vortexTimer >= 2.6);
 assert.ok(s.vortexCooldown >= 5.0);
 assert.ok(hits.some(h => h.source === 'phantom_vortex'));
@@ -76,6 +77,13 @@ assert.equal(p.enterShift(ghost, game), true);
 assert.equal(s.dashCharges, 1);
 assert.equal(s.shiftActive, true);
 assert.ok(s.shiftRemaining >= 2.0);
+
+// [K] while shifted = Pull inward
+const enemyPull = { x: 180, y: 0, hp: 1000, dead: false };
+game.enemies = [enemyPull];
+assert.equal(p.vortexPull(ghost, game), true);
+assert.ok(enemyPull.x < 180, 'Stealth pulls enemy inward');
+s.vortexCooldown = 0;
 
 const enemyA = { x: 50, y: 0, hp: 1000, dead: false };
 const enemyB = { x: 120, y: 0, hp: 50, dead: false };
