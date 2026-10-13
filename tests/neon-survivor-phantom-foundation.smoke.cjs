@@ -74,8 +74,8 @@ s.vortexCooldown = 0;
 
 // [Space] Shift
 assert.equal(p.enterShift(ghost, game), true);
-assert.equal(s.dashCharges, 1);
 assert.equal(s.shiftActive, true);
+assert.ok(s.stealthEnergy > 0, 'Stealth energy available');
 assert.ok(s.shiftRemaining >= 2.0);
 
 // [K] while shifted = Pull inward
@@ -94,11 +94,10 @@ assert.equal(p.markEnemy(ghost, enemyB, 5.0), true);
 assert.equal(s.marks.size, 2);
 
 // Reap marks on exit
-const countReaped = p.reap(ghost, game);
-assert.equal(countReaped, 2);
+assert.equal(p.finishShift(ghost, game, true), true);
 assert.equal(hits.some(h => h.source === 'phantom_reap'), true);
 assert.equal(enemyB.dead, true);
-assert.ok(s.dashRecharge > 0, 'Killing marked target refunds dash recharge');
+assert.ok(s.stealthEnergy > 0, 'Killing marked target refunds stealth energy');
 
 // 4. Tactical Docking & Eject
 const carrier = {
@@ -125,9 +124,9 @@ assert.ok(p.critBonus(ghost, 5.5) >= 1.0, 'Slingshot grants 100% crit bonus');
 assert.equal(p.canDock(ghost, carrier), false, 'Dock cooldown active after undocking');
 
 // 5. Finishing shift grants 0.35s invulnerability
-s.dashCharges = 1;
+s.stealthEnergy = 3.0;
 assert.equal(p.enterShift(ghost, game), true);
 assert.equal(p.finishShift(ghost, game, true), true);
 assert.ok(ghost.invulnTimer >= 0.35, '0.35s un-targetable window on exiting shift');
 
-console.log('Phantom foundation passed: 24-card catalog, stealth charges, sprint/vortex & co-op docking.');
+console.log('Phantom foundation passed: 24-card catalog, continuous stealth, sprint/vortex & co-op docking.');

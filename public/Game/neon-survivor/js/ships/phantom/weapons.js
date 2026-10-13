@@ -1,15 +1,22 @@
-/* PHANTOM signature weapon: 幽魂之镰 (Phantom Scythe).
- * Dual-phase boomerang projectile: outward slicing, peak hover spin, and curved return.
- * Reabsorbing a returned scythe recovers ectoplasm and triggers Lv5 harvest pulses.
+/* PHANTOM signature weapon: 噬魂灵球 (Phantom Soul Orb).
+ * Fires a piercing void orb that locks onto the first hit target for 3.0 seconds.
+ * While locked, continuously deals decay damage to the target and emits a pulsating
+ * aura ring that slows and damages nearby enemies. Scales with level and attackScale.
  */
 (() => {
   'use strict';
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-  const MAX_ACTIVE_SCYTHES = 6;
-  const TARGET_RANGE = 600;
+  const MAX_ACTIVE_ORBS = 8;
+  const TARGET_RANGE = 650;
 
   function createState() {
-    return { scythes: [], fireElapsed: 0, serial: 0 };
+    const s = { orbs: [], fireElapsed: 0, serial: 0 };
+    Object.defineProperty(s, 'scythes', {
+      get: () => s.orbs,
+      set: (v) => { s.orbs = v; },
+      enumerable: true
+    });
+    return s;
   }
 
   function state(pilot) {
@@ -17,42 +24,18 @@
     return pilot.phantomScythe ||= createState();
   }
 
-  function closestEnemy(enemies, origin) {
-    let best = null;
-    let bestDistSq = TARGET_RANGE * TARGET_RANGE;
+  function closestEnemies(enemies, origin, count = 1) {
+    const valid = [];
     for (const e of enemies) {
       if (!e || e.dead || e.hp <= 0) continue;
       const dx = e.x - origin.x, dy = e.y - origin.y;
       const d2 = dx * dx + dy * dy;
-      if (d2 < bestDistSq) { best = e; bestDistSq = d2; }
+      if (d2 <= TARGET_RANGE * TARGET_RANGE) {
+        valid.push({ enemy: e, distSq: d2 });
+      }
     }
-    return best;
-  }
-
-  function spawnScythe(pilot, angle, level) {
-    const s = state(pilot);
-    if (!s || s.scythes.length >= MAX_ACTIVE_SCYTHES) return null;
-
-    const baseDist = level >= 2 ? 290 : 230;
-    const damage = 22 + (level - 1) * 8.5;
-    const scythe = {
-      x: pilot.x,
-      y: pilot.y,
-      originX: pilot.x,
-      originY: pilot.y,
-      angle,
-      targetX: pilot.x + Math.cos(angle) * baseDist,
-      targetY: pilot.y + Math.sin(angle) * baseDist,
-      phase: 'out', // 'out' -> 'hover' -> 'return'
-      speed: 380,
-      hoverTime: 0.38,
-      damage,
-      hitHistory: new Set(),
-      hoverDamageElapsed: 0,
-      level
-    };
-    s.scythes.push(scythe);
-    return scythe;
+    valid.sort((a, b) => a.distSq - b.distSq);
+    return valid.slice(0, count).map(v => v.enemy);
   }
 
   function segmentDistanceSq(px, py, x1, y1, x2, y2) {
@@ -64,21 +47,60 @@
     return (px - nx) * (px - nx) + (py - ny) * (py - ny);
   }
 
-  function dealScytheDamage(game, pilot, enemy, damage, source) {
+  function spawnOrb(pilot, target, level) {
+    const s = state(pilot);
+    if (!s || s.orbs.length >= MAX_ACTIVE_ORBS) return null;
+
+    let angle = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : (pilot.angle || 0);
+    if (target && !target.dead && target.hp > 0) {
+      angle = Math.atan2(target.y - pilot.y, target.x - pilot.x);
+    }
+
+    const baseDamage = 20 + (level - 1) * 6.5;
+    const auraRadius = 105 + level * 18; // 123px at Lv1 up to 195px at Lv5
+    const orb = {
+      id: ++s.serial,
+      x: pilot.x,
+      y: pilot.y,
+      vx: Math.cos(angle) * 420,
+      vy: Math.sin(angle) * 420,
+      angle,
+      speed: 420,
+      rangeRemaining: 600,
+      phase: 'flight', // 'flight' -> 'locked'
+      target: null,
+      lockRemaining: 3.0, // Exactly 3.0 seconds lock duration
+      lockDuration: 3.0,
+      tickTimer: 0,       // Damage tick to locked target every 0.25s
+      auraPulseTimer: 0,  // AoE pulse to nearby enemies every 0.35s
+      damage: baseDamage,
+      auraRadius,
+      level
+    };
+    s.orbs.push(orb);
+    return orb;
+  }
+
+  function dealOrbDamage(game, pilot, enemy, damage, source, applySlow = false) {
     if (!enemy || enemy.dead || enemy.hp <= 0) return;
     const hpPercent = enemy.hp / Math.max(enemy.maxHp || enemy.hp, 1);
     const marked = window.NeonPhantom?.isMarked ? window.NeonPhantom.isMarked(pilot, enemy, game.survivalTime || 0) : false;
     const executeLvl = pilot.passives?.execute_master || 0;
-    const executeBonus = executeLvl * ((hpPercent < .35 || marked) ? 0.15 : 0);
+    const executeBonus = executeLvl * ((hpPercent < 0.35 || marked) ? 0.15 : 0);
     const isCrit = (pilot.phantom && window.NeonPhantom) ?
       (Math.random() < window.NeonPhantom.critBonus(pilot, game.survivalTime || 0)) : false;
     const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
     game.dealDamage(enemy, damage * (1 + executeBonus) * scale, source, isCrit, pilot);
+
+    if (applySlow) {
+      enemy.freezeTimer = Math.max(enemy.freezeTimer || 0, 0.55);
+    }
+
     const gatherLvl = pilot.passives?.soul_gatherer || 0;
     if (gatherLvl > 0 && marked) {
       const pState = window.NeonPhantom?.state(pilot);
-      if (pState && pState.dashCharges < (pState.maxDashCharges || 4)) {
-        pState.dashRecharge = (pState.dashRecharge || 0) + 0.12 * gatherLvl;
+      if (pState) {
+        pState.stealthEnergy = Math.min(pState.stealthMax, (pState.stealthEnergy || 0) + 0.08 * gatherLvl);
       }
     }
     if (window.NeonPhantom) {
@@ -94,111 +116,120 @@
 
     const s = state(pilot);
     const enemies = game.enemies || [];
-    const interval = Math.max(0.65, (1.8 - (level - 1) * 0.24) * (pilot.cdrMultiplier || 1));
+    const interval = Math.max(0.70, (1.9 - (level - 1) * 0.22) * (pilot.cdrMultiplier || 1));
 
     s.fireElapsed += dt;
     if (s.fireElapsed >= interval) {
       s.fireElapsed = Math.min(s.fireElapsed - interval, interval);
-      const target = closestEnemy(enemies, pilot);
-      const baseAngle = target ? Math.atan2(target.y - pilot.y, target.x - pilot.x) :
-        (pilot.angle || 0);
 
-      const count = level >= 3 ? 3 : 2;
-      const spread = 0.35;
-      const startAngle = baseAngle - ((count - 1) * spread) / 2;
+      // Level 1-2: 1 orb; Level 3-4: 2 orbs; Level 5: 3 orbs
+      const count = level >= 5 ? 3 : (level >= 3 ? 2 : 1);
+      const targets = closestEnemies(enemies, pilot, count);
 
       for (let i = 0; i < count; i++) {
-        spawnScythe(pilot, startAngle + i * spread, level);
+        const assignedTarget = targets[i] || targets[0] || null;
+        spawnOrb(pilot, assignedTarget, level);
       }
     }
 
-    // Update active flying scythes
-    for (let i = s.scythes.length - 1; i >= 0; i--) {
-      const sc = s.scythes[i];
-      const prevX = sc.x;
-      const prevY = sc.y;
+    const now = game.survivalTime || 0;
 
-      if (sc.phase === 'out') {
-        const dx = sc.targetX - sc.x;
-        const dy = sc.targetY - sc.y;
-        const dist = Math.hypot(dx, dy);
-        const step = sc.speed * dt;
-        if (dist <= step) {
-          sc.x = sc.targetX;
-          sc.y = sc.targetY;
-          sc.phase = 'hover';
-          sc.hitHistory.clear(); // Reset for hover ticks
-        } else {
-          sc.x += (dx / dist) * step;
-          sc.y += (dy / dist) * step;
-        }
+    // Update active orbs
+    for (let i = s.orbs.length - 1; i >= 0; i--) {
+      const orb = s.orbs[i];
 
-        // Damage enemies on outward flight with continuous collision
+      if (orb.phase === 'flight') {
+        const prevX = orb.x, prevY = orb.y;
+        const step = orb.speed * dt;
+        orb.x += orb.vx * dt;
+        orb.y += orb.vy * dt;
+        orb.rangeRemaining -= step;
+
+        // Continuous collision check with first target
+        let hitEnemy = null;
         for (const e of enemies) {
-          if (!e || e.dead || e.hp <= 0 || sc.hitHistory.has(e)) continue;
-          if (segmentDistanceSq(e.x, e.y, prevX, prevY, sc.x, sc.y) <= 36 * 36) {
-            sc.hitHistory.add(e);
-            dealScytheDamage(game, pilot, e, sc.damage, 'phantom_scythe_out');
+          if (!e || e.dead || e.hp <= 0) continue;
+          const r = (e.radius || 14) + 16;
+          if (segmentDistanceSq(e.x, e.y, prevX, prevY, orb.x, orb.y) <= r * r) {
+            hitEnemy = e;
+            break;
           }
         }
-      } else if (sc.phase === 'hover') {
-        sc.hoverTime -= dt;
-        sc.hoverDamageElapsed += dt;
-        if (sc.hoverDamageElapsed >= 0.18) {
-          sc.hoverDamageElapsed = 0;
+
+        if (hitEnemy) {
+          // Latch on and lock target for 3.0 seconds!
+          orb.phase = 'locked';
+          orb.target = hitEnemy;
+          orb.x = hitEnemy.x;
+          orb.y = hitEnemy.y;
+          orb.lockRemaining = 3.0;
+
+          // Impact hit
+          dealOrbDamage(game, pilot, hitEnemy, orb.damage, 'phantom_orb_impact');
+          if (window.NeonPhantom?.markEnemy) {
+            window.NeonPhantom.markEnemy(pilot, hitEnemy, now);
+          }
+          window.NeonPhantomVisual?.emit(pilot, 'burst', hitEnemy, null, orb.auraRadius * 0.7, 0.3);
+        } else if (orb.rangeRemaining <= 0) {
+          s.orbs.splice(i, 1);
+        }
+      } else if (orb.phase === 'locked') {
+        // Track target coordinates
+        if (orb.target && !orb.target.dead && orb.target.hp > 0) {
+          orb.x = orb.target.x;
+          orb.y = orb.target.y;
+        }
+
+        orb.lockRemaining -= dt;
+
+        // 1. Continuous decay damage to the locked target every 0.25s
+        orb.tickTimer += dt;
+        if (orb.tickTimer >= 0.25) {
+          orb.tickTimer -= 0.25;
+          if (orb.target && !orb.target.dead && orb.target.hp > 0) {
+            dealOrbDamage(game, pilot, orb.target, orb.damage * 0.45, 'phantom_orb_decay');
+          }
+        }
+
+        // 2. Pulsating light ring: slows and damages nearby monsters every 0.35s
+        orb.auraPulseTimer += dt;
+        if (orb.auraPulseTimer >= 0.35) {
+          orb.auraPulseTimer -= 0.35;
+          const aoeDamage = orb.damage * 0.36;
+          const rSq = orb.auraRadius * orb.auraRadius;
+          let aoeHits = 0;
+
           for (const e of enemies) {
-            if (!e || e.dead || e.hp <= 0) continue;
-            if (Math.hypot(e.x - sc.x, e.y - sc.y) <= 38) {
-              const hoverBonus = level >= 2 ? 1.3 : 1.0;
-              dealScytheDamage(game, pilot, e, sc.damage * 0.65 * hoverBonus, 'phantom_scythe_hover');
+            if (!e || e.dead || e.hp <= 0 || e === orb.target) continue;
+            const dx = e.x - orb.x, dy = e.y - orb.y;
+            if (dx * dx + dy * dy <= rSq) {
+              dealOrbDamage(game, pilot, e, aoeDamage, 'phantom_orb_aura', true);
+              if (++aoeHits >= 16) break;
             }
           }
         }
-        if (sc.hoverTime <= 0) {
-          sc.phase = 'return';
-          sc.hitHistory.clear(); // Reset for return flight
-        }
-      } else if (sc.phase === 'return') {
-        const dx = pilot.x - sc.x;
-        const dy = pilot.y - sc.y;
-        const dist = Math.hypot(dx, dy);
-        const returnSpeed = sc.speed * 1.25;
-        const step = returnSpeed * dt;
-        if (dist <= step || dist < 22) {
-          // Reabsorbed by pilot!
-          s.scythes.splice(i, 1);
-          if (window.NeonPhantom) {
-            window.NeonPhantom.addEctoplasm(pilot, 4);
-          }
 
-          // Lv5 Harvest Burst when reabsorbed
-          if (sc.level >= 5) {
+        // Expiration after 3.0 seconds
+        if (orb.lockRemaining <= 0) {
+          if (orb.level >= 5) {
+            // Level 5 final void detonation
+            const burstDamage = orb.damage * 2.2;
+            const rSq = orb.auraRadius * orb.auraRadius;
             for (const e of enemies) {
               if (!e || e.dead || e.hp <= 0) continue;
-              if (Math.hypot(e.x - pilot.x, e.y - pilot.y) <= 120) {
-                dealScytheDamage(game, pilot, e, 65, 'phantom_scythe_burst');
+              const dx = e.x - orb.x, dy = e.y - orb.y;
+              if (dx * dx + dy * dy <= rSq) {
+                dealOrbDamage(game, pilot, e, burstDamage, 'phantom_orb_detonate', true);
               }
             }
             if ((game.shockwaves?.length || 0) < 40) {
-              game.shockwaves?.push({
-                x: pilot.x, y: pilot.y, radius: 10, maxRadius: 120,
-                color: '#00f0ff', alpha: 0.8
+              game.shockwaves.push({
+                x: orb.x, y: orb.y, radius: 15, maxRadius: orb.auraRadius,
+                color: '#a855f7', alpha: 0.9
               });
             }
           }
-          continue;
-        } else {
-          sc.x += (dx / dist) * step;
-          sc.y += (dy / dist) * step;
-        }
-
-        // Damage enemies on return flight with continuous collision
-        for (const e of enemies) {
-          if (!e || e.dead || e.hp <= 0 || sc.hitHistory.has(e)) continue;
-          if (segmentDistanceSq(e.x, e.y, prevX, prevY, sc.x, sc.y) <= 36 * 36) {
-            sc.hitHistory.add(e);
-            dealScytheDamage(game, pilot, e, sc.damage * 1.15, 'phantom_scythe_return');
-          }
+          s.orbs.splice(i, 1);
         }
       }
     }
@@ -206,112 +237,115 @@
 
   function render(ctx, pilot) {
     const s = pilot?.phantomScythe;
-    if (!s?.scythes?.length || !ctx) return;
+    if (!s?.orbs?.length || !ctx) return;
     ctx.save();
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
     const timeSec = now * 0.001;
 
-    for (const sc of s.scythes) {
-      ctx.save();
-      ctx.translate(sc.x, sc.y);
-      const spin = (sc.phase === 'hover') ? (now * 0.02) : (sc.angle + now * 0.012);
+    for (const orb of s.orbs) {
+      const isLocked = orb.phase === 'locked';
 
-      // 1. Ghostly Motion-Blur Slashing Arc Trails
-      const isHover = sc.phase === 'hover';
-      const trailAlpha = isHover ? 0.35 : 0.55;
-      ctx.save();
-      ctx.rotate(spin - 0.25);
-      ctx.strokeStyle = `rgba(0, 240, 255, ${trailAlpha * 0.5})`;
-      ctx.lineWidth = 4;
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#00f0ff';
-      ctx.beginPath();
-      ctx.arc(0, 0, 18, 0, Math.PI * 0.7);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, 18, Math.PI, Math.PI * 1.7);
-      ctx.stroke();
-      ctx.restore();
+      if (isLocked) {
+        // --- 1. Pulsating Light Ring (Aura) around locked target ---
+        const pulse = (timeSec * 2.2) % 1;
+        const radius = orb.auraRadius;
+        const currentR = radius * (0.88 + 0.12 * Math.sin(timeSec * 6));
 
-      ctx.rotate(spin);
-
-      // 2. Twin Spectral Crescent Scythe Blades
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#00f0ff';
-      ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2.4;
-      ctx.fillStyle = '#120724';
-
-      // Blade 1
-      ctx.beginPath();
-      ctx.arc(0, 0, 17, 0, Math.PI * 0.88);
-      ctx.lineTo(3, 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Blade 1 inner soul rune spine
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, 0.15, Math.PI * 0.75);
-      ctx.stroke();
-
-      // Blade 2
-      ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.arc(0, 0, 17, Math.PI, Math.PI * 1.88);
-      ctx.lineTo(-3, -2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Blade 2 inner soul rune spine
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, Math.PI + 0.15, Math.PI * 1.75);
-      ctx.stroke();
-
-      // 3. Central Ocular Void Core
-      ctx.beginPath();
-      ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#a855f7';
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#a855f7';
-      ctx.fill();
-
-      // Slit pupil in center of scythe
-      ctx.fillStyle = '#00f0ff';
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = '#00f0ff';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 1.2, 3.2, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 4. Hover Resonance Pulse Rings
-      if (isHover) {
-        const pulse = (now * 0.006) % 1;
+        // Soft outer glowing ring (no shadowBlur)
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
         ctx.beginPath();
-        ctx.arc(0, 0, 15 + pulse * 24, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(168, 85, 247, ${1 - pulse})`;
+        ctx.arc(orb.x, orb.y, currentR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner sharp neon violet ring
         ctx.lineWidth = 1.8;
-        ctx.stroke();
-
+        ctx.strokeStyle = '#c084fc';
         ctx.beginPath();
-        ctx.arc(0, 0, 8 + pulse * 14, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 240, 255, ${0.8 * (1 - pulse)})`;
-        ctx.lineWidth = 1.2;
+        ctx.arc(orb.x, orb.y, currentR, 0, Math.PI * 2);
         ctx.stroke();
-      }
 
-      ctx.restore();
+        // Expanding secondary shock pulse
+        const expandR = radius * pulse;
+        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = `rgba(168, 85, 247, ${1 - pulse})`;
+        ctx.beginPath();
+        ctx.arc(orb.x, orb.y, expandR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Light background fill
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.08)';
+        ctx.beginPath();
+        ctx.arc(orb.x, orb.y, currentR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- 2. Central Locked Energy Singularity Core ---
+        ctx.save();
+        ctx.translate(orb.x, orb.y);
+
+        // Rotating lock runes
+        const rot = timeSec * 4;
+        ctx.rotate(rot);
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 1.8;
+        ctx.strokeRect(-9, -9, 18, 18);
+
+        // Core cyan/magenta diamond
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(8, 0);
+        ctx.lineTo(0, 8);
+        ctx.lineTo(-8, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      } else {
+        // --- Flying Projectile Orb ---
+        ctx.save();
+        ctx.translate(orb.x, orb.y);
+        ctx.rotate(orb.angle);
+
+        // Outer soft cyan aura
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.28)';
+        ctx.beginPath();
+        ctx.arc(0, 0, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner glowing core
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // High-energy white nucleus
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(1.5, 0, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // High-velocity trailing tail
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(-24, 0);
+        ctx.stroke();
+
+        ctx.restore();
+      }
     }
     ctx.restore();
   }
 
+  // Alias compatible API
   window.NeonPhantomScythe = Object.freeze({
-    state, spawnScythe, tick, render, MAX_ACTIVE_SCYTHES
+    state, spawnScythe: spawnOrb, spawnOrb, tick, render, MAX_ACTIVE_ORBS, MAX_ACTIVE_SCYTHES: MAX_ACTIVE_ORBS
   });
 })();

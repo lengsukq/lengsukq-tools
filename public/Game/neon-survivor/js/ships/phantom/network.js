@@ -10,6 +10,8 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
     shiftRemaining: clamp(s.shiftRemaining, 0, 10),
     charges: clamp(s.dashCharges, 0, 4),
     recharge: clamp(s.dashRecharge, 0, 8),
+    stealthEnergy: clamp(s.stealthEnergy, 0, 10),
+    stealthMax: clamp(s.stealthMax, 1, 10),
     docked: Boolean(s.docked),
     dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),
@@ -30,10 +32,11 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
       radius:clamp(fx.radius,8,280),life:clamp(fx.life,0,3),
       maxLife:clamp(fx.maxLife,.01,3)
     })),
-    scythes: (pilot.phantomScythe?.scythes || []).slice(0,6).map(sc=>({
+    scythes: (pilot.phantomScythe?.orbs || pilot.phantomScythe?.scythes || []).slice(0,8).map(sc=>({
       x:clamp(sc.x,-1e7,1e7), y:clamp(sc.y,-1e7,1e7),
       angle:clamp(sc.angle,-6.29,6.29),
-      phase:['out','hover','return'].includes(sc.phase)?sc.phase:'out'
+      phase:['flight','locked','out','hover','return'].includes(sc.phase)?sc.phase:'flight',
+      auraRadius:clamp(sc.auraRadius || 120, 20, 300)
     }))
   } };
 });

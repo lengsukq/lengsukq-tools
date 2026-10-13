@@ -23,8 +23,8 @@
     phantom: {
       tag: '刺客 · 虚空共生',
       color: '#00f0ff',
-      weapon: '初始主武：幽魂之镰',
-      perk: '特性：多段虚无潜行、虚空聚怪与极速推进、连锁死印殉爆'
+      weapon: '初始主武：噬魂灵球',
+      perk: '特性：持续虚无潜行、锁定灵球光圈减速、虚空聚怪/推斥与死印殉爆'
     }
   };
 
@@ -145,7 +145,7 @@
         const dashChip = document.createElement('span');
         dashChip.className = 'neon-spec-chip';
         dashChip.textContent = ship.id === 'phantom'
-          ? `👻 ${ship.baseStats.dashCharges}段潜行`
+          ? '👻 持续潜行'
           : (ship.id === 'astra' ? `✨ ${ship.baseStats.dashCharges}段闪现` : `⚡ ${ship.baseStats.dashCharges}段折跃`);
         specsRow.appendChild(dashChip);
 

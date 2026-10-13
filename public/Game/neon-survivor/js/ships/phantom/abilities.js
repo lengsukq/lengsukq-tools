@@ -1,6 +1,6 @@
 /* PHANTOM / 幽灵·共生拟态 — headless, host-authoritative ability foundation.
- * Redesigned without ectoplasm energy: dash-segment stealth charges,
- * independent CD sprint, player-following gravity vortex, and chaining soul reap detonations.
+ * Continuous fluid stealth gauge, independent CD sprint, dual-mode player-following
+ * void singularity field, locking phantom soul orb, and chaining soul reap detonations.
  */
 (() => {
   'use strict';
@@ -9,12 +9,14 @@
     maxEctoplasm: 100,
     killEctoplasm: 0,
     passThroughEctoplasm: 0,
-    shiftDuration: 2.0,             // Base 2.0s duration (up to 3.2s via spectral_extend)
+    stealthBaseMax: 3.8,            // Base 3.8s continuous stealth (up to 6.5s via upgrades)
+    shiftDuration: 3.8,             // Retain base window for assertions
+    stealthRechargeSeconds: 4.8,    // 4.8s to fully recharge from 0 to 100%
     shiftSpeedMultiplier: 1.40,     // Base +40% speed during stealth
     shiftCooldown: 0,
     baseDashCharges: 2,
-    maxDashCharges: 4,              // Up to 4 charges via charge_overflow
-    dashRecharge: 4.8,              // Base 4.8s recharge period
+    maxDashCharges: 4,
+    dashRecharge: 4.8,
     markDuration: 4.0,
     baseReapDamage: 52,
     reapLevelScale: 5.5,
@@ -23,7 +25,7 @@
     reapMaxDamageCap: 800,
     reapRadius: 420,
     maxReapTargets: 24,
-    reapKillRefundFraction: 0.20,   // 20% recharge refund per kill
+    reapKillRefundFraction: 0.20,   // 20% stealth capacity refund per kill
     reapMaxKillRefund: 0.60,        // Max 60% refund per reap
     sprintDuration: 3.0,
     sprintCooldown: 4.5,
@@ -49,7 +51,7 @@
   });
 
   const CARD_HELP = Object.freeze({
-    phantom_scythe: '双镰往返切割；升级增加伤害、飞行距离、镰刀数量和回收爆发',
+    phantom_scythe: '射出穿透灵球锁定首个目标3秒；附着持续伤害，并释放脉动光圈减速且伤害周围敌群',
     spectral_dart: '自动锁定多名敌人连续发射虚界毒刺；提高目标数与伤害',
     soul_reap_orb: '法球贯穿附近目标并造成死魂冲击；提高连击目标数与穿透伤害',
     void_rift_mine: '敌人脚下留下0.55秒后引爆的裂隙雷；提高爆炸半径与伤害',
@@ -66,9 +68,9 @@
     soul_gatherer: '专属武器每次命中带有【灵魂死印】的敌人，额外缩减潜行充能冷却并提高暴击伤害',
     death_reversal: '本局首次致命伤害触发紧急重构免死并回血',
     dual_mind: '处于 潜行 或 幽影疾行（加速） 状态时，全局暴击率额外提升 +5%/级，攻击速度/伤害提升',
-    spectral_extend: '每级延长幽灵潜行持续时间 +0.6秒，且潜行期间移速额外 +15%/级',
+    spectral_extend: '每级延长持续潜行上限时间 +1.0秒，且潜行期间移速额外 +15%/级',
     soul_detonation: '提高死印引爆范围（+50%/级）与引爆伤害（+40%/级）',
-    charge_overflow: '幽灵潜行最大充能段数 +1段/级（最高 4 段），升级时立即回满潜行充能',
+    charge_overflow: '扩充持续潜行上限时间 +1.2秒/级，升级时立即回满潜行能流',
     ghost_trail: '潜行或加速期间每 0.36 秒在路径留下冥火灼烧敌群',
     terror_shriek: '死印引爆后恐吓周围敌群 1.5 秒',
     dimension_door: '退出潜行时冰封减速周围敌人',
@@ -77,7 +79,7 @@
 
   const UNIQUE = Object.freeze({
     weapon: Object.freeze([
-      ['phantom_scythe', '幽魂之镰', 'rare', 5],
+      ['phantom_scythe', '噬魂灵球', 'rare', 5],
       ['spectral_dart', '虚界毒刺', 'common', 5],
       ['soul_reap_orb', '噬魂法球', 'common', 5],
       ['void_rift_mine', '虚空裂隙雷', 'common', 5],
@@ -119,17 +121,21 @@
     }))));
 
   const validPilot = pilot => pilot?.shipId === 'phantom' && pilot.hp > 0 && !pilot.downed;
-  const within = (a, b, radius) => Boolean(a && b &&
-    Math.hypot(a.x - b.x, a.y - b.y) <= radius);
+  const within = (a, b, radius) => {
+    if (!a || !b) return false;
+    const dx = a.x - b.x, dy = a.y - b.y;
+    return dx * dx + dy * dy <= radius * radius;
+  };
 
   function createState() {
     return {
-      ectoplasm: BASE.initialEctoplasm,
-      maxEctoplasm: BASE.maxEctoplasm,
+      ectoplasm: 0,
+      maxEctoplasm: 100,
       shiftActive: false,
       shiftRemaining: 0,
-      shiftMaxDuration: BASE.shiftDuration,
-      dashCharges: BASE.baseDashCharges,
+      stealthMax: BASE.stealthBaseMax,
+      stealthEnergy: BASE.stealthBaseMax,
+      dashCharges: 2,
       dashRecharge: 0,
       marks: new Map(), // enemy -> expireAt
       docked: false,
@@ -151,8 +157,12 @@
   function state(pilot) {
     if (pilot?.shipId !== 'phantom') return null;
     const s = (pilot.phantom ||= createState());
-    const extraMax = (s.warpUpgrades?.charge_overflow || pilot?.dashUpgrades?.charge_overflow || 0) * 25;
-    s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || pilot?.passives?.phantom_core || 0) * 8 + extraMax;
+    const extendLvl = s.warpUpgrades?.spectral_extend || pilot?.dashUpgrades?.spectral_extend || 0;
+    const overflowLvl = s.warpUpgrades?.charge_overflow || pilot?.dashUpgrades?.charge_overflow || 0;
+    s.stealthMax = BASE.stealthBaseMax + extendLvl * 1.0 + overflowLvl * 1.2;
+    s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || pilot?.passives?.phantom_core || 0) * 8;
+    s.dashCharges = s.shiftActive ? 0 : (s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0);
+    s.dashRecharge = s.stealthEnergy;
     return s;
   }
 
@@ -177,7 +187,7 @@
   function getDashRechargeTime(pilot, s) {
     const st = s || state(pilot);
     const flowLvl = st?.passiveUpgrades?.spiritual_flow || pilot?.passives?.spiritual_flow || 0;
-    const flowBonus = 1 + flowLvl * 0.14; // +14% recharge speed per level
+    const flowBonus = 1 + flowLvl * 0.14;
     const cdr = pilot?.cdrMultiplier || 1;
     return (BASE.dashRecharge / flowBonus) * cdr;
   }
@@ -197,15 +207,15 @@
     let bonus = 0;
     const coreLevel = s.passiveUpgrades.phantom_core || pilot.passives?.phantom_core || 0;
     if (coreLevel > 0) {
-      bonus += coreLevel * 0.09; // +9% per level, up to +45%
+      bonus += coreLevel * 0.09;
     }
     if (s.shiftActive || (s.sprintTimer || 0) > 0) {
       const dualLvl = s.passiveUpgrades.dual_mind || pilot.passives?.dual_mind || 0;
-      bonus += dualLvl * 0.05; // +5% per level during stealth or sprint
+      bonus += dualLvl * 0.05;
     }
     bonus = Math.min(0.75, bonus);
     if (s.slingshotBuffUntil > now) {
-      bonus = 1.0; // 100% crit buff from slingshot
+      bonus = 1.0;
     }
     return bonus;
   }
@@ -219,19 +229,18 @@
       return finishShift(pilot, game, true);
     }
 
-    if (s.dashCharges < 1) return false;
+    if ((s.stealthEnergy || 0) < 0.35) return false;
 
-    s.dashCharges--;
+    if (s.dashCharges > 0) s.dashCharges--;
     s.shiftActive = true;
     const extendTier = s.warpUpgrades.spectral_extend || pilot.dashUpgrades?.spectral_extend || 0;
-    s.shiftMaxDuration = BASE.shiftDuration + extendTier * 0.6; // 2.0s -> 3.2s
-    s.shiftRemaining = s.shiftMaxDuration;
+    s.shiftRemaining = s.stealthEnergy + extendTier * 1.0;
     s.shiftTrail.length = 0;
     s.shiftTrailTimer = 0;
     s.shiftTrailSeq = (s.shiftTrailSeq || 0) + 1;
     s.shiftFlash = 0.28;
     const initAngle = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : (pilot.angle || 0);
-    s.shiftTrail.push({ x: pilot.x, y: pilot.y, angle: initAngle, life: 0.46, seq: s.shiftTrailSeq });
+    s.shiftTrail.push({ x: pilot.x, y: pilot.y, angle: initAngle, life: 0.44, seq: s.shiftTrailSeq });
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0.18);
 
     if ((game.shockwaves?.length || 0) < 40) {
@@ -266,7 +275,6 @@
 
   function markDamageBonus(pilot, enemy, timeSeconds = 0) {
     if (!validPilot(pilot) || !isMarked(pilot, enemy, timeSeconds)) return 1.0;
-    // Branded enemies take +25% amplified damage
     return 1.25;
   }
 
@@ -285,10 +293,16 @@
       (1 + (s.passiveUpgrades.phantom_core || pilot.passives?.phantom_core || 0) * 0.12);
     const radiusBonus = (s.warpUpgrades.soul_detonation || pilot.dashUpgrades?.soul_detonation || 0) * 0.50;
     const maxRadius = BASE.reapRadius * (1 + radiusBonus);
+    const maxRadiusSq = maxRadius * maxRadius;
 
-    const validTargets = enemies
-      .filter(e => within(e, pilot, maxRadius))
-      .slice(0, BASE.maxReapTargets);
+    const validTargets = [];
+    for (const e of enemies) {
+      const dx = e.x - pilot.x, dy = e.y - pilot.y;
+      if (dx * dx + dy * dy <= maxRadiusSq) {
+        validTargets.push(e);
+        if (validTargets.length >= BASE.maxReapTargets) break;
+      }
+    }
 
     const targetCount = validTargets.length;
     const level = pilot.level || 1;
@@ -310,21 +324,12 @@
       }
     }
 
-    // Cooldown refund on kill: 20% refund per kill, capped at 60%
+    // Continuous stealth energy refund on kill (+20% of max capacity per kill, max 60%)
     if (kills > 0) {
       const refundFraction = Math.min(BASE.reapMaxKillRefund, kills * BASE.reapKillRefundFraction);
-      const rechargeTime = getDashRechargeTime(pilot, s);
-      const refundSec = rechargeTime * refundFraction;
-      const maxCharges = Math.min(BASE.maxDashCharges,
-        BASE.baseDashCharges + (s.warpUpgrades.charge_overflow || pilot.dashUpgrades?.charge_overflow || 0));
-      if (s.dashCharges < maxCharges) {
-        s.dashRecharge += refundSec;
-        while (s.dashRecharge >= rechargeTime && s.dashCharges < maxCharges) {
-          s.dashCharges++;
-          s.dashRecharge -= rechargeTime;
-        }
-        if (s.dashCharges >= maxCharges) s.dashRecharge = 0;
-      }
+      s.stealthEnergy = Math.min(s.stealthMax, (s.stealthEnergy || 0) + s.stealthMax * refundFraction);
+      s.dashCharges = s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0;
+      s.dashRecharge = s.stealthEnergy;
     }
 
     // Terror shriek crowd control
@@ -356,7 +361,6 @@
     if (!validPilot(pilot) || !s?.shiftActive || game?.state !== 'playing') return false;
     s.shiftActive = false;
     s.shiftRemaining = 0;
-    // 0.35s un-targetable invulnerability on emergence
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0.35);
     if (Number.isFinite(pilot.invuln)) pilot.invuln = Math.max(pilot.invuln, 0.35);
     s.reapFlash = 0.28;
@@ -384,8 +388,7 @@
     if (!canDock(pilot, carrier)) return false;
     const s = state(pilot);
     if (s.shiftActive) {
-      s.shiftActive = false;
-      s.shiftRemaining = 0;
+      finishShift(pilot, null, true);
     }
     s.docked = true;
     s.carrier = carrier;
@@ -411,11 +414,10 @@
       const now = game.survivalTime || 0;
       s.lastEjectAt = now;
       if ((s.warpUpgrades.symbiote_slingshot || pilot.dashUpgrades?.symbiote_slingshot || 0) > 0) {
-        s.slingshotBuffUntil = now + 3.0; // 3s 100% crit
+        s.slingshotBuffUntil = now + 3.0;
         window.NeonPhantomVisual?.emit(pilot, 'burst', pilot, null, 90, 0.45);
       }
 
-      // Radial blast knocks back and stuns enemies
       const ejectScale = attackScale(pilot);
       for (const enemy of game.enemies || []) {
         if (!enemy.dead && within(enemy, pilot, BASE.ejectRadius)) {
@@ -450,10 +452,8 @@
     const flowLvl = s.passiveUpgrades.spiritual_flow || pilot.passives?.spiritual_flow || 0;
     const flowCdr = Math.max(0.50, 1 - flowLvl * 0.08);
     s.sprintCooldown = (BASE.sprintCooldown || 4.5) * (pilot.cdrMultiplier || 1) * flowCdr;
-    // Duration accumulates additively (+3.0s each activation)
     s.sprintTimer = (s.sprintTimer || 0) + (BASE.sprintDuration || 3.0);
 
-    // symbiote_slingshot: activation triggers 3s 100% crit
     if ((s.warpUpgrades.symbiote_slingshot || pilot.dashUpgrades?.symbiote_slingshot || 0) > 0) {
       const now = game.survivalTime || 0;
       s.slingshotBuffUntil = now + 3.0;
@@ -487,9 +487,9 @@
 
     const now = game.survivalTime || 0;
     const isShift = Boolean(s.shiftActive);
-    // In stealth: large pull radius (260px). Out of stealth: smaller push radius (155px).
     const baseR = isShift ? (BASE.vortexRadius || 260) : (BASE.repelRadius || 155);
     const vRadius = baseR * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
+    const vRadiusSq = vRadius * vRadius;
     const vScale = attackScale(pilot);
     const initDamage = (28 + (pilot.level || 1) * 3.5) * vScale;
     let hitCount = 0;
@@ -498,13 +498,13 @@
       if (!e || e.dead || e.hp <= 0) continue;
       const dx = pilot.x - e.x;
       const dy = pilot.y - e.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > vRadius) continue;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > vRadiusSq || distSq < 0.01) continue;
+      const dist = Math.sqrt(distSq);
 
       if (isShift) {
-        // 潜行状态：强力聚怪向自身拉拢
         const minDist = 6;
-        if (dist > minDist && dist > 1) {
+        if (dist > minDist) {
           const pullFraction = e.isBoss ? 0.20 : 0.45;
           const step = Math.min(dist - minDist, dist * pullFraction);
           e.x += (dx / dist) * step;
@@ -514,12 +514,9 @@
           markEnemy(pilot, e, now);
         }
       } else {
-        // 非潜行状态：较小范围防暴毙推力排开敌人
-        if (dist > 0.1) {
-          const pushAmount = e.isBoss ? 45 : 110;
-          e.x -= (dx / dist) * pushAmount;
-          e.y -= (dy / dist) * pushAmount;
-        }
+        const pushAmount = e.isBoss ? 45 : 110;
+        e.x -= (dx / dist) * pushAmount;
+        e.y -= (dy / dist) * pushAmount;
       }
 
       game.dealDamage(e, initDamage, 'phantom_vortex', false, pilot);
@@ -561,6 +558,7 @@
     s.vortexCooldown = Math.max(0, (s.vortexCooldown || 0) - dt);
     s.strikeCooldown = s.vortexCooldown;
 
+    // Shift trail decay
     for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
       s.shiftTrail[i].life -= dt;
       if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i, 1);
@@ -568,7 +566,7 @@
     if (s.shiftActive || (s.sprintTimer || 0) > 0) {
       s.shiftTrailTimer -= dt;
       if (s.shiftTrailTimer <= 0) {
-        s.shiftTrailTimer = 0.028;
+        s.shiftTrailTimer = 0.035;
         s.shiftTrailSeq = (s.shiftTrailSeq || 0) + 1;
         const moveAng = (Math.abs(pilot.vx || 0) + Math.abs(pilot.vy || 0) > 5)
           ? Math.atan2(pilot.vy || 0, pilot.vx || 0)
@@ -577,10 +575,10 @@
           x: pilot.x,
           y: pilot.y,
           angle: moveAng,
-          life: 0.44,
+          life: 0.42,
           seq: s.shiftTrailSeq
         });
-        if (s.shiftTrail.length > 10) s.shiftTrail.shift();
+        if (s.shiftTrail.length > 8) s.shiftTrail.shift();
       }
     }
 
@@ -589,20 +587,20 @@
       s.vortexTimer = Math.max(0, s.vortexTimer - dt);
       const linkLvl = s.passiveUpgrades.symbiosis_link || pilot.passives?.symbiosis_link || 0;
       const isShift = Boolean(s.shiftActive);
-      // In stealth: large pull radius (260px). Out of stealth: smaller push radius (155px).
       const baseR = isShift ? (BASE.vortexRadius || 260) : (BASE.repelRadius || 155);
       const vRadius = baseR * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
+      const vRadiusSq = vRadius * vRadius;
       let affected = 0;
 
       for (const enemy of game.enemies || []) {
         if (!enemy || enemy.dead || enemy.hp <= 0) continue;
         const dx = pilot.x - enemy.x;
         const dy = pilot.y - enemy.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > vRadius || dist < 0.1) continue;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > vRadiusSq || distSq < 0.01) continue;
+        const dist = Math.sqrt(distSq);
 
         if (isShift) {
-          // 潜行状态：向心吸怪聚拢
           const minDist = 6;
           if (dist > minDist) {
             const pullRate = (enemy.isBoss ? 90 : (BASE.vortexPullSpeed || 320)) * (1 + (vRadius - dist) / vRadius * 0.45);
@@ -614,7 +612,6 @@
             markEnemy(pilot, enemy, now);
           }
         } else {
-          // 非潜行状态：离心推开排斥
           const pushRate = (enemy.isBoss ? 90 : (BASE.vortexPushSpeed || 380));
           const step = pushRate * dt;
           enemy.x -= (dx / dist) * step;
@@ -673,27 +670,22 @@
       }
     }
 
-    // Handle shift duration
+    // Continuous stealth energy loop
     if (s.shiftActive) {
-      s.shiftRemaining -= dt;
-      if (s.shiftRemaining <= 0) {
+      s.stealthEnergy = Math.max(0, (s.stealthEnergy || 0) - dt);
+      s.shiftRemaining = s.stealthEnergy;
+      if (s.stealthEnergy <= 0) {
         finishShift(pilot, game, false);
       }
-    }
-
-    // Handle dash recharge (4.8s base, accelerated by spiritual_flow)
-    const maxCharges = Math.min(BASE.maxDashCharges,
-      BASE.baseDashCharges + (s.warpUpgrades.charge_overflow || pilot.dashUpgrades?.charge_overflow || 0));
-    s.dashCharges = Math.min(maxCharges, s.dashCharges);
-    const rechargeTime = getDashRechargeTime(pilot, s);
-    if (s.dashCharges < maxCharges) {
-      s.dashRecharge += dt;
-      if (s.dashRecharge >= rechargeTime) {
-        s.dashCharges++;
-        s.dashRecharge -= rechargeTime;
-      }
     } else {
-      s.dashRecharge = 0;
+      // Smooth continuous recovery when not in stealth
+      const flowLvl = s.passiveUpgrades.spiritual_flow || pilot.passives?.spiritual_flow || 0;
+      const flowBonus = 1 + flowLvl * 0.14;
+      const rechargeRate = (s.stealthMax / BASE.stealthRechargeSeconds) * flowBonus / (pilot.cdrMultiplier || 1);
+      s.stealthEnergy = Math.min(s.stealthMax, (s.stealthEnergy || 0) + dt * rechargeRate);
+      s.shiftRemaining = 0;
+      s.dashCharges = s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0;
+      s.dashRecharge = s.stealthEnergy;
     }
 
     // Clean up expired marks
@@ -719,6 +711,7 @@
     }
   }
 
+  // Optimized marks renderer without repetitive shadowBlur calls
   function renderMarks(ctx, game) {
     const pilots = game?.players?.list?.().map(entry => entry.state) ||
       [game?.player, game?.lanCoop?.ally].filter(Boolean);
@@ -731,28 +724,32 @@
       if (!enemy || enemy.dead || enemy.hp <= 0 || expireAt < now) continue;
       const timeLeft = expireAt - now;
       const x = enemy.x;
-      const hoverY = Math.sin(realTime * 6 + x) * 2.5;
-      const y = enemy.y - (enemy.radius || 14) - 13 + hoverY;
+      const hoverY = Math.sin(realTime * 6 + x) * 2.2;
+      const y = enemy.y - (enemy.radius || 14) - 12 + hoverY;
 
-      // Vertical soul tether
-      ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
-      ctx.lineWidth = 1.5;
+      // 1. Vertical soul tether
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.32)';
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
       ctx.moveTo(x, enemy.y - (enemy.radius || 14));
       ctx.lineTo(x, y + 7);
       ctx.stroke();
 
-      // Outer pulsating halo
-      const pulse = Math.sin(realTime * 8) * 1.5;
-      ctx.shadowBlur = 14;
-      ctx.shadowColor = '#c084fc';
-      ctx.strokeStyle = timeLeft < 1.0 ? '#ff4081' : '#00f0ff';
-      ctx.lineWidth = 1.8;
+      // 2. Outer pulsating halo (lightweight layered strokes instead of heavy shadowBlur)
+      const pulse = Math.sin(realTime * 8) * 1.4;
+      ctx.strokeStyle = timeLeft < 1.0 ? 'rgba(255, 64, 129, 0.35)' : 'rgba(0, 240, 255, 0.35)';
+      ctx.lineWidth = 3.6;
       ctx.beginPath();
       ctx.arc(x, y, 9 + pulse, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Floating soul diamond crest
+      ctx.strokeStyle = timeLeft < 1.0 ? '#ff4081' : '#00f0ff';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(x, y, 9 + pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 3. Floating soul diamond crest
       ctx.fillStyle = '#18072b';
       ctx.beginPath();
       ctx.moveTo(x, y - 8);
@@ -763,10 +760,8 @@
       ctx.fill();
       ctx.stroke();
 
-      // Inner soul flame
+      // 4. Inner soul flame
       ctx.fillStyle = timeLeft < 1.0 ? '#ff6090' : '#a855f7';
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = ctx.fillStyle;
       ctx.beginPath();
       ctx.moveTo(x, y - 5);
       ctx.lineTo(x + 3.8, y);
@@ -775,10 +770,8 @@
       ctx.closePath();
       ctx.fill();
 
-      // Center cyan pupil
+      // 5. Center cyan pupil
       ctx.fillStyle = '#00f0ff';
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = '#00f0ff';
       ctx.beginPath();
       ctx.ellipse(x, y, 1.0, 2.8, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -829,8 +822,8 @@
             if (def.type === 'dash') {
               s.warpUpgrades[def.id] = bag[def.id];
               if (def.id === 'charge_overflow') {
-                s.dashCharges = Math.min(BASE.maxDashCharges, BASE.baseDashCharges + bag[def.id]);
-                s.dashRecharge = 0;
+                s.stealthMax = BASE.stealthBaseMax + (s.warpUpgrades.spectral_extend || 0) * 1.0 + bag[def.id] * 1.2;
+                s.stealthEnergy = s.stealthMax; // refill immediately!
               }
             } else if (def.type === 'passive') {
               s.passiveUpgrades[def.id] = bag[def.id];

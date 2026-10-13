@@ -2244,8 +2244,8 @@
             }
             const isPhantom = this.player.shipId === 'phantom';
             const ghost = isPhantom ? window.NeonPhantom?.state(this.player) : null;
-            if (ghost && !ghost.shiftActive && ghost.dashCharges < 1) {
-              this.notifySkillFeedback('⏳ 潜行充能中...', '#a855f7');
+            if (ghost && !ghost.shiftActive && (ghost.stealthEnergy || 0) < 0.35) {
+              this.notifySkillFeedback('⏳ 潜行能流恢复中...', '#a855f7');
               try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
               return;
             }
@@ -2254,7 +2254,7 @@
                 {kind:'warp',direction:this.getWarpDirection()}) === true) {
               if (isPhantom) {
                 if (!wasShiftActive) {
-                  this.notifySkillFeedback('👻 进入幽灵潜行！(免疫碰撞与弹幕 · 穿透施印)', '#00f0ff');
+                  this.notifySkillFeedback('👻 进入持续潜行！(免疫碰撞与弹幕 · 随时引爆)', '#00f0ff');
                 } else {
                   this.notifySkillFeedback('💥 退出潜行并连锁引爆死印！(获得0.35s无敌)', '#a855f7');
                 }
@@ -3240,28 +3240,42 @@
           : 0;
 
         if (dashContainer) {
-          if (dashContainer.children.length !== maxCharges) {
-            dashContainer.innerHTML = '';
-            for (let k = 0; k < maxCharges; k++) {
-              const seg = document.createElement('div');
-              seg.className = 'dash-segment';
-              const fill = document.createElement('div');
-              fill.className = 'dash-segment-fill';
-              fill.id = `dash-seg-${k}`;
-              seg.appendChild(fill);
-              dashContainer.appendChild(seg);
+          if (isPhantom) {
+            const ghost = this.player.phantom;
+            const gaugePct = Math.max(0, Math.min(100, ((ghost?.stealthEnergy ?? 3.8) / Math.max(0.1, ghost?.stealthMax || 3.8)) * 100));
+            if (!dashContainer.querySelector?.('.phantom-continuous-track')) {
+              dashContainer.innerHTML = `
+                <div class="dash-segment phantom-continuous-track" style="width:100%;height:100%;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden;">
+                  <div class="dash-segment-fill" id="phantom-continuous-fill" style="width:${gaugePct}%;height:100%;background:linear-gradient(90deg, #a855f7, #00f0ff);border-radius:4px;"></div>
+                </div>`;
+            } else {
+              const fillEl = document.getElementById('phantom-continuous-fill');
+              if (fillEl) fillEl.style.width = `${gaugePct}%`;
             }
-          }
+          } else {
+            if (dashContainer.children.length !== maxCharges || dashContainer.querySelector?.('.phantom-continuous-track')) {
+              dashContainer.innerHTML = '';
+              for (let k = 0; k < maxCharges; k++) {
+                const seg = document.createElement('div');
+                seg.className = 'dash-segment';
+                const fill = document.createElement('div');
+                fill.className = 'dash-segment-fill';
+                fill.id = `dash-seg-${k}`;
+                seg.appendChild(fill);
+                dashContainer.appendChild(seg);
+              }
+            }
 
-          for (let i = 0; i < maxCharges; i++) {
-            const segFill = document.getElementById(`dash-seg-${i}`);
-            if (segFill) {
-              if (i < charges) {
-                segFill.style.width = '100%';
-              } else if (i === charges) {
-                segFill.style.width = `${Math.min(100, Math.max(0, rechargeProgress))}%`;
-              } else {
-                segFill.style.width = '0%';
+            for (let i = 0; i < maxCharges; i++) {
+              const segFill = document.getElementById(`dash-seg-${i}`);
+              if (segFill) {
+                if (i < charges) {
+                  segFill.style.width = '100%';
+                } else if (i === charges) {
+                  segFill.style.width = `${Math.min(100, Math.max(0, rechargeProgress))}%`;
+                } else {
+                  segFill.style.width = '0%';
+                }
               }
             }
           }
@@ -3274,12 +3288,12 @@
           if (this.player.shipId === 'phantom') {
             const ghost = this.player.phantom;
             const shiftActive = Boolean(ghost?.shiftActive);
-            const pCharges = ghost?.dashCharges ?? 0;
+            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghost?.stealthEnergy ?? 3.8) / Math.max(0.1, ghost?.stealthMax || 3.8)) * 100)));
             if (dashLabel) dashLabel.textContent = shiftActive ? '引爆' : '潜行';
-            if (dashCount) dashCount.textContent = `${pCharges}/${maxCharges}`;
-            touchDashBtn.style.setProperty('--dash-fill', `${Math.min(100, Math.round(rechargeProgress))}%`);
-            touchDashBtn.classList.toggle('dash-empty', pCharges === 0 && !shiftActive);
-            touchDashBtn.setAttribute('aria-label', shiftActive ? '退出潜行引爆死印' : `幽灵潜行：${pCharges}/${maxCharges}段可用`);
+            if (dashCount) dashCount.textContent = `${gaugePct}%`;
+            touchDashBtn.style.setProperty('--dash-fill', `${gaugePct}%`);
+            touchDashBtn.classList.toggle('dash-empty', (ghost?.stealthEnergy || 0) < 0.35 && !shiftActive);
+            touchDashBtn.setAttribute('aria-label', shiftActive ? '退出潜行引爆死印' : `持续潜行：${gaugePct}%能流可用`);
           } else {
             if (dashLabel && dashLabel.textContent !== '折跃') dashLabel.textContent = '折跃';
             if (dashCount) {
@@ -3297,14 +3311,14 @@
         if (statTextEl) {
           if (isPhantom) {
             const ghost = this.player.phantom;
-            const pCharges = ghost?.dashCharges ?? 0;
+            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghost?.stealthEnergy ?? 3.8) / Math.max(0.1, ghost?.stealthMax || 3.8)) * 100)));
             const lvl = this.player.level || 1;
             const scale = window.NeonPhantom?.attackScale?.(this.player) || 1;
             const coreBonus = (ghost?.passiveUpgrades?.phantom_core || this.player.passives?.phantom_core || 0) * 0.12;
             const detonBonus = (ghost?.warpUpgrades?.soul_detonation || this.player.dashUpgrades?.soul_detonation || 0) * 0.40;
             const reapDmg = Math.round((52 + (lvl - 1) * 5.5) * (1 + detonBonus) * (1 + coreBonus) * scale);
-            const cd = (window.NeonPhantom?.getDashRechargeTime?.(this.player, ghost) || 4.8).toFixed(1);
-            statTextEl.innerHTML = `👻 潜行 ${pCharges}段 | 💥 死印 ~${reapDmg} | ⏱️ ${cd}s`;
+            const curEnergy = ghost?.stealthEnergy || 0;
+            statTextEl.innerHTML = `👻 持续潜行 ${gaugePct}% | 💥 死印 ~${reapDmg} | ⏱️ 持续${curEnergy.toFixed(1)}s`;
           } else {
             // HUD shows the current uncritical hit value (including global level scaling).
             const slashD = Math.round((this.player.dashSlashDmg || 95) * this.getLevelDmgMult());
@@ -3605,27 +3619,29 @@
           const shiftBtn = document.getElementById('btn-skill-shift');
           const shiftMask = document.getElementById('mask-skill-shift');
           if (shiftName && shiftCost) {
+            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghostState?.stealthEnergy ?? 3.8) / Math.max(0.1, ghostState?.stealthMax || 3.8)) * 100)));
             if (shiftActive) {
-              const rem = ghostState?.shiftRemaining || 0;
+              const rem = ghostState?.stealthEnergy || 0;
               shiftBtn?.classList.add('active-state');
               if (shiftIcon) shiftIcon.textContent = '💥';
               shiftName.textContent = '退出引爆';
               shiftCost.textContent = `潜行中 (${rem.toFixed(1)}s)`;
               if (shiftMask) {
-                shiftMask.style.height = '100%';
+                shiftMask.style.height = `${100 - gaugePct}%`;
                 shiftMask.style.background = 'rgba(0, 240, 255, 0.3)';
                 shiftMask.textContent = rem.toFixed(1) + 's';
               }
             } else {
               shiftBtn?.classList.remove('active-state');
               if (shiftIcon) shiftIcon.textContent = '👻';
-              shiftName.textContent = '幽灵潜行';
-              shiftCost.textContent = pCharges > 0
-                ? `${pCharges}/${maxC}段就绪`
-                : '充能中';
+              shiftName.textContent = '持续潜行';
+              shiftCost.textContent = gaugePct >= 15
+                ? `能流 ${gaugePct}%`
+                : '恢复中';
               if (shiftMask) {
-                shiftMask.style.height = '0%';
-                shiftMask.textContent = '';
+                shiftMask.style.height = `${100 - gaugePct}%`;
+                shiftMask.style.background = 'rgba(0, 0, 0, 0.72)';
+                shiftMask.textContent = gaugePct < 15 ? '恢复中' : '';
               }
             }
           }

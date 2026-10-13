@@ -2088,7 +2088,7 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
 /* Auto-registered ship plugin */
 window.NeonShips.register({
     id: 'phantom', code: 'PHANTOM', name: '幽灵·共生拟态',
-    description: '多段虚无潜行、虚空聚怪与极速推进、连锁死印殉爆战舰', playable: true,
+    description: '持续虚无潜行、虚空聚怪/推斥与极速推进、连锁死印殉爆战舰', playable: true,
     baseStats: { hp: 92, speed: 265, regen: 0.75, dashCharges: 2 },
     slots: { weapons: 4, passives: 4, warp: 7, activeSkills: 2 },
     startingWeapon: 'phantom_scythe', passiveId: null,
@@ -2257,8 +2257,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
 // Source: ships/phantom/abilities.js
 /* PHANTOM / 幽灵·共生拟态 — headless, host-authoritative ability foundation.
- * Redesigned without ectoplasm energy: dash-segment stealth charges,
- * independent CD sprint, player-following gravity vortex, and chaining soul reap detonations.
+ * Continuous fluid stealth gauge, independent CD sprint, dual-mode player-following
+ * void singularity field, locking phantom soul orb, and chaining soul reap detonations.
  */
 (() => {
   'use strict';
@@ -2267,12 +2267,14 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     maxEctoplasm: 100,
     killEctoplasm: 0,
     passThroughEctoplasm: 0,
-    shiftDuration: 2.0,             // Base 2.0s duration (up to 3.2s via spectral_extend)
+    stealthBaseMax: 3.8,            // Base 3.8s continuous stealth (up to 6.5s via upgrades)
+    shiftDuration: 3.8,             // Retain base window for assertions
+    stealthRechargeSeconds: 4.8,    // 4.8s to fully recharge from 0 to 100%
     shiftSpeedMultiplier: 1.40,     // Base +40% speed during stealth
     shiftCooldown: 0,
     baseDashCharges: 2,
-    maxDashCharges: 4,              // Up to 4 charges via charge_overflow
-    dashRecharge: 4.8,              // Base 4.8s recharge period
+    maxDashCharges: 4,
+    dashRecharge: 4.8,
     markDuration: 4.0,
     baseReapDamage: 52,
     reapLevelScale: 5.5,
@@ -2281,7 +2283,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     reapMaxDamageCap: 800,
     reapRadius: 420,
     maxReapTargets: 24,
-    reapKillRefundFraction: 0.20,   // 20% recharge refund per kill
+    reapKillRefundFraction: 0.20,   // 20% stealth capacity refund per kill
     reapMaxKillRefund: 0.60,        // Max 60% refund per reap
     sprintDuration: 3.0,
     sprintCooldown: 4.5,
@@ -2307,7 +2309,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   });
 
   const CARD_HELP = Object.freeze({
-    phantom_scythe: '双镰往返切割；升级增加伤害、飞行距离、镰刀数量和回收爆发',
+    phantom_scythe: '射出穿透灵球锁定首个目标3秒；附着持续伤害，并释放脉动光圈减速且伤害周围敌群',
     spectral_dart: '自动锁定多名敌人连续发射虚界毒刺；提高目标数与伤害',
     soul_reap_orb: '法球贯穿附近目标并造成死魂冲击；提高连击目标数与穿透伤害',
     void_rift_mine: '敌人脚下留下0.55秒后引爆的裂隙雷；提高爆炸半径与伤害',
@@ -2324,9 +2326,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     soul_gatherer: '专属武器每次命中带有【灵魂死印】的敌人，额外缩减潜行充能冷却并提高暴击伤害',
     death_reversal: '本局首次致命伤害触发紧急重构免死并回血',
     dual_mind: '处于 潜行 或 幽影疾行（加速） 状态时，全局暴击率额外提升 +5%/级，攻击速度/伤害提升',
-    spectral_extend: '每级延长幽灵潜行持续时间 +0.6秒，且潜行期间移速额外 +15%/级',
+    spectral_extend: '每级延长持续潜行上限时间 +1.0秒，且潜行期间移速额外 +15%/级',
     soul_detonation: '提高死印引爆范围（+50%/级）与引爆伤害（+40%/级）',
-    charge_overflow: '幽灵潜行最大充能段数 +1段/级（最高 4 段），升级时立即回满潜行充能',
+    charge_overflow: '扩充持续潜行上限时间 +1.2秒/级，升级时立即回满潜行能流',
     ghost_trail: '潜行或加速期间每 0.36 秒在路径留下冥火灼烧敌群',
     terror_shriek: '死印引爆后恐吓周围敌群 1.5 秒',
     dimension_door: '退出潜行时冰封减速周围敌人',
@@ -2335,7 +2337,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
   const UNIQUE = Object.freeze({
     weapon: Object.freeze([
-      ['phantom_scythe', '幽魂之镰', 'rare', 5],
+      ['phantom_scythe', '噬魂灵球', 'rare', 5],
       ['spectral_dart', '虚界毒刺', 'common', 5],
       ['soul_reap_orb', '噬魂法球', 'common', 5],
       ['void_rift_mine', '虚空裂隙雷', 'common', 5],
@@ -2377,17 +2379,21 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     }))));
 
   const validPilot = pilot => pilot?.shipId === 'phantom' && pilot.hp > 0 && !pilot.downed;
-  const within = (a, b, radius) => Boolean(a && b &&
-    Math.hypot(a.x - b.x, a.y - b.y) <= radius);
+  const within = (a, b, radius) => {
+    if (!a || !b) return false;
+    const dx = a.x - b.x, dy = a.y - b.y;
+    return dx * dx + dy * dy <= radius * radius;
+  };
 
   function createState() {
     return {
-      ectoplasm: BASE.initialEctoplasm,
-      maxEctoplasm: BASE.maxEctoplasm,
+      ectoplasm: 0,
+      maxEctoplasm: 100,
       shiftActive: false,
       shiftRemaining: 0,
-      shiftMaxDuration: BASE.shiftDuration,
-      dashCharges: BASE.baseDashCharges,
+      stealthMax: BASE.stealthBaseMax,
+      stealthEnergy: BASE.stealthBaseMax,
+      dashCharges: 2,
       dashRecharge: 0,
       marks: new Map(), // enemy -> expireAt
       docked: false,
@@ -2409,8 +2415,12 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   function state(pilot) {
     if (pilot?.shipId !== 'phantom') return null;
     const s = (pilot.phantom ||= createState());
-    const extraMax = (s.warpUpgrades?.charge_overflow || pilot?.dashUpgrades?.charge_overflow || 0) * 25;
-    s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || pilot?.passives?.phantom_core || 0) * 8 + extraMax;
+    const extendLvl = s.warpUpgrades?.spectral_extend || pilot?.dashUpgrades?.spectral_extend || 0;
+    const overflowLvl = s.warpUpgrades?.charge_overflow || pilot?.dashUpgrades?.charge_overflow || 0;
+    s.stealthMax = BASE.stealthBaseMax + extendLvl * 1.0 + overflowLvl * 1.2;
+    s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || pilot?.passives?.phantom_core || 0) * 8;
+    s.dashCharges = s.shiftActive ? 0 : (s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0);
+    s.dashRecharge = s.stealthEnergy;
     return s;
   }
 
@@ -2435,7 +2445,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   function getDashRechargeTime(pilot, s) {
     const st = s || state(pilot);
     const flowLvl = st?.passiveUpgrades?.spiritual_flow || pilot?.passives?.spiritual_flow || 0;
-    const flowBonus = 1 + flowLvl * 0.14; // +14% recharge speed per level
+    const flowBonus = 1 + flowLvl * 0.14;
     const cdr = pilot?.cdrMultiplier || 1;
     return (BASE.dashRecharge / flowBonus) * cdr;
   }
@@ -2455,15 +2465,15 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     let bonus = 0;
     const coreLevel = s.passiveUpgrades.phantom_core || pilot.passives?.phantom_core || 0;
     if (coreLevel > 0) {
-      bonus += coreLevel * 0.09; // +9% per level, up to +45%
+      bonus += coreLevel * 0.09;
     }
     if (s.shiftActive || (s.sprintTimer || 0) > 0) {
       const dualLvl = s.passiveUpgrades.dual_mind || pilot.passives?.dual_mind || 0;
-      bonus += dualLvl * 0.05; // +5% per level during stealth or sprint
+      bonus += dualLvl * 0.05;
     }
     bonus = Math.min(0.75, bonus);
     if (s.slingshotBuffUntil > now) {
-      bonus = 1.0; // 100% crit buff from slingshot
+      bonus = 1.0;
     }
     return bonus;
   }
@@ -2477,19 +2487,18 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       return finishShift(pilot, game, true);
     }
 
-    if (s.dashCharges < 1) return false;
+    if ((s.stealthEnergy || 0) < 0.35) return false;
 
-    s.dashCharges--;
+    if (s.dashCharges > 0) s.dashCharges--;
     s.shiftActive = true;
     const extendTier = s.warpUpgrades.spectral_extend || pilot.dashUpgrades?.spectral_extend || 0;
-    s.shiftMaxDuration = BASE.shiftDuration + extendTier * 0.6; // 2.0s -> 3.2s
-    s.shiftRemaining = s.shiftMaxDuration;
+    s.shiftRemaining = s.stealthEnergy + extendTier * 1.0;
     s.shiftTrail.length = 0;
     s.shiftTrailTimer = 0;
     s.shiftTrailSeq = (s.shiftTrailSeq || 0) + 1;
     s.shiftFlash = 0.28;
     const initAngle = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : (pilot.angle || 0);
-    s.shiftTrail.push({ x: pilot.x, y: pilot.y, angle: initAngle, life: 0.46, seq: s.shiftTrailSeq });
+    s.shiftTrail.push({ x: pilot.x, y: pilot.y, angle: initAngle, life: 0.44, seq: s.shiftTrailSeq });
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0.18);
 
     if ((game.shockwaves?.length || 0) < 40) {
@@ -2524,7 +2533,6 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
   function markDamageBonus(pilot, enemy, timeSeconds = 0) {
     if (!validPilot(pilot) || !isMarked(pilot, enemy, timeSeconds)) return 1.0;
-    // Branded enemies take +25% amplified damage
     return 1.25;
   }
 
@@ -2543,10 +2551,16 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       (1 + (s.passiveUpgrades.phantom_core || pilot.passives?.phantom_core || 0) * 0.12);
     const radiusBonus = (s.warpUpgrades.soul_detonation || pilot.dashUpgrades?.soul_detonation || 0) * 0.50;
     const maxRadius = BASE.reapRadius * (1 + radiusBonus);
+    const maxRadiusSq = maxRadius * maxRadius;
 
-    const validTargets = enemies
-      .filter(e => within(e, pilot, maxRadius))
-      .slice(0, BASE.maxReapTargets);
+    const validTargets = [];
+    for (const e of enemies) {
+      const dx = e.x - pilot.x, dy = e.y - pilot.y;
+      if (dx * dx + dy * dy <= maxRadiusSq) {
+        validTargets.push(e);
+        if (validTargets.length >= BASE.maxReapTargets) break;
+      }
+    }
 
     const targetCount = validTargets.length;
     const level = pilot.level || 1;
@@ -2568,21 +2582,12 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       }
     }
 
-    // Cooldown refund on kill: 20% refund per kill, capped at 60%
+    // Continuous stealth energy refund on kill (+20% of max capacity per kill, max 60%)
     if (kills > 0) {
       const refundFraction = Math.min(BASE.reapMaxKillRefund, kills * BASE.reapKillRefundFraction);
-      const rechargeTime = getDashRechargeTime(pilot, s);
-      const refundSec = rechargeTime * refundFraction;
-      const maxCharges = Math.min(BASE.maxDashCharges,
-        BASE.baseDashCharges + (s.warpUpgrades.charge_overflow || pilot.dashUpgrades?.charge_overflow || 0));
-      if (s.dashCharges < maxCharges) {
-        s.dashRecharge += refundSec;
-        while (s.dashRecharge >= rechargeTime && s.dashCharges < maxCharges) {
-          s.dashCharges++;
-          s.dashRecharge -= rechargeTime;
-        }
-        if (s.dashCharges >= maxCharges) s.dashRecharge = 0;
-      }
+      s.stealthEnergy = Math.min(s.stealthMax, (s.stealthEnergy || 0) + s.stealthMax * refundFraction);
+      s.dashCharges = s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0;
+      s.dashRecharge = s.stealthEnergy;
     }
 
     // Terror shriek crowd control
@@ -2614,7 +2619,6 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (!validPilot(pilot) || !s?.shiftActive || game?.state !== 'playing') return false;
     s.shiftActive = false;
     s.shiftRemaining = 0;
-    // 0.35s un-targetable invulnerability on emergence
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0.35);
     if (Number.isFinite(pilot.invuln)) pilot.invuln = Math.max(pilot.invuln, 0.35);
     s.reapFlash = 0.28;
@@ -2642,8 +2646,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (!canDock(pilot, carrier)) return false;
     const s = state(pilot);
     if (s.shiftActive) {
-      s.shiftActive = false;
-      s.shiftRemaining = 0;
+      finishShift(pilot, null, true);
     }
     s.docked = true;
     s.carrier = carrier;
@@ -2669,11 +2672,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       const now = game.survivalTime || 0;
       s.lastEjectAt = now;
       if ((s.warpUpgrades.symbiote_slingshot || pilot.dashUpgrades?.symbiote_slingshot || 0) > 0) {
-        s.slingshotBuffUntil = now + 3.0; // 3s 100% crit
+        s.slingshotBuffUntil = now + 3.0;
         window.NeonPhantomVisual?.emit(pilot, 'burst', pilot, null, 90, 0.45);
       }
 
-      // Radial blast knocks back and stuns enemies
       const ejectScale = attackScale(pilot);
       for (const enemy of game.enemies || []) {
         if (!enemy.dead && within(enemy, pilot, BASE.ejectRadius)) {
@@ -2708,10 +2710,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     const flowLvl = s.passiveUpgrades.spiritual_flow || pilot.passives?.spiritual_flow || 0;
     const flowCdr = Math.max(0.50, 1 - flowLvl * 0.08);
     s.sprintCooldown = (BASE.sprintCooldown || 4.5) * (pilot.cdrMultiplier || 1) * flowCdr;
-    // Duration accumulates additively (+3.0s each activation)
     s.sprintTimer = (s.sprintTimer || 0) + (BASE.sprintDuration || 3.0);
 
-    // symbiote_slingshot: activation triggers 3s 100% crit
     if ((s.warpUpgrades.symbiote_slingshot || pilot.dashUpgrades?.symbiote_slingshot || 0) > 0) {
       const now = game.survivalTime || 0;
       s.slingshotBuffUntil = now + 3.0;
@@ -2745,9 +2745,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
     const now = game.survivalTime || 0;
     const isShift = Boolean(s.shiftActive);
-    // In stealth: large pull radius (260px). Out of stealth: smaller push radius (155px).
     const baseR = isShift ? (BASE.vortexRadius || 260) : (BASE.repelRadius || 155);
     const vRadius = baseR * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
+    const vRadiusSq = vRadius * vRadius;
     const vScale = attackScale(pilot);
     const initDamage = (28 + (pilot.level || 1) * 3.5) * vScale;
     let hitCount = 0;
@@ -2756,13 +2756,13 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       if (!e || e.dead || e.hp <= 0) continue;
       const dx = pilot.x - e.x;
       const dy = pilot.y - e.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > vRadius) continue;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > vRadiusSq || distSq < 0.01) continue;
+      const dist = Math.sqrt(distSq);
 
       if (isShift) {
-        // 潜行状态：强力聚怪向自身拉拢
         const minDist = 6;
-        if (dist > minDist && dist > 1) {
+        if (dist > minDist) {
           const pullFraction = e.isBoss ? 0.20 : 0.45;
           const step = Math.min(dist - minDist, dist * pullFraction);
           e.x += (dx / dist) * step;
@@ -2772,12 +2772,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
           markEnemy(pilot, e, now);
         }
       } else {
-        // 非潜行状态：较小范围防暴毙推力排开敌人
-        if (dist > 0.1) {
-          const pushAmount = e.isBoss ? 45 : 110;
-          e.x -= (dx / dist) * pushAmount;
-          e.y -= (dy / dist) * pushAmount;
-        }
+        const pushAmount = e.isBoss ? 45 : 110;
+        e.x -= (dx / dist) * pushAmount;
+        e.y -= (dy / dist) * pushAmount;
       }
 
       game.dealDamage(e, initDamage, 'phantom_vortex', false, pilot);
@@ -2819,6 +2816,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     s.vortexCooldown = Math.max(0, (s.vortexCooldown || 0) - dt);
     s.strikeCooldown = s.vortexCooldown;
 
+    // Shift trail decay
     for (let i = s.shiftTrail.length - 1; i >= 0; i--) {
       s.shiftTrail[i].life -= dt;
       if (s.shiftTrail[i].life <= 0) s.shiftTrail.splice(i, 1);
@@ -2826,7 +2824,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (s.shiftActive || (s.sprintTimer || 0) > 0) {
       s.shiftTrailTimer -= dt;
       if (s.shiftTrailTimer <= 0) {
-        s.shiftTrailTimer = 0.028;
+        s.shiftTrailTimer = 0.035;
         s.shiftTrailSeq = (s.shiftTrailSeq || 0) + 1;
         const moveAng = (Math.abs(pilot.vx || 0) + Math.abs(pilot.vy || 0) > 5)
           ? Math.atan2(pilot.vy || 0, pilot.vx || 0)
@@ -2835,10 +2833,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
           x: pilot.x,
           y: pilot.y,
           angle: moveAng,
-          life: 0.44,
+          life: 0.42,
           seq: s.shiftTrailSeq
         });
-        if (s.shiftTrail.length > 10) s.shiftTrail.shift();
+        if (s.shiftTrail.length > 8) s.shiftTrail.shift();
       }
     }
 
@@ -2847,20 +2845,20 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       s.vortexTimer = Math.max(0, s.vortexTimer - dt);
       const linkLvl = s.passiveUpgrades.symbiosis_link || pilot.passives?.symbiosis_link || 0;
       const isShift = Boolean(s.shiftActive);
-      // In stealth: large pull radius (260px). Out of stealth: smaller push radius (155px).
       const baseR = isShift ? (BASE.vortexRadius || 260) : (BASE.repelRadius || 155);
       const vRadius = baseR * (1 + linkLvl * 0.15) * (pilot.areaMultiplier || 1);
+      const vRadiusSq = vRadius * vRadius;
       let affected = 0;
 
       for (const enemy of game.enemies || []) {
         if (!enemy || enemy.dead || enemy.hp <= 0) continue;
         const dx = pilot.x - enemy.x;
         const dy = pilot.y - enemy.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > vRadius || dist < 0.1) continue;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > vRadiusSq || distSq < 0.01) continue;
+        const dist = Math.sqrt(distSq);
 
         if (isShift) {
-          // 潜行状态：向心吸怪聚拢
           const minDist = 6;
           if (dist > minDist) {
             const pullRate = (enemy.isBoss ? 90 : (BASE.vortexPullSpeed || 320)) * (1 + (vRadius - dist) / vRadius * 0.45);
@@ -2872,7 +2870,6 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
             markEnemy(pilot, enemy, now);
           }
         } else {
-          // 非潜行状态：离心推开排斥
           const pushRate = (enemy.isBoss ? 90 : (BASE.vortexPushSpeed || 380));
           const step = pushRate * dt;
           enemy.x -= (dx / dist) * step;
@@ -2931,27 +2928,22 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       }
     }
 
-    // Handle shift duration
+    // Continuous stealth energy loop
     if (s.shiftActive) {
-      s.shiftRemaining -= dt;
-      if (s.shiftRemaining <= 0) {
+      s.stealthEnergy = Math.max(0, (s.stealthEnergy || 0) - dt);
+      s.shiftRemaining = s.stealthEnergy;
+      if (s.stealthEnergy <= 0) {
         finishShift(pilot, game, false);
       }
-    }
-
-    // Handle dash recharge (4.8s base, accelerated by spiritual_flow)
-    const maxCharges = Math.min(BASE.maxDashCharges,
-      BASE.baseDashCharges + (s.warpUpgrades.charge_overflow || pilot.dashUpgrades?.charge_overflow || 0));
-    s.dashCharges = Math.min(maxCharges, s.dashCharges);
-    const rechargeTime = getDashRechargeTime(pilot, s);
-    if (s.dashCharges < maxCharges) {
-      s.dashRecharge += dt;
-      if (s.dashRecharge >= rechargeTime) {
-        s.dashCharges++;
-        s.dashRecharge -= rechargeTime;
-      }
     } else {
-      s.dashRecharge = 0;
+      // Smooth continuous recovery when not in stealth
+      const flowLvl = s.passiveUpgrades.spiritual_flow || pilot.passives?.spiritual_flow || 0;
+      const flowBonus = 1 + flowLvl * 0.14;
+      const rechargeRate = (s.stealthMax / BASE.stealthRechargeSeconds) * flowBonus / (pilot.cdrMultiplier || 1);
+      s.stealthEnergy = Math.min(s.stealthMax, (s.stealthEnergy || 0) + dt * rechargeRate);
+      s.shiftRemaining = 0;
+      s.dashCharges = s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0;
+      s.dashRecharge = s.stealthEnergy;
     }
 
     // Clean up expired marks
@@ -2977,6 +2969,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     }
   }
 
+  // Optimized marks renderer without repetitive shadowBlur calls
   function renderMarks(ctx, game) {
     const pilots = game?.players?.list?.().map(entry => entry.state) ||
       [game?.player, game?.lanCoop?.ally].filter(Boolean);
@@ -2989,28 +2982,32 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       if (!enemy || enemy.dead || enemy.hp <= 0 || expireAt < now) continue;
       const timeLeft = expireAt - now;
       const x = enemy.x;
-      const hoverY = Math.sin(realTime * 6 + x) * 2.5;
-      const y = enemy.y - (enemy.radius || 14) - 13 + hoverY;
+      const hoverY = Math.sin(realTime * 6 + x) * 2.2;
+      const y = enemy.y - (enemy.radius || 14) - 12 + hoverY;
 
-      // Vertical soul tether
-      ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
-      ctx.lineWidth = 1.5;
+      // 1. Vertical soul tether
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.32)';
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
       ctx.moveTo(x, enemy.y - (enemy.radius || 14));
       ctx.lineTo(x, y + 7);
       ctx.stroke();
 
-      // Outer pulsating halo
-      const pulse = Math.sin(realTime * 8) * 1.5;
-      ctx.shadowBlur = 14;
-      ctx.shadowColor = '#c084fc';
-      ctx.strokeStyle = timeLeft < 1.0 ? '#ff4081' : '#00f0ff';
-      ctx.lineWidth = 1.8;
+      // 2. Outer pulsating halo (lightweight layered strokes instead of heavy shadowBlur)
+      const pulse = Math.sin(realTime * 8) * 1.4;
+      ctx.strokeStyle = timeLeft < 1.0 ? 'rgba(255, 64, 129, 0.35)' : 'rgba(0, 240, 255, 0.35)';
+      ctx.lineWidth = 3.6;
       ctx.beginPath();
       ctx.arc(x, y, 9 + pulse, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Floating soul diamond crest
+      ctx.strokeStyle = timeLeft < 1.0 ? '#ff4081' : '#00f0ff';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(x, y, 9 + pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 3. Floating soul diamond crest
       ctx.fillStyle = '#18072b';
       ctx.beginPath();
       ctx.moveTo(x, y - 8);
@@ -3021,10 +3018,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       ctx.fill();
       ctx.stroke();
 
-      // Inner soul flame
+      // 4. Inner soul flame
       ctx.fillStyle = timeLeft < 1.0 ? '#ff6090' : '#a855f7';
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = ctx.fillStyle;
       ctx.beginPath();
       ctx.moveTo(x, y - 5);
       ctx.lineTo(x + 3.8, y);
@@ -3033,10 +3028,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       ctx.closePath();
       ctx.fill();
 
-      // Center cyan pupil
+      // 5. Center cyan pupil
       ctx.fillStyle = '#00f0ff';
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = '#00f0ff';
       ctx.beginPath();
       ctx.ellipse(x, y, 1.0, 2.8, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -3087,8 +3080,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
             if (def.type === 'dash') {
               s.warpUpgrades[def.id] = bag[def.id];
               if (def.id === 'charge_overflow') {
-                s.dashCharges = Math.min(BASE.maxDashCharges, BASE.baseDashCharges + bag[def.id]);
-                s.dashRecharge = 0;
+                s.stealthMax = BASE.stealthBaseMax + (s.warpUpgrades.spectral_extend || 0) * 1.0 + bag[def.id] * 1.2;
+                s.stealthEnergy = s.stealthMax; // refill immediately!
               }
             } else if (def.type === 'passive') {
               s.passiveUpgrades[def.id] = bag[def.id];
@@ -3108,18 +3101,25 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 })();
 
 // Source: ships/phantom/weapons.js
-/* PHANTOM signature weapon: 幽魂之镰 (Phantom Scythe).
- * Dual-phase boomerang projectile: outward slicing, peak hover spin, and curved return.
- * Reabsorbing a returned scythe recovers ectoplasm and triggers Lv5 harvest pulses.
+/* PHANTOM signature weapon: 噬魂灵球 (Phantom Soul Orb).
+ * Fires a piercing void orb that locks onto the first hit target for 3.0 seconds.
+ * While locked, continuously deals decay damage to the target and emits a pulsating
+ * aura ring that slows and damages nearby enemies. Scales with level and attackScale.
  */
 (() => {
   'use strict';
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-  const MAX_ACTIVE_SCYTHES = 6;
-  const TARGET_RANGE = 600;
+  const MAX_ACTIVE_ORBS = 8;
+  const TARGET_RANGE = 650;
 
   function createState() {
-    return { scythes: [], fireElapsed: 0, serial: 0 };
+    const s = { orbs: [], fireElapsed: 0, serial: 0 };
+    Object.defineProperty(s, 'scythes', {
+      get: () => s.orbs,
+      set: (v) => { s.orbs = v; },
+      enumerable: true
+    });
+    return s;
   }
 
   function state(pilot) {
@@ -3127,42 +3127,18 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     return pilot.phantomScythe ||= createState();
   }
 
-  function closestEnemy(enemies, origin) {
-    let best = null;
-    let bestDistSq = TARGET_RANGE * TARGET_RANGE;
+  function closestEnemies(enemies, origin, count = 1) {
+    const valid = [];
     for (const e of enemies) {
       if (!e || e.dead || e.hp <= 0) continue;
       const dx = e.x - origin.x, dy = e.y - origin.y;
       const d2 = dx * dx + dy * dy;
-      if (d2 < bestDistSq) { best = e; bestDistSq = d2; }
+      if (d2 <= TARGET_RANGE * TARGET_RANGE) {
+        valid.push({ enemy: e, distSq: d2 });
+      }
     }
-    return best;
-  }
-
-  function spawnScythe(pilot, angle, level) {
-    const s = state(pilot);
-    if (!s || s.scythes.length >= MAX_ACTIVE_SCYTHES) return null;
-
-    const baseDist = level >= 2 ? 290 : 230;
-    const damage = 22 + (level - 1) * 8.5;
-    const scythe = {
-      x: pilot.x,
-      y: pilot.y,
-      originX: pilot.x,
-      originY: pilot.y,
-      angle,
-      targetX: pilot.x + Math.cos(angle) * baseDist,
-      targetY: pilot.y + Math.sin(angle) * baseDist,
-      phase: 'out', // 'out' -> 'hover' -> 'return'
-      speed: 380,
-      hoverTime: 0.38,
-      damage,
-      hitHistory: new Set(),
-      hoverDamageElapsed: 0,
-      level
-    };
-    s.scythes.push(scythe);
-    return scythe;
+    valid.sort((a, b) => a.distSq - b.distSq);
+    return valid.slice(0, count).map(v => v.enemy);
   }
 
   function segmentDistanceSq(px, py, x1, y1, x2, y2) {
@@ -3174,21 +3150,60 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     return (px - nx) * (px - nx) + (py - ny) * (py - ny);
   }
 
-  function dealScytheDamage(game, pilot, enemy, damage, source) {
+  function spawnOrb(pilot, target, level) {
+    const s = state(pilot);
+    if (!s || s.orbs.length >= MAX_ACTIVE_ORBS) return null;
+
+    let angle = Number.isFinite(pilot.aimAngle) ? pilot.aimAngle : (pilot.angle || 0);
+    if (target && !target.dead && target.hp > 0) {
+      angle = Math.atan2(target.y - pilot.y, target.x - pilot.x);
+    }
+
+    const baseDamage = 20 + (level - 1) * 6.5;
+    const auraRadius = 105 + level * 18; // 123px at Lv1 up to 195px at Lv5
+    const orb = {
+      id: ++s.serial,
+      x: pilot.x,
+      y: pilot.y,
+      vx: Math.cos(angle) * 420,
+      vy: Math.sin(angle) * 420,
+      angle,
+      speed: 420,
+      rangeRemaining: 600,
+      phase: 'flight', // 'flight' -> 'locked'
+      target: null,
+      lockRemaining: 3.0, // Exactly 3.0 seconds lock duration
+      lockDuration: 3.0,
+      tickTimer: 0,       // Damage tick to locked target every 0.25s
+      auraPulseTimer: 0,  // AoE pulse to nearby enemies every 0.35s
+      damage: baseDamage,
+      auraRadius,
+      level
+    };
+    s.orbs.push(orb);
+    return orb;
+  }
+
+  function dealOrbDamage(game, pilot, enemy, damage, source, applySlow = false) {
     if (!enemy || enemy.dead || enemy.hp <= 0) return;
     const hpPercent = enemy.hp / Math.max(enemy.maxHp || enemy.hp, 1);
     const marked = window.NeonPhantom?.isMarked ? window.NeonPhantom.isMarked(pilot, enemy, game.survivalTime || 0) : false;
     const executeLvl = pilot.passives?.execute_master || 0;
-    const executeBonus = executeLvl * ((hpPercent < .35 || marked) ? 0.15 : 0);
+    const executeBonus = executeLvl * ((hpPercent < 0.35 || marked) ? 0.15 : 0);
     const isCrit = (pilot.phantom && window.NeonPhantom) ?
       (Math.random() < window.NeonPhantom.critBonus(pilot, game.survivalTime || 0)) : false;
     const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
     game.dealDamage(enemy, damage * (1 + executeBonus) * scale, source, isCrit, pilot);
+
+    if (applySlow) {
+      enemy.freezeTimer = Math.max(enemy.freezeTimer || 0, 0.55);
+    }
+
     const gatherLvl = pilot.passives?.soul_gatherer || 0;
     if (gatherLvl > 0 && marked) {
       const pState = window.NeonPhantom?.state(pilot);
-      if (pState && pState.dashCharges < (pState.maxDashCharges || 4)) {
-        pState.dashRecharge = (pState.dashRecharge || 0) + 0.12 * gatherLvl;
+      if (pState) {
+        pState.stealthEnergy = Math.min(pState.stealthMax, (pState.stealthEnergy || 0) + 0.08 * gatherLvl);
       }
     }
     if (window.NeonPhantom) {
@@ -3204,111 +3219,120 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
     const s = state(pilot);
     const enemies = game.enemies || [];
-    const interval = Math.max(0.65, (1.8 - (level - 1) * 0.24) * (pilot.cdrMultiplier || 1));
+    const interval = Math.max(0.70, (1.9 - (level - 1) * 0.22) * (pilot.cdrMultiplier || 1));
 
     s.fireElapsed += dt;
     if (s.fireElapsed >= interval) {
       s.fireElapsed = Math.min(s.fireElapsed - interval, interval);
-      const target = closestEnemy(enemies, pilot);
-      const baseAngle = target ? Math.atan2(target.y - pilot.y, target.x - pilot.x) :
-        (pilot.angle || 0);
 
-      const count = level >= 3 ? 3 : 2;
-      const spread = 0.35;
-      const startAngle = baseAngle - ((count - 1) * spread) / 2;
+      // Level 1-2: 1 orb; Level 3-4: 2 orbs; Level 5: 3 orbs
+      const count = level >= 5 ? 3 : (level >= 3 ? 2 : 1);
+      const targets = closestEnemies(enemies, pilot, count);
 
       for (let i = 0; i < count; i++) {
-        spawnScythe(pilot, startAngle + i * spread, level);
+        const assignedTarget = targets[i] || targets[0] || null;
+        spawnOrb(pilot, assignedTarget, level);
       }
     }
 
-    // Update active flying scythes
-    for (let i = s.scythes.length - 1; i >= 0; i--) {
-      const sc = s.scythes[i];
-      const prevX = sc.x;
-      const prevY = sc.y;
+    const now = game.survivalTime || 0;
 
-      if (sc.phase === 'out') {
-        const dx = sc.targetX - sc.x;
-        const dy = sc.targetY - sc.y;
-        const dist = Math.hypot(dx, dy);
-        const step = sc.speed * dt;
-        if (dist <= step) {
-          sc.x = sc.targetX;
-          sc.y = sc.targetY;
-          sc.phase = 'hover';
-          sc.hitHistory.clear(); // Reset for hover ticks
-        } else {
-          sc.x += (dx / dist) * step;
-          sc.y += (dy / dist) * step;
-        }
+    // Update active orbs
+    for (let i = s.orbs.length - 1; i >= 0; i--) {
+      const orb = s.orbs[i];
 
-        // Damage enemies on outward flight with continuous collision
+      if (orb.phase === 'flight') {
+        const prevX = orb.x, prevY = orb.y;
+        const step = orb.speed * dt;
+        orb.x += orb.vx * dt;
+        orb.y += orb.vy * dt;
+        orb.rangeRemaining -= step;
+
+        // Continuous collision check with first target
+        let hitEnemy = null;
         for (const e of enemies) {
-          if (!e || e.dead || e.hp <= 0 || sc.hitHistory.has(e)) continue;
-          if (segmentDistanceSq(e.x, e.y, prevX, prevY, sc.x, sc.y) <= 36 * 36) {
-            sc.hitHistory.add(e);
-            dealScytheDamage(game, pilot, e, sc.damage, 'phantom_scythe_out');
+          if (!e || e.dead || e.hp <= 0) continue;
+          const r = (e.radius || 14) + 16;
+          if (segmentDistanceSq(e.x, e.y, prevX, prevY, orb.x, orb.y) <= r * r) {
+            hitEnemy = e;
+            break;
           }
         }
-      } else if (sc.phase === 'hover') {
-        sc.hoverTime -= dt;
-        sc.hoverDamageElapsed += dt;
-        if (sc.hoverDamageElapsed >= 0.18) {
-          sc.hoverDamageElapsed = 0;
+
+        if (hitEnemy) {
+          // Latch on and lock target for 3.0 seconds!
+          orb.phase = 'locked';
+          orb.target = hitEnemy;
+          orb.x = hitEnemy.x;
+          orb.y = hitEnemy.y;
+          orb.lockRemaining = 3.0;
+
+          // Impact hit
+          dealOrbDamage(game, pilot, hitEnemy, orb.damage, 'phantom_orb_impact');
+          if (window.NeonPhantom?.markEnemy) {
+            window.NeonPhantom.markEnemy(pilot, hitEnemy, now);
+          }
+          window.NeonPhantomVisual?.emit(pilot, 'burst', hitEnemy, null, orb.auraRadius * 0.7, 0.3);
+        } else if (orb.rangeRemaining <= 0) {
+          s.orbs.splice(i, 1);
+        }
+      } else if (orb.phase === 'locked') {
+        // Track target coordinates
+        if (orb.target && !orb.target.dead && orb.target.hp > 0) {
+          orb.x = orb.target.x;
+          orb.y = orb.target.y;
+        }
+
+        orb.lockRemaining -= dt;
+
+        // 1. Continuous decay damage to the locked target every 0.25s
+        orb.tickTimer += dt;
+        if (orb.tickTimer >= 0.25) {
+          orb.tickTimer -= 0.25;
+          if (orb.target && !orb.target.dead && orb.target.hp > 0) {
+            dealOrbDamage(game, pilot, orb.target, orb.damage * 0.45, 'phantom_orb_decay');
+          }
+        }
+
+        // 2. Pulsating light ring: slows and damages nearby monsters every 0.35s
+        orb.auraPulseTimer += dt;
+        if (orb.auraPulseTimer >= 0.35) {
+          orb.auraPulseTimer -= 0.35;
+          const aoeDamage = orb.damage * 0.36;
+          const rSq = orb.auraRadius * orb.auraRadius;
+          let aoeHits = 0;
+
           for (const e of enemies) {
-            if (!e || e.dead || e.hp <= 0) continue;
-            if (Math.hypot(e.x - sc.x, e.y - sc.y) <= 38) {
-              const hoverBonus = level >= 2 ? 1.3 : 1.0;
-              dealScytheDamage(game, pilot, e, sc.damage * 0.65 * hoverBonus, 'phantom_scythe_hover');
+            if (!e || e.dead || e.hp <= 0 || e === orb.target) continue;
+            const dx = e.x - orb.x, dy = e.y - orb.y;
+            if (dx * dx + dy * dy <= rSq) {
+              dealOrbDamage(game, pilot, e, aoeDamage, 'phantom_orb_aura', true);
+              if (++aoeHits >= 16) break;
             }
           }
         }
-        if (sc.hoverTime <= 0) {
-          sc.phase = 'return';
-          sc.hitHistory.clear(); // Reset for return flight
-        }
-      } else if (sc.phase === 'return') {
-        const dx = pilot.x - sc.x;
-        const dy = pilot.y - sc.y;
-        const dist = Math.hypot(dx, dy);
-        const returnSpeed = sc.speed * 1.25;
-        const step = returnSpeed * dt;
-        if (dist <= step || dist < 22) {
-          // Reabsorbed by pilot!
-          s.scythes.splice(i, 1);
-          if (window.NeonPhantom) {
-            window.NeonPhantom.addEctoplasm(pilot, 4);
-          }
 
-          // Lv5 Harvest Burst when reabsorbed
-          if (sc.level >= 5) {
+        // Expiration after 3.0 seconds
+        if (orb.lockRemaining <= 0) {
+          if (orb.level >= 5) {
+            // Level 5 final void detonation
+            const burstDamage = orb.damage * 2.2;
+            const rSq = orb.auraRadius * orb.auraRadius;
             for (const e of enemies) {
               if (!e || e.dead || e.hp <= 0) continue;
-              if (Math.hypot(e.x - pilot.x, e.y - pilot.y) <= 120) {
-                dealScytheDamage(game, pilot, e, 65, 'phantom_scythe_burst');
+              const dx = e.x - orb.x, dy = e.y - orb.y;
+              if (dx * dx + dy * dy <= rSq) {
+                dealOrbDamage(game, pilot, e, burstDamage, 'phantom_orb_detonate', true);
               }
             }
             if ((game.shockwaves?.length || 0) < 40) {
-              game.shockwaves?.push({
-                x: pilot.x, y: pilot.y, radius: 10, maxRadius: 120,
-                color: '#00f0ff', alpha: 0.8
+              game.shockwaves.push({
+                x: orb.x, y: orb.y, radius: 15, maxRadius: orb.auraRadius,
+                color: '#a855f7', alpha: 0.9
               });
             }
           }
-          continue;
-        } else {
-          sc.x += (dx / dist) * step;
-          sc.y += (dy / dist) * step;
-        }
-
-        // Damage enemies on return flight with continuous collision
-        for (const e of enemies) {
-          if (!e || e.dead || e.hp <= 0 || sc.hitHistory.has(e)) continue;
-          if (segmentDistanceSq(e.x, e.y, prevX, prevY, sc.x, sc.y) <= 36 * 36) {
-            sc.hitHistory.add(e);
-            dealScytheDamage(game, pilot, e, sc.damage * 1.15, 'phantom_scythe_return');
-          }
+          s.orbs.splice(i, 1);
         }
       }
     }
@@ -3316,113 +3340,116 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
   function render(ctx, pilot) {
     const s = pilot?.phantomScythe;
-    if (!s?.scythes?.length || !ctx) return;
+    if (!s?.orbs?.length || !ctx) return;
     ctx.save();
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
     const timeSec = now * 0.001;
 
-    for (const sc of s.scythes) {
-      ctx.save();
-      ctx.translate(sc.x, sc.y);
-      const spin = (sc.phase === 'hover') ? (now * 0.02) : (sc.angle + now * 0.012);
+    for (const orb of s.orbs) {
+      const isLocked = orb.phase === 'locked';
 
-      // 1. Ghostly Motion-Blur Slashing Arc Trails
-      const isHover = sc.phase === 'hover';
-      const trailAlpha = isHover ? 0.35 : 0.55;
-      ctx.save();
-      ctx.rotate(spin - 0.25);
-      ctx.strokeStyle = `rgba(0, 240, 255, ${trailAlpha * 0.5})`;
-      ctx.lineWidth = 4;
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#00f0ff';
-      ctx.beginPath();
-      ctx.arc(0, 0, 18, 0, Math.PI * 0.7);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, 18, Math.PI, Math.PI * 1.7);
-      ctx.stroke();
-      ctx.restore();
+      if (isLocked) {
+        // --- 1. Pulsating Light Ring (Aura) around locked target ---
+        const pulse = (timeSec * 2.2) % 1;
+        const radius = orb.auraRadius;
+        const currentR = radius * (0.88 + 0.12 * Math.sin(timeSec * 6));
 
-      ctx.rotate(spin);
-
-      // 2. Twin Spectral Crescent Scythe Blades
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#00f0ff';
-      ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2.4;
-      ctx.fillStyle = '#120724';
-
-      // Blade 1
-      ctx.beginPath();
-      ctx.arc(0, 0, 17, 0, Math.PI * 0.88);
-      ctx.lineTo(3, 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Blade 1 inner soul rune spine
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, 0.15, Math.PI * 0.75);
-      ctx.stroke();
-
-      // Blade 2
-      ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.arc(0, 0, 17, Math.PI, Math.PI * 1.88);
-      ctx.lineTo(-3, -2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Blade 2 inner soul rune spine
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12, Math.PI + 0.15, Math.PI * 1.75);
-      ctx.stroke();
-
-      // 3. Central Ocular Void Core
-      ctx.beginPath();
-      ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#a855f7';
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#a855f7';
-      ctx.fill();
-
-      // Slit pupil in center of scythe
-      ctx.fillStyle = '#00f0ff';
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = '#00f0ff';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 1.2, 3.2, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 4. Hover Resonance Pulse Rings
-      if (isHover) {
-        const pulse = (now * 0.006) % 1;
+        // Soft outer glowing ring (no shadowBlur)
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
         ctx.beginPath();
-        ctx.arc(0, 0, 15 + pulse * 24, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(168, 85, 247, ${1 - pulse})`;
+        ctx.arc(orb.x, orb.y, currentR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner sharp neon violet ring
         ctx.lineWidth = 1.8;
-        ctx.stroke();
-
+        ctx.strokeStyle = '#c084fc';
         ctx.beginPath();
-        ctx.arc(0, 0, 8 + pulse * 14, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 240, 255, ${0.8 * (1 - pulse)})`;
-        ctx.lineWidth = 1.2;
+        ctx.arc(orb.x, orb.y, currentR, 0, Math.PI * 2);
         ctx.stroke();
-      }
 
-      ctx.restore();
+        // Expanding secondary shock pulse
+        const expandR = radius * pulse;
+        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = `rgba(168, 85, 247, ${1 - pulse})`;
+        ctx.beginPath();
+        ctx.arc(orb.x, orb.y, expandR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Light background fill
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.08)';
+        ctx.beginPath();
+        ctx.arc(orb.x, orb.y, currentR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- 2. Central Locked Energy Singularity Core ---
+        ctx.save();
+        ctx.translate(orb.x, orb.y);
+
+        // Rotating lock runes
+        const rot = timeSec * 4;
+        ctx.rotate(rot);
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 1.8;
+        ctx.strokeRect(-9, -9, 18, 18);
+
+        // Core cyan/magenta diamond
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(8, 0);
+        ctx.lineTo(0, 8);
+        ctx.lineTo(-8, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      } else {
+        // --- Flying Projectile Orb ---
+        ctx.save();
+        ctx.translate(orb.x, orb.y);
+        ctx.rotate(orb.angle);
+
+        // Outer soft cyan aura
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.28)';
+        ctx.beginPath();
+        ctx.arc(0, 0, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner glowing core
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // High-energy white nucleus
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(1.5, 0, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // High-velocity trailing tail
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(-24, 0);
+        ctx.stroke();
+
+        ctx.restore();
+      }
     }
     ctx.restore();
   }
 
+  // Alias compatible API
   window.NeonPhantomScythe = Object.freeze({
-    state, spawnScythe, tick, render, MAX_ACTIVE_SCYTHES
+    state, spawnScythe: spawnOrb, spawnOrb, tick, render, MAX_ACTIVE_ORBS, MAX_ACTIVE_SCYTHES: MAX_ACTIVE_ORBS
   });
 })();
 
@@ -4043,6 +4070,8 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
     shiftRemaining: clamp(s.shiftRemaining, 0, 10),
     charges: clamp(s.dashCharges, 0, 4),
     recharge: clamp(s.dashRecharge, 0, 8),
+    stealthEnergy: clamp(s.stealthEnergy, 0, 10),
+    stealthMax: clamp(s.stealthMax, 1, 10),
     docked: Boolean(s.docked),
     dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),
@@ -4063,10 +4092,11 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
       radius:clamp(fx.radius,8,280),life:clamp(fx.life,0,3),
       maxLife:clamp(fx.maxLife,.01,3)
     })),
-    scythes: (pilot.phantomScythe?.scythes || []).slice(0,6).map(sc=>({
+    scythes: (pilot.phantomScythe?.orbs || pilot.phantomScythe?.scythes || []).slice(0,8).map(sc=>({
       x:clamp(sc.x,-1e7,1e7), y:clamp(sc.y,-1e7,1e7),
       angle:clamp(sc.angle,-6.29,6.29),
-      phase:['out','hover','return'].includes(sc.phase)?sc.phase:'out'
+      phase:['flight','locked','out','hover','return'].includes(sc.phase)?sc.phase:'flight',
+      auraRadius:clamp(sc.auraRadius || 120, 20, 300)
     }))
   } };
 });
