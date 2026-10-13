@@ -7,13 +7,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   const timeSec = now * 0.001;
 
   ctx.save();
-  ctx.shadowBlur = downed ? 10 : 20;
-  ctx.shadowColor = strokeColor;
 
   // 1. Dual-mandible predatory stealth hull (Forked needle prongs)
   ctx.fillStyle = downed ? '#1a0d18' : '#0e051c';
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 2.4;
 
   ctx.beginPath();
   ctx.moveTo(26, -4.5);           // Port forward strike fang
@@ -34,6 +30,15 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   ctx.lineTo(14, -9);
   ctx.closePath();
   ctx.fill();
+
+  // Outer luminous glow pass (0 shadowBlur)
+  ctx.strokeStyle = downed ? 'rgba(255,97,126,0.35)' : 'rgba(0, 240, 255, 0.35)';
+  ctx.lineWidth = 5.4;
+  ctx.stroke();
+
+  // Sharp inner contour
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2.4;
   ctx.stroke();
 
   // 2. Negative-space void vents (Hollow energy conduits inside wings)
@@ -64,11 +69,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
   // 3. Symbiote docking nodes (Tactical bioclamps on wings)
   ctx.fillStyle = downed ? '#ff617e' : '#a855f7';
-  ctx.shadowColor = '#a855f7';
-  ctx.shadowBlur = 8;
   ctx.beginPath();
-  ctx.arc(-4, -13, 2.2, 0, Math.PI * 2);
-  ctx.arc(-4, 13, 2.2, 0, Math.PI * 2);
+  ctx.arc(-4, -13, 2.4, 0, Math.PI * 2);
+  ctx.arc(-4, 13, 2.4, 0, Math.PI * 2);
   ctx.fill();
 
   // 4. Central Ocular Soul Core (Eerie spectral eye with breathing slit pupil)
@@ -76,16 +79,15 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   ctx.beginPath();
   ctx.arc(3, 0, 5.8 + eyePulse, 0, Math.PI * 2);
   ctx.fillStyle = downed ? '#ff617e' : '#a855f7';
-  ctx.shadowBlur = downed ? 6 : 18;
-  ctx.shadowColor = downed ? '#ff617e' : '#c084fc';
   ctx.fill();
+  ctx.strokeStyle = downed ? '#ff617e' : '#c084fc';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
 
   // Sinister vertical slit pupil with ocular gleam
   if (!downed) {
     const slitWidth = 1.6 + Math.sin(timeSec * 6) * 0.4;
     ctx.fillStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.ellipse(3, 0, slitWidth, 4.4, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -101,8 +103,6 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   const plume = downed ? 4 : (10 + Math.random() * 8);
   const thrusterColor = downed ? '#ff617e' : '#00f0ff';
   ctx.fillStyle = thrusterColor;
-  ctx.shadowColor = thrusterColor;
-  ctx.shadowBlur = 14;
 
   // Port engine flame
   ctx.beginPath();
@@ -123,8 +123,6 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
   // Ethereal violet soul-fire overlayer & drifting smoke sparks
   if (!downed) {
     ctx.fillStyle = 'rgba(168, 85, 247, 0.75)';
-    ctx.shadowColor = '#a855f7';
-    ctx.shadowBlur = 10;
 
     ctx.beginPath();
     ctx.moveTo(-12, -4);
@@ -143,8 +141,6 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     // Trailing spectral sparks
     const sparkT = (now * 0.04) % 10;
     ctx.fillStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 6;
     ctx.beginPath();
     ctx.arc(-17 - sparkT, -5 + Math.sin(timeSec * 7) * 2, 1.3, 0, Math.PI * 2);
     ctx.arc(-17 - sparkT, 5 + Math.cos(timeSec * 7) * 2, 1.3, 0, Math.PI * 2);

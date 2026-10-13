@@ -9,14 +9,14 @@
     maxEctoplasm: 100,
     killEctoplasm: 0,
     passThroughEctoplasm: 0,
-    stealthBaseMax: 3.8,            // Base 3.8s continuous stealth (up to 6.5s via upgrades)
-    shiftDuration: 3.8,             // Retain base window for assertions
-    stealthRechargeSeconds: 4.8,    // 4.8s to fully recharge from 0 to 100%
+    stealthBaseMax: 4.8,            // Base 4.8s continuous stealth (balanced duration, up to 7.8s via upgrades)
+    shiftDuration: 4.8,             // Retain base window for assertions
+    stealthRechargeSeconds: 5.2,    // 5.2s to fully recharge from 0 to 100%
     shiftSpeedMultiplier: 1.40,     // Base +40% speed during stealth
     shiftCooldown: 0,
     baseDashCharges: 2,
     maxDashCharges: 4,
-    dashRecharge: 4.8,
+    dashRecharge: 5.2,
     markDuration: 4.0,
     baseReapDamage: 52,
     reapLevelScale: 5.5,
@@ -35,7 +35,7 @@
     vortexRadius: 260,              // Large pull radius when in stealth
     repelRadius: 155,               // Smaller push/repel radius when out of stealth
     vortexPullSpeed: 320,           // Pull speed when in stealth
-    vortexPushSpeed: 380,           // Push speed when out of stealth
+    vortexPushSpeed: 580,           // Base push speed when out of stealth (scales up during sprint)
     vortexSlowDuration: 1.8,
     dockMaxDistance: 150,
     dockMaxDuration: 14.0,          // 14s symbiote overheat cycle for active co-op rhythm
@@ -68,9 +68,9 @@
     soul_gatherer: '专属武器每次命中带有【灵魂死印】的敌人，额外缩减潜行充能冷却并提高暴击伤害',
     death_reversal: '本局首次致命伤害触发紧急重构免死并回血',
     dual_mind: '处于 潜行 或 幽影疾行（加速） 状态时，全局暴击率额外提升 +5%/级，攻击速度/伤害提升',
-    spectral_extend: '每级延长持续潜行上限时间 +1.0秒，且潜行期间移速额外 +15%/级',
+    spectral_extend: '每级延长持续潜行上限时间 +0.8秒，且潜行期间移速额外 +12%/级',
     soul_detonation: '提高死印引爆范围（+50%/级）与引爆伤害（+40%/级）',
-    charge_overflow: '扩充持续潜行上限时间 +1.2秒/级，升级时立即回满潜行能流',
+    charge_overflow: '扩充持续潜行上限时间 +0.8秒/级，升级时立即回满潜行能流',
     ghost_trail: '潜行或加速期间每 0.36 秒在路径留下冥火灼烧敌群',
     terror_shriek: '死印引爆后恐吓周围敌群 1.5 秒',
     dimension_door: '退出潜行时冰封减速周围敌人',
@@ -159,7 +159,7 @@
     const s = (pilot.phantom ||= createState());
     const extendLvl = s.warpUpgrades?.spectral_extend || pilot?.dashUpgrades?.spectral_extend || 0;
     const overflowLvl = s.warpUpgrades?.charge_overflow || pilot?.dashUpgrades?.charge_overflow || 0;
-    s.stealthMax = BASE.stealthBaseMax + extendLvl * 1.0 + overflowLvl * 1.2;
+    s.stealthMax = BASE.stealthBaseMax + extendLvl * 0.8 + overflowLvl * 0.8;
     s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || pilot?.passives?.phantom_core || 0) * 8;
     s.dashCharges = s.shiftActive ? 0 : (s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0);
     s.dashRecharge = s.stealthEnergy;
@@ -514,9 +514,16 @@
           markEnemy(pilot, e, now);
         }
       } else {
-        const pushAmount = e.isBoss ? 45 : 110;
-        e.x -= (dx / dist) * pushAmount;
-        e.y -= (dy / dist) * pushAmount;
+        const isSprinting = (s.sprintTimer || 0) > 0;
+        const pushAmount = e.isBoss ? 55 : (isSprinting ? 160 : 130);
+        const normX = dx / dist;
+        const normY = dy / dist;
+        e.x -= normX * pushAmount;
+        e.y -= normY * pushAmount;
+        const blastSpeed = isSprinting ? 720 : 540;
+        e.vx = -normX * blastSpeed;
+        e.vy = -normY * blastSpeed;
+        e.stunnedUntil = Math.max(e.stunnedUntil || 0, now + 0.30);
       }
 
       game.dealDamage(e, initDamage, 'phantom_vortex', false, pilot);
@@ -612,14 +619,22 @@
             markEnemy(pilot, enemy, now);
           }
         } else {
-          const pushRate = (enemy.isBoss ? 90 : (BASE.vortexPushSpeed || 380));
+          const isSprinting = (s.sprintTimer || 0) > 0;
+          // Kinetic force scales up when enemies are closer, ensuring they cannot breach the hull
+          const closeBoost = dist < 90 ? (1 + (90 - dist) / 90 * 0.7) : 1;
+          const pushRate = (enemy.isBoss ? 150 : (isSprinting ? 740 : 580)) * closeBoost;
+          const normX = dx / dist;
+          const normY = dy / dist;
           const step = pushRate * dt;
-          enemy.x -= (dx / dist) * step;
-          enemy.y -= (dy / dist) * step;
+          enemy.x -= normX * step;
+          enemy.y -= normY * step;
+          // Deflect enemy outward velocity away from player so core.js physics smooth-glides them
+          enemy.vx = -normX * Math.max(pushRate * 0.85, 260);
+          enemy.vy = -normY * Math.max(pushRate * 0.85, 260);
+          enemy.stunnedUntil = Math.max(enemy.stunnedUntil || 0, now + 0.12);
         }
 
         enemy.freezeTimer = Math.max(enemy.freezeTimer || 0, 0.5);
-        if (++affected >= 24) break;
       }
 
       s.vortexPulseTimer = (s.vortexPulseTimer || 0) - dt;
@@ -822,7 +837,7 @@
             if (def.type === 'dash') {
               s.warpUpgrades[def.id] = bag[def.id];
               if (def.id === 'charge_overflow') {
-                s.stealthMax = BASE.stealthBaseMax + (s.warpUpgrades.spectral_extend || 0) * 1.0 + bag[def.id] * 1.2;
+                s.stealthMax = BASE.stealthBaseMax + (s.warpUpgrades.spectral_extend || 0) * 0.8 + bag[def.id] * 0.8;
                 s.stealthEnergy = s.stealthMax; // refill immediately!
               }
             } else if (def.type === 'passive') {

@@ -3242,7 +3242,7 @@
         if (dashContainer) {
           if (isPhantom) {
             const ghost = this.player.phantom;
-            const gaugePct = Math.max(0, Math.min(100, ((ghost?.stealthEnergy ?? 3.8) / Math.max(0.1, ghost?.stealthMax || 3.8)) * 100));
+            const gaugePct = Math.max(0, Math.min(100, ((ghost?.stealthEnergy ?? 4.8) / Math.max(0.1, ghost?.stealthMax || 4.8)) * 100));
             if (!dashContainer.querySelector?.('.phantom-continuous-track')) {
               dashContainer.innerHTML = `
                 <div class="dash-segment phantom-continuous-track" style="width:100%;height:100%;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden;">
@@ -3288,7 +3288,7 @@
           if (this.player.shipId === 'phantom') {
             const ghost = this.player.phantom;
             const shiftActive = Boolean(ghost?.shiftActive);
-            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghost?.stealthEnergy ?? 3.8) / Math.max(0.1, ghost?.stealthMax || 3.8)) * 100)));
+            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghost?.stealthEnergy ?? 4.8) / Math.max(0.1, ghost?.stealthMax || 4.8)) * 100)));
             if (dashLabel) dashLabel.textContent = shiftActive ? '引爆' : '潜行';
             if (dashCount) dashCount.textContent = `${gaugePct}%`;
             touchDashBtn.style.setProperty('--dash-fill', `${gaugePct}%`);
@@ -3311,7 +3311,7 @@
         if (statTextEl) {
           if (isPhantom) {
             const ghost = this.player.phantom;
-            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghost?.stealthEnergy ?? 3.8) / Math.max(0.1, ghost?.stealthMax || 3.8)) * 100)));
+            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghost?.stealthEnergy ?? 4.8) / Math.max(0.1, ghost?.stealthMax || 4.8)) * 100)));
             const lvl = this.player.level || 1;
             const scale = window.NeonPhantom?.attackScale?.(this.player) || 1;
             const coreBonus = (ghost?.passiveUpgrades?.phantom_core || this.player.passives?.phantom_core || 0) * 0.12;
@@ -3619,7 +3619,7 @@
           const shiftBtn = document.getElementById('btn-skill-shift');
           const shiftMask = document.getElementById('mask-skill-shift');
           if (shiftName && shiftCost) {
-            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghostState?.stealthEnergy ?? 3.8) / Math.max(0.1, ghostState?.stealthMax || 3.8)) * 100)));
+            const gaugePct = Math.max(0, Math.min(100, Math.round(((ghostState?.stealthEnergy ?? 4.8) / Math.max(0.1, ghostState?.stealthMax || 4.8)) * 100)));
             if (shiftActive) {
               const rem = ghostState?.stealthEnergy || 0;
               shiftBtn?.classList.add('active-state');
@@ -6053,9 +6053,14 @@
           e.x += e.vx * dt;
           e.y += e.vy * dt;
 
-          // Melee collision with player: Ghost Form phases straight through without collision damage
+          // Melee collision with player: Ghost Form phases straight through without collision damage;
+          // Repel kinetic barrier active on Phantom deflects contact damage from repelled enemies
+          const isPhantomProtected = this.player.shipId === 'phantom' && (
+            Boolean(this.player.phantom?.shiftActive) ||
+            ((this.player.phantom?.vortexTimer || 0) > 0 && !this.player.phantom?.shiftActive)
+          );
           if (!this.player.downed && this.player.invulnTimer <= 0 &&
-              !(this.player.shipId === 'phantom' && this.player.phantom?.shiftActive) &&
+              !isPhantomProtected &&
               Vec.dist(e.x, e.y, this.player.x, this.player.y) < e.radius + this.player.radius) {
             this.hitPlayer(e.damage);
           }

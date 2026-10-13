@@ -27,7 +27,7 @@ const NeonPhantomVisual = (() => {
       ctx.globalAlpha=alpha*.88;
       ctx.strokeStyle=event.kind==='soul'?'#ef88ff':event.kind==='heal'?'#66ffcb':'#9b55ee';
       ctx.fillStyle=event.kind==='heal'?'#66ffcb':'#b779f7';
-      ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=9;
+
       if (event.kind === 'strike_wave') {
         const dx = (event.x2 || event.x) - event.x;
         const dy = (event.y2 || event.y) - event.y;
@@ -45,13 +45,19 @@ const NeonPhantomVisual = (() => {
         ctx.arc(0, 0, dist * (0.45 + 0.55 * progress), -0.42, 0.42);
         ctx.closePath();
         ctx.fill();
-        // Triple crescent spectral blade waves
+        // Triple crescent spectral blade waves (layered luminous strokes, 0 shadowBlur)
         for (let k = 0; k < 3; k++) {
           const waveR = dist * Math.min(1, 0.28 + k * 0.26 + progress * 0.36);
+          const baseColor = k === 0 ? '#00f0ff' : k === 1 ? '#e879f9' : '#a855f7';
+          // Outer glow pass
+          ctx.globalAlpha = alpha * (0.45 - k * 0.1);
+          ctx.strokeStyle = baseColor;
+          ctx.lineWidth = (4.5 - k * 1.1) * 2.2;
+          ctx.beginPath();
+          ctx.arc(0, 0, waveR, -0.44 + k * 0.05, 0.44 - k * 0.05);
+          ctx.stroke();
+          // Inner sharp core pass
           ctx.globalAlpha = alpha * (0.95 - k * 0.2);
-          ctx.strokeStyle = k === 0 ? '#00f0ff' : k === 1 ? '#e879f9' : '#a855f7';
-          ctx.shadowColor = ctx.strokeStyle;
-          ctx.shadowBlur = 16;
           ctx.lineWidth = 4.5 - k * 1.1;
           ctx.beginPath();
           ctx.arc(0, 0, waveR, -0.44 + k * 0.05, 0.44 - k * 0.05);
@@ -67,19 +73,32 @@ const NeonPhantomVisual = (() => {
         ctx.stroke();
         ctx.restore();
       } else if (event.kind === 'reap_slash') {
-        // High-contrast soul execution tether + crimson/violet X-slash at target
+        // High-contrast soul execution tether + crimson/violet X-slash at target (0 shadowBlur)
+        ctx.strokeStyle = 'rgba(217, 70, 239, 0.4)';
+        ctx.lineWidth = (2.6 * alpha + 1) * 2.2;
+        ctx.beginPath();
+        ctx.moveTo(event.x, event.y);
+        ctx.lineTo(event.x2, event.y2);
+        ctx.stroke();
         ctx.strokeStyle = '#e879f9';
-        ctx.shadowColor = '#d946ef';
-        ctx.shadowBlur = 14;
         ctx.lineWidth = 2.6 * alpha + 1;
         ctx.beginPath();
         ctx.moveTo(event.x, event.y);
         ctx.lineTo(event.x2, event.y2);
         ctx.stroke();
+
         const slashLen = 14 + (1 - alpha) * 12;
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+        ctx.lineWidth = 5.2;
+        ctx.beginPath();
+        ctx.moveTo(event.x2 - slashLen, event.y2 - slashLen);
+        ctx.lineTo(event.x2 + slashLen, event.y2 + slashLen);
+        ctx.moveTo(event.x2 + slashLen, event.y2 - slashLen);
+        ctx.lineTo(event.x2 - slashLen, event.y2 + slashLen);
+        ctx.stroke();
+
         ctx.strokeStyle = '#00f0ff';
-        ctx.shadowColor = '#00f0ff';
-        ctx.lineWidth = 2.8;
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
         ctx.moveTo(event.x2 - slashLen, event.y2 - slashLen);
         ctx.lineTo(event.x2 + slashLen, event.y2 + slashLen);
@@ -92,20 +111,29 @@ const NeonPhantomVisual = (() => {
         ctx.fill();
       } else if (event.kind === 'repel') {
         const progress = 1 - alpha;
-        ctx.strokeStyle = '#00f0ff';
-        ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 18;
-        ctx.lineWidth = 3.2;
+        const currentR = radius * (0.35 + 0.65 * progress);
+        // Outer glow halo
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+        ctx.lineWidth = 6.4;
         ctx.beginPath();
-        ctx.arc(event.x, event.y, radius * (0.35 + 0.65 * progress), 0, Math.PI * 2);
+        ctx.arc(event.x, event.y, currentR, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.globalAlpha = 0.20 * alpha;
+        // Inner crisp neon ring
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.arc(event.x, event.y, currentR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.globalAlpha = 0.18 * alpha;
         ctx.fillStyle = '#a855f7';
         ctx.beginPath();
         ctx.arc(event.x, event.y, radius * (0.2 + 0.8 * progress), 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.globalAlpha = 0.75 * alpha;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = 1.8;
         for (let sp = 0; sp < 8; sp++) {
           const spAng = (sp * Math.PI) / 4 + progress * 0.4;
           const r1 = radius * 0.45;
@@ -116,14 +144,21 @@ const NeonPhantomVisual = (() => {
           ctx.stroke();
         }
       } else if (event.kind === 'vortex') {
-        ctx.strokeStyle = '#a855f7';
-        ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 16;
-        ctx.lineWidth = 3.0;
+        const currentR = radius * (0.35 + 0.65 * alpha);
+        // Outer violet glow
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
+        ctx.lineWidth = 6.0;
         ctx.beginPath();
-        ctx.arc(event.x, event.y, radius * (0.35 + 0.65 * alpha), 0, Math.PI * 2);
+        ctx.arc(event.x, event.y, currentR, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.globalAlpha = 0.18 * alpha;
+        // Inner sharp purple ring
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(event.x, event.y, currentR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.globalAlpha = 0.16 * alpha;
         ctx.fillStyle = '#00f0ff';
         ctx.beginPath();
         ctx.arc(event.x, event.y, radius * 0.45, 0, Math.PI * 2);
@@ -178,34 +213,22 @@ function drawPhantomShift(ctx, spectral) {
   }
 
   if (validPts.length >= 2) {
+    ctx.beginPath();
+    ctx.moveTo(validPts[0].x, validPts[0].y);
     for (let i = 1; i < validPts.length; i++) {
-      const prev = validPts[i - 1];
-      const curr = validPts[i];
-      const progress = i / Math.max(1, validPts.length - 1);
-      const fade = Math.min(1, Math.max(0, (curr.life || 0.25) / 0.44)) * (0.25 + 0.75 * progress);
-
-      // Outer abyssal violet plasma wake
-      ctx.globalAlpha = fade * 0.48;
-      ctx.strokeStyle = '#a855f7';
-      ctx.shadowColor = '#a855f7';
-      ctx.shadowBlur = 14;
-      ctx.lineWidth = 3 + progress * 12;
-      ctx.beginPath();
-      ctx.moveTo(prev.x, prev.y);
-      ctx.lineTo(curr.x, curr.y);
-      ctx.stroke();
-
-      // Inner high-velocity cyan soul filament
-      ctx.globalAlpha = fade * 0.78;
-      ctx.strokeStyle = '#00f0ff';
-      ctx.shadowColor = '#00f0ff';
-      ctx.shadowBlur = 8;
-      ctx.lineWidth = 1.2 + progress * 3.8;
-      ctx.beginPath();
-      ctx.moveTo(prev.x, prev.y);
-      ctx.lineTo(curr.x, curr.y);
-      ctx.stroke();
+      ctx.lineTo(validPts[i].x, validPts[i].y);
     }
+    // Outer abyssal violet plasma wake (zero shadowBlur, ultra smooth)
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 9;
+    ctx.stroke();
+
+    // Inner high-velocity cyan soul filament
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
   }
 
   // 2. Oriented Spectral Hull Afterimages (using stable point.seq so colors/silhouettes never flicker!)
@@ -229,8 +252,6 @@ function drawPhantomShift(ctx, spectral) {
     ctx.fillStyle = isCyan ? 'rgba(0, 240, 255, 0.16)' : 'rgba(168, 85, 247, 0.20)';
     ctx.strokeStyle = isCyan ? '#00f0ff' : '#c084fc';
     ctx.lineWidth = 1.6;
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = ctx.strokeStyle;
 
     // Authentic Phantom twin-mandible gull-wing wraith silhouette
     ctx.beginPath();
@@ -262,17 +283,7 @@ function drawPhantomShift(ctx, spectral) {
     ctx.translate(x, y);
 
     // Abyssal stealth distortion field
-    const grad = typeof ctx.createRadialGradient === 'function'
-      ? ctx.createRadialGradient(0, 0, 5, 0, 0, shroudR + 8)
-      : null;
-    if (grad) {
-      grad.addColorStop(0, 'rgba(18, 6, 36, 0.08)');
-      grad.addColorStop(0.65, 'rgba(168, 85, 247, 0.22)');
-      grad.addColorStop(1, 'rgba(0, 240, 255, 0.36)');
-      ctx.fillStyle = grad;
-    } else {
-      ctx.fillStyle = 'rgba(168, 85, 247, 0.22)';
-    }
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.18)';
     ctx.globalAlpha = 0.92;
     ctx.beginPath();
     ctx.arc(0, 0, shroudR + 5, 0, Math.PI * 2);
@@ -283,10 +294,13 @@ function drawPhantomShift(ctx, spectral) {
       const rot = nowSec * 5.2 + b * Math.PI;
       ctx.save();
       ctx.rotate(rot);
+      ctx.strokeStyle = b === 0 ? 'rgba(0, 240, 255, 0.35)' : 'rgba(192, 132, 252, 0.35)';
+      ctx.lineWidth = 5.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, shroudR, -0.58, 0.58);
+      ctx.stroke();
       ctx.strokeStyle = b === 0 ? '#00f0ff' : '#c084fc';
-      ctx.shadowColor = ctx.strokeStyle;
-      ctx.shadowBlur = 14;
-      ctx.lineWidth = 2.6;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, shroudR, -0.58, 0.58);
       ctx.stroke();
@@ -296,9 +310,12 @@ function drawPhantomShift(ctx, spectral) {
     // Remaining stealth / ectoplasm progress ring
     const maxRem = Math.max(1.6, spectral.shiftMaxDuration || 2.1);
     const ratio = Math.max(0.06, Math.min(1, (spectral.shiftRemaining || 0) / maxRem));
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+    ctx.lineWidth = 5.0;
+    ctx.beginPath();
+    ctx.arc(0, 0, shroudR + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+    ctx.stroke();
     ctx.strokeStyle = '#67e8f9';
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 10;
     ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.arc(0, 0, shroudR + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
@@ -322,21 +339,28 @@ function drawPhantomShift(ctx, spectral) {
       const pullCycle = (nowSec * 1.8) % 1;
       const collapseR = vR * (1 - pullCycle * 0.72);
 
-      // Outer boundary ring
-      ctx.globalAlpha = 0.42;
+      // Outer boundary ring (dual pass)
+      ctx.globalAlpha = 0.25;
       ctx.strokeStyle = '#a855f7';
-      ctx.shadowColor = '#a855f7';
-      ctx.shadowBlur = 14;
+      ctx.lineWidth = 5.0;
+      ctx.beginPath();
+      ctx.arc(0, 0, vR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.65;
       ctx.lineWidth = 2.0;
       ctx.beginPath();
       ctx.arc(0, 0, vR, 0, Math.PI * 2);
       ctx.stroke();
 
       // Collapsing gravity suction wave ring
-      ctx.globalAlpha = (1 - pullCycle) * 0.65;
+      ctx.globalAlpha = (1 - pullCycle) * 0.35;
       ctx.strokeStyle = '#00f0ff';
-      ctx.shadowColor = '#00f0ff';
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 5.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, collapseR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = (1 - pullCycle) * 0.85;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, collapseR, 0, Math.PI * 2);
       ctx.stroke();
@@ -357,22 +381,29 @@ function drawPhantomShift(ctx, spectral) {
       const pushCycle = (nowSec * 2.2) % 1;
       const expandR = rR * (0.28 + pushCycle * 0.72);
 
-      // Boundary shield ring
-      ctx.globalAlpha = 0.45;
+      // Boundary shield ring (dual pass)
+      ctx.globalAlpha = 0.28;
       ctx.strokeStyle = '#00f0ff';
-      ctx.shadowColor = '#00f0ff';
-      ctx.shadowBlur = 12;
+      ctx.lineWidth = 4.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, rR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.75;
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.arc(0, 0, rR, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Outward expanding repulsion wave ring
-      ctx.globalAlpha = (1 - pushCycle) * 0.72;
+      // Outward expanding repulsion wave ring (dual pass)
+      ctx.globalAlpha = (1 - pushCycle) * 0.35;
       ctx.strokeStyle = '#e879f9';
-      ctx.shadowColor = '#c084fc';
-      ctx.shadowBlur = 15;
-      ctx.lineWidth = 2.6;
+      ctx.lineWidth = 6.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, expandR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = (1 - pushCycle) * 0.88;
+      ctx.strokeStyle = '#f0abfc';
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, expandR, 0, Math.PI * 2);
       ctx.stroke();
@@ -399,13 +430,19 @@ function drawPhantomShift(ctx, spectral) {
   const pulse = spectral.reapFlash > 0 ? spectral.reapFlash : spectral.shiftFlash;
   if (pulse > 0 && Number.isFinite(spectral.x) && Number.isFinite(spectral.y)) {
     const isReap = spectral.reapFlash > 0;
-    ctx.globalAlpha = Math.min(0.95, pulse * 3.2);
-    ctx.strokeStyle = isReap ? '#ef88ff' : '#00f0ff';
-    ctx.shadowColor = ctx.strokeStyle;
-    ctx.shadowBlur = 18;
-    ctx.lineWidth = isReap ? 4.5 : 3.0;
-
     const ringR = 25 + (1 - pulse / .28) * 85;
+
+    // Outer soft shockwave ring
+    ctx.globalAlpha = Math.min(0.45, pulse * 1.5);
+    ctx.strokeStyle = isReap ? '#ef88ff' : '#00f0ff';
+    ctx.lineWidth = isReap ? 9.0 : 6.5;
+    ctx.beginPath();
+    ctx.arc(spectral.x, spectral.y, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner bright core ring
+    ctx.globalAlpha = Math.min(0.95, pulse * 3.2);
+    ctx.lineWidth = isReap ? 3.8 : 2.4;
     ctx.beginPath();
     ctx.arc(spectral.x, spectral.y, ringR, 0, Math.PI * 2);
     ctx.stroke();

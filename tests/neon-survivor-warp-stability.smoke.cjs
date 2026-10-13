@@ -51,7 +51,7 @@ game.players.host=phantom;
 ships.runAbility(phantom,'onStart',game);
 assert.equal(ships.runAbility(phantom,'onAction',game,'shift'),true);
 assert.equal(phantom.phantom.shiftActive,true);
-for(let frame=0;frame<245;frame++){
+for(let frame=0;frame<315;frame++){
   game.survivalTime+=.016;
   phantom.x+=2;
   context.window.NeonPhantom.tick(phantom,game,.016);
@@ -61,7 +61,7 @@ for(let frame=0;frame<245;frame++){
 }
 assert.equal(phantom.phantom.shiftActive,false,'Shift expires exactly once');
 assert.ok(phantom.phantom.reapFlash>=0);
-phantom.phantom.stealthEnergy=3.8;
+phantom.phantom.stealthEnergy=4.8;
 assert.equal(ships.runAbility(phantom,'onAction',game,'shift'),true);
 assert.equal(ships.runAbility(phantom,'onAction',game,'reap'),true);
 assert.equal(phantom.phantom.shiftActive,false,
