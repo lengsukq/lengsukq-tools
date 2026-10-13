@@ -88,7 +88,8 @@
     const echo = s.mirrorEchoPending
       ? 1 + Math.min(2, pilot.dashUpgrades?.mirror_echo || 1) * .15 : 1;
     if (s.mirrorEchoPending) s.mirrorEchoPending = false;
-    const damage = base * (pilot.dmgMultiplier || 1) * m.dangerBonus * bonus * echo;
+    const scale = window.NeonAstra?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
+    const damage = base * scale * m.dangerBonus * bonus * echo;
     if (echo > 1) fx(pilot,'echo',pilot,enemy,38,.32);
     game.dealDamage(enemy, damage, source, false, pilot);
     if (mana) window.NeonAstra?.regenOnHit(pilot, enemy, game.survivalTime || 0);
@@ -254,7 +255,7 @@
     const e = nearest(targets(game, pilot, 50), pilot, 200);
     if (!e) return false;
     s.lastRefractionAt = now;
-    hit(pilot, game, e, Math.min(90, absorbed * .18 + strength * 9),
+    hit(pilot, game, e, Math.min(240, absorbed * .25 + strength * 14),
       'astra_refraction', false);
     fx(pilot,'beam',pilot,e,35,.3);
     return true;

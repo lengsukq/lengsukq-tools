@@ -26,7 +26,8 @@
     const execute = (rank(pilot,'execute_master') * (hpPercent < .35 ? .12 : 0));
     const ecto = window.NeonPhantom?.state(pilot)?.ectoplasm || 0;
     const bonus = Math.min(.35, ecto / 500) + execute;
-    game.dealDamage(enemy,base * (1 + bonus) * (pilot.dmgMultiplier || 1),source,
+    const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
+    game.dealDamage(enemy,base * (1 + bonus) * scale,source,
       Math.random() < Math.min(1, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0),pilot);
     window.NeonPhantom?.addEctoplasm(pilot,1 + rank(pilot,'soul_gatherer'));
     fx(pilot,'soul',pilot,enemy,15,.2);
@@ -96,8 +97,8 @@
         break;
       case 'abyssal_possession':
         fx(pilot,'soul',pilot,first,75,.55);
-        damage(pilot,game,first,Math.min(210,90+level*22+Math.min(80,
-          (first.maxHp || first.hp)*.012)),'phantom_possession');
+        damage(pilot,game,first,Math.min(420,95+level*28+Math.min(180,
+          (first.maxHp || first.hp)*.018)),'phantom_possession');
         if(first.hp > 0 && !first.isBoss)first.freezeTimer=Math.max(first.freezeTimer || 0,.2+level*.1);
         break;
       default:return false;

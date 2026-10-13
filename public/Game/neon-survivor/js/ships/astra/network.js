@@ -33,6 +33,14 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
     wardX: clamp(state.wardX, -1e7, 1e7),
     wardY: clamp(state.wardY, -1e7, 1e7),
     shield: clamp(pilot.coopShield?.value, 0, 45),
+    tempShield: clamp(pilot.astraTempShield?.value, 0, 200),
+    tempShieldRemaining: clamp(pilot.astraTempShield?.remaining, 0, 10),
+    phaseVeilRemaining: clamp(state.phaseVeilRemaining, 0, 5),
+    meteorZones: (state.meteorZones || []).slice(0, 6).map(z => ({
+      x: clamp(z.x, -1e7, 1e7), y: clamp(z.y, -1e7, 1e7),
+      radius: clamp(z.radius, 24, 280, 105),
+      life: clamp(z.life, 0, 3), maxLife: clamp(z.maxLife, .1, 3, 3)
+    })),
     anchors
   } };
 });

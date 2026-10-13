@@ -61,7 +61,13 @@
     return pairs;
   }
   function applyDamage(game, pilot, enemy, amount, source, energy = false) {
-    game.dealDamage(enemy, amount * (pilot.dmgMultiplier || 1), source, false, pilot);
+    const scale = window.NeonAstra?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
+    const mods = window.NeonAstraArsenal?.modifiers?.(pilot);
+    const dangerBonus = mods?.dangerBonus || 1;
+    const markMap = pilot?.astraArsenal?.marks;
+    const markBonus = (markMap && (markMap.get(enemy) || 0) > (game.survivalTime || 0))
+      ? (mods?.markBonus || 1) : 1;
+    game.dealDamage(enemy, amount * scale * dangerBonus * markBonus, source, false, pilot);
     if (energy) window.NeonAstra?.regenOnHit(pilot, enemy, game.survivalTime || 0);
   }
   function tick(pilot, game, dt) {
@@ -103,7 +109,7 @@
             vx: Math.cos(launchAngle) * launchSpeed,
             vy: Math.sin(launchAngle) * launchSpeed,
             target,
-            damage: 28,
+            damage: 28 * (1 + (level - 1) * 0.22),
             life: 2.2,
             deployAnchor: i === 0 || i >= missileCount - 1,
             trail: [{ x: pilot.x, y: pilot.y }]
@@ -187,7 +193,7 @@
       s.linkElapsed %= LINK_INTERVAL;
       const pairs = linkedPairs(s.anchors);
       const width = level >= 4 ? 16 : 11;
-      const damage = 8 * (level >= 2 ? 1.25 : 1);
+      const damage = 8 * (1 + (level - 1) * 0.25);
       let count = 0;
       for (const enemy of enemies) {
         if (!enemy || enemy.dead || enemy.hp <= 0) continue;
@@ -210,7 +216,7 @@
       for (const enemy of enemies) {
         if (!enemy || enemy.dead || enemy.hp <= 0 ||
             Math.hypot(enemy.x - center.x, enemy.y - center.y) > 108 + (enemy.radius || 12)) continue;
-        applyDamage(game, pilot, enemy, 110, 'astra_weave_burst', false);
+        applyDamage(game, pilot, enemy, 135, 'astra_weave_burst', false);
         if (++count >= 12) break;
       }
       if ((game.shockwaves?.length || 0) < 35) game.shockwaves?.push({

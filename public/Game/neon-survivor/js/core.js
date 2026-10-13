@@ -2075,15 +2075,15 @@
             this.settingsOpen || this.player?.downed) return false;
         const astraState = window.NeonAstra?.state(this.player);
         if (astraState) {
-          if (astraState.mana < 20) {
-            this.notifySkillFeedback(`⚠️ 星能不足 (需20/当前${Math.floor(astraState.mana)})`, '#c084fc');
+          if (astraState.mana < 12) {
+            this.notifySkillFeedback(`⚠️ 星能不足 (需12/当前${Math.floor(astraState.mana)})`, '#c084fc');
             try { this.sound?.playLaser?.(240, 'triangle'); } catch (_) {}
             return false;
           }
         }
         const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'meteor') === true;
         if (ok) {
-          this.notifySkillFeedback('☄️ 苍穹星陨！(定点轰炸与击晕)', '#d8b4fe');
+          this.notifySkillFeedback('☄️ 苍穹星陨！(定点轰炸 · 3s减速50%力场)', '#d8b4fe');
           try { this.sound?.playExplosion?.('large'); } catch (_) {}
         }
         return ok;
@@ -2441,8 +2441,9 @@
         const shuffled = equippedList.filter(item => !this.banishedUpgrades?.has(item.id)).sort(() => Math.random() - 0.5);
         const picked = shuffled.slice(0, count);
 
+        const activeCatalog = this.getUpgradeCatalog(this.player);
         return picked.map(item => {
-          const def = UPGRADES_DB.find(u => u.id === item.id);
+          const def = activeCatalog.find(u => u.id === item.id) || UPGRADES_DB.find(u => u.id === item.id);
           const currentLb = (this.player.limitBreaks && this.player.limitBreaks[item.id]) || 0;
           const nextLb = currentLb + 1;
 
@@ -2839,21 +2840,24 @@
         // Class-specific actions are provided by ship plugins; returning true
         // means the hook already applied the card and its side effects.
         if (window.NeonShips?.runAbility?.(this.player, 'onUpgrade', this, upg) === true) {
+          this.recalculatePassives();
           this.renderWeaponsHUD();
           return;
         }
         if (upg.type === 'dash') {
           if (!this.player.dashUpgrades) this.player.dashUpgrades = {};
           this.player.dashUpgrades[upg.id] = (this.player.dashUpgrades[upg.id] || 0) + 1;
-          this.recalculateDashStats();
+          this.recalculatePassives();
         } else if (upg.type === 'weapon') {
           this.player.weapons[upg.id] = (this.player.weapons[upg.id] || 0) + 1;
-          if (upg.id === 'orbit') this.syncOrbiters();
-          if (upg.id === 'drones') this.syncDrones();
+          this.recalculatePassives();
+          if (upg.id === 'orbit' || this.player.weapons.orbit) this.syncOrbiters();
+          if (upg.id === 'drones' || this.player.weapons.drones) this.syncDrones();
         } else {
           this.player.passives[upg.id] = (this.player.passives[upg.id] || 0) + 1;
           this.recalculatePassives();
-          if (upg.id === 'multishot' && this.player.weapons.orbit) this.syncOrbiters();
+          if (this.player.weapons.orbit) this.syncOrbiters();
+          if (this.player.weapons.drones) this.syncDrones();
         }
         this.renderWeaponsHUD();
       }
@@ -2933,10 +2937,29 @@
       }
 
       recalculatePassives() {
-        const p = this.player.passives;
+        const p = this.player.passives || {};
         const stats = window.NeonShips?.get?.(this.player.shipId)?.baseStats;
-        // Power
-        this.player.dmgMultiplier = 1.0 + (p.power || 0) * 0.18;
+        // Unified Base Attack Power: scales with Power core + Arsenal/Passive/Warp progression + Limit Breaks
+        const weapLevels = Object.values(this.player.weapons || {}).reduce((acc, v) => acc + (v || 0), 0);
+        const extraWeap = Math.max(0, weapLevels - 1);
+        const dashLevels = Object.values(this.player.dashUpgrades || {}).reduce((acc, v) => acc + (v || 0), 0);
+        const nonPowerPassives = Object.entries(p).reduce((acc, [k, v]) => acc + (k === 'power' ? 0 : (v || 0)), 0);
+        const lb = this.player.limitBreaks || {};
+        let lbDmgBonus = 0;
+        for (const [id, count] of Object.entries(lb)) {
+          if (!count) continue;
+          if (this.player.weapons && this.player.weapons[id]) lbDmgBonus += count * 0.12;
+          else if (id === 'power') lbDmgBonus += count * 0.06;
+          else if (!['dash_aegis', 'dash_dmg', 'dash_blast', 'dash_fire', 'dash_cryo', 'armor', 'haste', 'crit', 'area', 'thruster'].includes(id)) {
+            lbDmgBonus += count * 0.05;
+          }
+        }
+        const isClassShip = this.player.shipId === 'astra' || this.player.shipId === 'phantom';
+        const arsenalSynergy = isClassShip
+          ? (extraWeap * 0.06 + nonPowerPassives * 0.05 + dashLevels * 0.06)
+          : (extraWeap * 0.04 + nonPowerPassives * 0.03 + dashLevels * 0.04);
+        this.player.dmgMultiplier = 1.0 + (p.power || 0) * 0.18 + arsenalSynergy + lbDmgBonus;
+        this.player._arsenalInDmgMult = true;
         // Haste
         this.player.cdrMultiplier = Math.max(0.35, 1.0 - (p.haste || 0) * 0.1);
         // Thruster + 等级成长统一收口（含硬上限）
@@ -3162,8 +3185,15 @@
             const manaLabel = document.getElementById('astra-mana-text');
             const manaFill = document.getElementById('astra-mana-fill');
             const maxMana = Math.max(1, astraState.maxMana || 100);
+            const shieldObj = this.player.astraTempShield;
+            const activeShield = shieldObj && shieldObj.value > 0 && shieldObj.remaining > 0
+              ? Math.ceil(shieldObj.value) : 0;
+            const veilSuffix = (astraState.phaseVeilRemaining || 0) > 0 ? ' · 折光减伤' : '';
+            const shieldSuffix = activeShield > 0
+              ? ` · 🛡️护盾 ${activeShield}`
+              : '';
             if (manaLabel) manaLabel.textContent =
-              '星能 ' + Math.floor(astraState.mana) + '/' + maxMana;
+              '星能 ' + Math.floor(astraState.mana) + '/' + maxMana + shieldSuffix + veilSuffix;
             if (manaFill) manaFill.style.width =
               Math.round(Math.max(0, Math.min(1, astraState.mana / maxMana)) * 100) + '%';
           }
@@ -3172,7 +3202,9 @@
         const hpPct = Math.max(0, Math.min(100, (this.player.hp / this.player.maxHp) * 100));
         this.hudHp.style.width = `${hpPct}%`;
         if (this.hudHp.parentElement) {
-          this.hudHp.parentElement.title = `生命值: ${Math.round(this.player.hp)}/${this.player.maxHp} (自愈: +${this.player.regen.toFixed(1)}/s)`;
+          const shieldVal = this.player.astraTempShield && this.player.astraTempShield.value > 0 && this.player.astraTempShield.remaining > 0
+            ? ` | 星能护盾: ${Math.ceil(this.player.astraTempShield.value)}` : '';
+          this.hudHp.parentElement.title = `生命值: ${Math.round(this.player.hp)}/${this.player.maxHp}${shieldVal} (自愈: +${this.player.regen.toFixed(1)}/s)`;
         }
 
         // Dynamic Dash Segments HUD (3–9 charges)
@@ -3300,8 +3332,6 @@
         const shipId = this.state === 'lan-client' ?
           this.lanCoop?.latest?.guest?.shipId : this.player?.shipId;
         const skillsBar = document.getElementById('ship-skills-bar');
-        const statusText = document.getElementById('ship-status-text');
-        const statusDot = document.getElementById('ship-status-dot');
 
         // 1. Render buttons for current ship if not already mounted
         if (skillsBar && skillsBar.getAttribute('data-ship') !== shipId) {
@@ -3317,11 +3347,11 @@
                 <span class="skill-cost" id="cost-skill-ward">持续燃能</span>
                 <div class="skill-cd-mask" id="mask-skill-ward"></div>
               </button>
-              <button type="button" class="combat-skill-btn" id="btn-skill-meteor" title="苍穹星陨 [K]：【0 CD】无冷却定点轰炸，消耗20星能/发，命中≥3怪返还星能(最多8点)并缩减结界/闪现CD，高频范围伤害与群体击晕">
+              <button type="button" class="combat-skill-btn" id="btn-skill-meteor" title="苍穹星陨 [K]：【0 CD】无冷却定点轰炸，固定消耗12星能/发，造成范围伤害、短暂击晕并在落点留下滞留3秒的50%减速力场">
                 <span class="skill-hotkey">K</span>
                 <span class="skill-icon">☄️</span>
                 <span class="skill-name">苍穹星陨</span>
-                <span class="skill-cost" id="cost-skill-meteor">20星能</span>
+                <span class="skill-cost" id="cost-skill-meteor">12星能</span>
                 <div class="skill-cd-mask" id="mask-skill-meteor"></div>
               </button>
               <button type="button" class="combat-skill-btn" id="btn-skill-blink" title="相位闪现 [空格]：超维闪现，附带落地移速爆发">
@@ -3411,7 +3441,7 @@
           }
         }
 
-        // 2. Real-time updates for buttons & status banner
+        // 2. Real-time updates for skill buttons
         if (shipId === 'astra') {
           const astraState = window.NeonAstra?.state(this.player);
           const wardActive = Boolean(astraState?.wardActive);
@@ -3446,31 +3476,17 @@
           const meteorBtn = document.getElementById('btn-skill-meteor');
           const meteorMask = document.getElementById('mask-skill-meteor');
           if (meteorBtn && meteorMask) {
-            if (mana < 20) {
+            if (mana < 12) {
               meteorMask.style.height = '100%';
               meteorMask.style.background = 'rgba(0, 0, 0, 0.55)';
-              meteorMask.textContent = '需20';
+              meteorMask.textContent = '需12';
             } else {
               meteorMask.style.height = '0%';
               meteorMask.textContent = '';
             }
           }
-
-          if (statusText) {
-            if (wardActive) {
-              if (statusDot) statusDot.style.background = '#c084fc';
-              statusText.textContent = `🛡️ 移动炮台运转中 (星能 ${mana}) · 自身增伤+70% · [K]星陨连轰0 CD · 核心防弹推怪`;
-            } else if (mana >= 20) {
-              if (statusDot) statusDot.style.background = '#38bdf8';
-              statusText.textContent = `🔮 星能充沛 (${mana}/100) · [J]开启炮台 / [K]星陨连轰 (0 CD · 群中返能)`;
-            } else {
-              if (statusDot) statusDot.style.background = '#f59e0b';
-              statusText.textContent = `⚡ 星能回复中 (${mana}/100) · 普攻星梭持续集能`;
-            }
-          }
         } else if (shipId === 'phantom') {
           const ghostState = window.NeonPhantom?.state(this.player);
-          const marks = ghostState?.marks?.size || 0;
           const shiftActive = Boolean(ghostState?.shiftActive);
           const docked = Boolean(ghostState?.docked);
           const ecto = Math.floor(ghostState?.ectoplasm || 0);
@@ -3583,42 +3599,11 @@
               }
             }
           }
-
-          if (statusText) {
-            if (shiftActive) {
-              if (statusDot) statusDot.style.background = '#00f0ff';
-              statusText.textContent = `👻 幽灵化身激活中 · 持续消耗灵质 (${ecto}/100) · 穿透免撞 · 再次按空格/J殉爆!`;
-            } else if (docked) {
-              if (statusDot) statusDot.style.background = '#a855f7';
-              statusText.textContent = '🔗 战术共生挂载中 · 宿主后方减伤 40% · 持续输送自愈';
-            } else if (marks > 0) {
-              if (statusDot) statusDot.style.background = '#ef4444';
-              statusText.textContent = `💀 灵魂死印已锁定 ${marks} 个敌机 · 点击按J死印斩击引爆殉爆!`;
-            } else {
-              if (statusDot) statusDot.style.background = '#00f0ff';
-              const soloAction = this.lanCoop?.ally ? '[K]战术共生' : '[K]幽影疾行';
-              statusText.textContent = `⚡ 幽灵刺客就绪 · 灵质 ${ecto}/100 · [J]死印斩击 / ${soloAction} / [空格]幽灵化身`;
-            }
-          }
         } else {
-          const combo = this.player?.dashCombo || 0;
           const charges = this.player?.dashCharges || 0;
           const maxCharges = this.player?.maxDashCharges || 3;
           const costDash = document.getElementById('cost-skill-dash');
           if (costDash) costDash.textContent = `${charges}/${maxCharges}段就绪`;
-
-          if (statusText) {
-            if (combo > 0) {
-              if (statusDot) statusDot.style.background = '#00f3ff';
-              statusText.textContent = `⚡ 精准瞬斩连击 ×${combo} · 斩击伤害 +${combo * 8}%`;
-            } else if (this.player?.hasAegis && (this.player?.invulnTimer || 0) > 0) {
-              if (statusDot) statusDot.style.background = '#38bdf8';
-              statusText.textContent = '🛡️ 时空相位无敌光环激活中';
-            } else {
-              if (statusDot) statusDot.style.background = '#00f3ff';
-              statusText.textContent = `⚔️ 虚空突击先锋 · ${charges}段折跃就绪`;
-            }
-          }
         }
       }
 
@@ -5162,7 +5147,8 @@
               const burnInterval = astraState.wardBurnTimer;
               astraState.wardBurnTimer = 0;
               const wardR = 160 * (window.NeonAstraArsenal?.modifiers(this.player)?.areaFactor || 1);
-              const dotDmg = (32 + (this.player.level || 1) * 3.5) * burnInterval * (this.player.dmgMultiplier || 1);
+              const wardScale = window.NeonAstra?.attackScale?.(this.player) || (this.player.dmgMultiplier || 1);
+              const dotDmg = (35 + (this.player.level || 1) * 4.5) * burnInterval * wardScale;
               const wx = Number.isFinite(astraState.wardX) ? astraState.wardX : this.player.x;
               const wy = Number.isFinite(astraState.wardY) ? astraState.wardY : this.player.y;
               for (const e of this.enemies) {
@@ -5624,11 +5610,11 @@
             }
           }
 
-          // Enemy Freeze Slow (修复连续乘0.52导致怪物速度永久归零卡死的bug)
+          // Enemy Freeze Slow (50% movement slow)
           if (!e.baseSpeed) e.baseSpeed = e.speed || 120;
           if (e.freezeTimer > 0) {
             e.freezeTimer -= dt;
-            e.speed = e.baseSpeed * 0.52;
+            e.speed = e.baseSpeed * 0.5;
           } else {
             e.speed = e.baseSpeed;
           }
@@ -6196,10 +6182,49 @@
           dmg *= (1 - (window.NeonPhantom?.BASE?.carrierRearDamageReduction || 0.40));
         }
         // Spell wards reduce incoming damage; class-link shields consume the
-        // remainder before HP. Neither grants another invulnerability window.
+        // remainder before HP. Absorbed hits grant a brief 0.28s grace window
+        // so a touching melee enemy does not drain shields 60 times per second.
+        const preShieldDmg = dmg;
+        const prevAstraShield = (this.player.astraTempShield?.remaining > 0 && this.player.astraTempShield?.value > 0)
+          ? this.player.astraTempShield.value : 0;
         dmg = window.NeonAstra?.incomingDamage(this, this.player, dmg) ?? dmg;
         dmg = window.NeonLanResonance?.absorb(this.player, dmg, this.survivalTime || 0) ?? dmg;
-        if (dmg <= 0) return; // Fully blocked hits do not mint invulnerability.
+        const postAstraShield = (this.player.astraTempShield?.remaining > 0 && this.player.astraTempShield?.value > 0)
+          ? this.player.astraTempShield.value : 0;
+        const astraShieldAbsorbed = Math.max(0, prevAstraShield - postAstraShield);
+        if (dmg <= 0) {
+          this.player.invulnTimer = Math.max(this.player.invulnTimer || 0, 0.28);
+          this.shockwaves.push({
+            x: this.player.x,
+            y: this.player.y,
+            radius: 14,
+            maxRadius: 68,
+            alpha: 0.85,
+            color: '#38bdf8'
+          });
+          this.texts.push({
+            x: this.player.x,
+            y: this.player.y - 24,
+            text: `🛡️ 护盾抵消 -${Math.max(1, Math.round(astraShieldAbsorbed || preShieldDmg))}`,
+            color: '#38bdf8',
+            size: 15,
+            life: 0.65,
+            maxLife: 0.65
+          });
+          try { this.sound?.playLaser?.(520, 'sine'); } catch (_) {}
+          return;
+        }
+        if (astraShieldAbsorbed > 0) {
+          this.texts.push({
+            x: this.player.x,
+            y: this.player.y - 38,
+            text: `🛡️ 护盾吸收 -${Math.max(1, Math.round(astraShieldAbsorbed))}`,
+            color: '#67e8f9',
+            size: 13,
+            life: 0.65,
+            maxLife: 0.65
+          });
+        }
         this.combatTelemetry.damageTaken += dmg;
         this.player.hp -= dmg;
         this.player.invulnTimer = 0.35; // Invulnerable frame

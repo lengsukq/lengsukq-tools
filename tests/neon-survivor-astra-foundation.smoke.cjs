@@ -41,15 +41,18 @@ assert.equal(a.regenOnHit(wizard,one,10),3);
 assert.equal(a.regenOnHit(wizard,one,10.3),0,'Same enemy has a 1.5s gain cooldown');
 for(let i=0;i<12;i++) a.regenOnHit(wizard, {i}, 10.5);
 assert.equal(s.mana,72,'Only 12 energy per simulated second from hits');
-game.enemies=Array.from({length:20},(_,i)=>({x:80+i*.1,y:0,hp:1000}));
+game.enemies=Array.from({length:20},(_,i)=>({x:80+i*.1,y:0,hp:1000,baseSpeed:100,speed:100}));
 assert.equal(a.cast(wizard,game,'meteor'),true);
-assert.equal(hits.length,12,'Meteor AoE stops at 12 targets');
-assert.ok(hits.every(h=>h.owner===wizard&&h.damage===48&&h.source==='astra_meteor'));
-assert.equal(s.mana,60,'Meteor spends 20 mana and refunds 8 for 12 hits (72 - 20 + 8 = 60)');
+assert.equal(hits.length,9,'Meteor AoE stops at 9 targets');
+assert.ok(hits.every(h=>h.owner===wizard&&h.damage===36&&h.source==='astra_meteor'));
+assert.equal(s.mana,60,'Meteor spends flat 12 mana (72 - 12 = 60) without refund');
+assert.equal(s.meteorZones.length,1,'Meteor spawns a lingering slow zone');
+assert.equal(s.meteorZones[0].life,3.0,'Slow zone lasts 3 seconds');
+assert.equal(game.enemies[0].speed,50,'Enemies inside meteor zone are slowed by 50%');
 
 // Zero cooldown: consecutive meteor cast is immediately allowed as long as mana permits!
 assert.equal(a.cast(wizard,game,'meteor'),true,'Zero cooldown allows immediate consecutive cast');
-assert.equal(s.mana,48,'Second meteor spends net 12 mana (60 - 12 = 48)');
+assert.equal(s.mana,48,'Second meteor spends 12 mana (60 - 12 = 48)');
 assert.equal(s.cooldowns.meteor,0);
 assert.equal(a.cast(wizard,game,'meteor'),true,'Third meteor');
 assert.equal(s.mana,36);
@@ -57,15 +60,18 @@ assert.equal(a.cast(wizard,game,'meteor'),true,'Fourth meteor');
 assert.equal(s.mana,24);
 assert.equal(a.cast(wizard,game,'meteor'),true,'Fifth meteor');
 assert.equal(s.mana,12);
-assert.equal(a.cast(wizard,game,'meteor'),false,'Insufficient mana (12 < 20) prevents casting');
+assert.equal(a.cast(wizard,game,'meteor'),true,'Sixth meteor spends last 12 mana');
+assert.equal(s.mana,0);
+assert.equal(a.cast(wizard,game,'meteor'),false,'Insufficient mana (0 < 12) prevents casting');
 
 wizard.level=12;
 a.tick(wizard,game,5);
+assert.equal(s.meteorZones.length,0,'Meteor slow zones expire after 3 seconds');
 assert.equal(s.talentLevel,3);
 assert.equal(s.cooldowns.meteor,0);
-assert.equal(s.mana,22);
+assert.equal(s.mana,10);
 assert.equal(a.regenOnHit(wizard,one,16),5,'Talent lv3 returns 5 mana per target');
-assert.equal(s.mana,27);
+assert.equal(s.mana,15);
 
 // Distinct ward and meteor mechanics; mobile sanctuary follows caster.
 s.mana=100;
@@ -130,7 +136,7 @@ assert.equal(a.blink(wizard,game,{x:0,y:0},31),false);
 assert.equal(s.blinkCharges,1);
 a.tick(wizard,game,5.1);
 assert.equal(s.blinkCharges,2);
-assert.equal(hits.length,60,'Blink and shields do not produce hidden attacks');
+assert.equal(hits.length,54,'Blink and shields do not produce hidden attacks');
 game.state='paused';
 const pausedMana=s.mana;
 a.tick(wizard,game,20);

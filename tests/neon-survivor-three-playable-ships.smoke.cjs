@@ -113,4 +113,6 @@ assert.equal(game.player.weapons.blaster,1);
 assert.equal(mage.shipId,'astra');assert.equal(ghost.shipId,'phantom');
 assert.equal(ships.projectForNetwork(mage).arcane.maxMana>=100,true);
 assert.equal(ships.projectForNetwork(ghost).spectral.maxEctoplasm>=100,true);
+assert.ok(world.window.NeonAstra.attackScale(mage)>2.0,'Astra skills scale with arsenal & level');
+assert.ok(world.window.NeonPhantom.attackScale(ghost)>2.0,'Phantom skills scale with arsenal & level');
 console.log('All three playable ships passed: start loadouts, 24 upgrade cards each, two signatures, 8 Phantom extra weapons, spell/dash, co-op docking, distinct owner damage and network projections.');

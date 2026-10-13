@@ -46,7 +46,7 @@
       const radius = 100 + warp.dash_blast * 25;
       for (const enemy of game.enemies || []) {
         if (!enemy.dead && dist(enemy,pilot) <= radius) {
-          game.dealDamage(enemy,80 + warp.dash_blast * 50,'lan-ally',false,pilot);
+          game.dealDamage(enemy,(80 + warp.dash_blast * 50) * (pilot.dmgMultiplier || 1),'lan-ally',false,pilot);
         }
       }
       if ((game.shockwaves?.length || 0) < 40) game.shockwaves?.push({
@@ -113,14 +113,14 @@
         if (enemy.dead || pilot.dashHitEnemies.has(enemy) ||
           dist(enemy,pilot) > radius + (enemy.radius || 12)) continue;
         pilot.dashHitEnemies.add(enemy);
-        game.dealDamage(enemy,95 * (1 + (warp.dash_dmg || 0) * .25) *
+        game.dealDamage(enemy,95 * (1 + (warp.dash_dmg || 0) * .6) *
           (pilot.dmgMultiplier || 1),'lan-ally',false,pilot);
         if (warp.dash_cryo) enemy.freezeTimer = Math.max(enemy.freezeTimer || 0,.5 + warp.dash_cryo * .35);
         if (pilot.dashHitEnemies.size >= 30) break;
       }
       if (warp.dash_fire && (game.dashTrails?.length || 0) < 35) game.dashTrails?.push({
         x1:pilot.x - dx*22,y1:pilot.y - dy*22,x2:pilot.x,y2:pilot.y,
-        color:'#ff8844',life:.24,maxLife:.24,damage:15*warp.dash_fire
+        color:'#ff8844',life:.24,maxLife:.24,damage:15*warp.dash_fire*(pilot.dmgMultiplier || 1)
       });
     }
     pilot.dash = Math.max(0,(pilot.dash || 0)-dt);
@@ -144,7 +144,7 @@
         if (dist(b,pilot) < (b.radius || 4) + (pilot.radius || 16)) {
           const suffered=protect((b.damage || 12)*multiplier);
           pilot.hp=Math.max(0,pilot.hp - suffered);
-          if (suffered > 0) pilot.invuln=.6;
+          pilot.invuln=Math.max(pilot.invuln || 0, suffered > 0 ? .6 : .28);
           game.enemyBullets.splice(i,1);
           break;
         }
@@ -156,7 +156,7 @@
         if (dist(e,pilot) < (e.radius || 12) + (pilot.radius || 16)) {
           const suffered=protect(Math.max(4,e.damage || 10)*multiplier);
           pilot.hp=Math.max(0,pilot.hp - suffered);
-          if (suffered > 0) pilot.invuln=.6;
+          pilot.invuln=Math.max(pilot.invuln || 0, suffered > 0 ? .6 : .28);
           break;
         }
       }

@@ -36,8 +36,17 @@ const NeonAstraVisual = (() => {
         ctx.beginPath();ctx.moveTo(f.x,f.y);
         ctx.lineTo(f.x2,f.y2);ctx.stroke();
         ctx.beginPath();ctx.arc(f.x2,f.y2,Math.min(14,radius*.18),0,Math.PI*2);ctx.fill();
+      } else if(f.kind==='shield') {
+        const r=radius*(0.55+0.45*(1-alpha));
+        ctx.lineWidth=4.5;
+        ctx.strokeStyle='#67e8f9';
+        ctx.shadowBlur=16;ctx.shadowColor='#38bdf8';
+        ctx.beginPath();ctx.arc(f.x,f.y,r,0,Math.PI*2);ctx.stroke();
+        ctx.globalAlpha=.22*alpha;
+        ctx.fillStyle='#38bdf8';
+        ctx.beginPath();ctx.arc(f.x,f.y,r,0,Math.PI*2);ctx.fill();
       } else {
-        ctx.lineWidth=f.kind==='shield'?4:3;
+        ctx.lineWidth=3;
         ctx.beginPath();ctx.arc(f.x,f.y,
           f.kind==='telegraph'?radius:radius*(1-.7*alpha),0,Math.PI*2);ctx.stroke();
         if(f.kind==='burst') {
@@ -107,13 +116,21 @@ function drawAstraBlink(ctx, fx) {
 }
 window.NeonShips.registerEffects('astra', {
   pilot(ctx, pilot) {
+    window.NeonAstra?.renderMeteorZones(ctx, pilot);
     drawAstraBlink(ctx,pilot?.astra?.blinkFx);
     NeonAstraVisual.draw(ctx,pilot?.astraVisual);
     window.NeonAstra?.renderWard(ctx, pilot);
     window.NeonAstraWeave?.render(ctx, pilot);
+    window.NeonAstra?.renderShield(ctx, pilot);
   },
   network(ctx, snapshot) {
     const arcane = snapshot.arcane;
+    if (arcane?.meteorZones?.length) {
+      window.NeonAstra?.renderMeteorZones(ctx, {
+        shipId: 'astra',
+        astra: { meteorZones: arcane.meteorZones }
+      });
+    }
     drawAstraBlink(ctx,arcane?.blinkFx);
     NeonAstraVisual.draw(ctx,arcane?.visual);
     if (arcane?.wardRemaining > 0) {
@@ -129,6 +146,19 @@ window.NeonShips.registerEffects('astra', {
     }
     if (arcane?.anchors?.length) {
       window.NeonAstraWeave?.render(ctx, { starWeave: { anchors: arcane.anchors } });
+    }
+    if ((arcane?.tempShield > 0 && arcane?.tempShieldRemaining > 0) || arcane?.phaseVeilRemaining > 0) {
+      window.NeonAstra?.renderShield(ctx, {
+        shipId: 'astra',
+        x: snapshot.x,
+        y: snapshot.y,
+        downed: snapshot.downed,
+        astraTempShield: arcane.tempShield > 0 ? {
+          value: arcane.tempShield,
+          remaining: arcane.tempShieldRemaining
+        } : null,
+        astra: { phaseVeilRemaining: arcane.phaseVeilRemaining || 0 }
+      });
     }
   }
 });

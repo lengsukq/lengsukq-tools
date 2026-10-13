@@ -21,11 +21,11 @@
     dashRecharge: 5.5,
     markDuration: 4.0,
     baseReapDamage: 48,             // Balanced from 85 to prevent early-game instant one-shots
-    reapLevelScale: 2.0,            // Smooth level scaling (+2 per level)
+    reapLevelScale: 4.5,            // Smooth level scaling (+4.5 per level)
     reapTargetBonus: 0.08,          // Smooth target scaling (down from 0.15)
     reapMaxTargetBonus: 1.20,       // Max +120% target density bonus
-    reapEctoMultiplier: 0.8,        // Balanced from 1.5
-    reapMaxDamageCap: 360,          // Balanced damage cap to prevent boss instakills
+    reapEctoMultiplier: 1.0,        // Ectoplasm potency scaling
+    reapMaxDamageCap: 650,          // Raw base cap before attackScale multiplier
     reapRadius: 420,
     maxReapTargets: 24,
     reapCdrRefundOnKill: 0.25,      // 25% recharge refund per reap with kills
@@ -145,6 +145,19 @@
     const extraMax = (s.warpUpgrades?.charge_overflow || 0) * 25;
     s.maxEctoplasm = BASE.maxEctoplasm + (s.passiveUpgrades?.phantom_core || 0) * 8 + extraMax;
     return s;
+  }
+
+  function attackScale(pilot) {
+    const baseMult = pilot?.dmgMultiplier || 1;
+    const level = Math.max(1, pilot?.level || 1);
+    const levelScale = 1 + (level - 1) * 0.06;
+    if (pilot?._arsenalInDmgMult) return baseMult * levelScale;
+    const weapTotal = Object.values(pilot?.weapons || {}).reduce((a, b) => a + (b || 0), 0);
+    const extraWeap = Math.max(0, weapTotal - 1);
+    const passTotal = Object.values(pilot?.passives || pilot?.phantom?.passiveUpgrades || {}).reduce((a, b) => a + (b || 0), 0);
+    const warpTotal = Object.values(pilot?.dashUpgrades || pilot?.phantom?.warpUpgrades || {}).reduce((a, b) => a + (b || 0), 0);
+    const arsenalMult = 1 + extraWeap * 0.06 + passTotal * 0.05 + warpTotal * 0.06;
+    return baseMult * levelScale * arsenalMult;
   }
 
   function addEctoplasm(pilot, amount) {
@@ -273,7 +286,7 @@
     const scaledBase = (BASE.baseReapDamage + (level - 1) * BASE.reapLevelScale) * (1 + densityBonus);
     const rawDamage = (scaledBase + s.ectoplasm * BASE.reapEctoMultiplier) * detonMult;
     const cappedDamage = Math.min(BASE.reapMaxDamageCap, rawDamage);
-    const finalDamage = cappedDamage * (pilot.dmgMultiplier || 1);
+    const finalDamage = cappedDamage * attackScale(pilot);
 
     let kills = 0;
     for (const enemy of validTargets) {
@@ -377,9 +390,10 @@
       }
 
       // Radial blast knocks back and stuns enemies
+      const ejectScale = attackScale(pilot);
       for (const enemy of game.enemies || []) {
         if (!enemy.dead && within(enemy, pilot, BASE.ejectRadius)) {
-          game.dealDamage(enemy, BASE.ejectDamage * (pilot.dmgMultiplier || 1),
+          game.dealDamage(enemy, BASE.ejectDamage * ejectScale,
             'phantom_eject', false, pilot);
           enemy.stunnedUntil = now + BASE.ejectStunDuration;
         }
@@ -463,10 +477,11 @@
         if (s.ghostTrailCooldown === 0 && (game.shockwaves?.length || 0) < 35) {
           s.ghostTrailCooldown = .36;
           const level = Math.min(2, s.warpUpgrades.ghost_trail);
+          const trailScale = attackScale(pilot);
           let hits=0;
           for (const enemy of game.enemies || []) {
             if (enemy.dead || enemy.hp <= 0 || !within(enemy,pilot,45+level*12)) continue;
-            game.dealDamage(enemy,13+level*9,'phantom_ghost_trail',false,pilot);
+            game.dealDamage(enemy,(16+level*11)*trailScale,'phantom_ghost_trail',false,pilot);
             if (++hits >= 12) break;
           }
           window.NeonPhantomVisual?.emit(pilot,'burst',pilot,null,55+level*12,.32);
@@ -607,6 +622,7 @@
     const enemies = (game.enemies || []).filter(e => e && !e.dead && e.hp > 0);
     let hitCount = 0;
     const maxTargets = 10;
+    const strikeScale = attackScale(pilot);
 
     for (const e of enemies) {
       if (hitCount >= maxTargets) break;
@@ -617,7 +633,7 @@
       if (lateral > halfWidth + (e.radius || 12)) continue;
 
       const level = pilot.level || 1;
-      const slashDamage = (26 + level * 3) * (pilot.dmgMultiplier || 1);
+      const slashDamage = (32 + level * 4.5) * strikeScale;
       game.dealDamage(e, slashDamage, 'phantom_strike', false, pilot);
       markEnemy(pilot, e, now + 4.5, true);
       e.freezeTimer = Math.max(e.freezeTimer || 0, 1.6);
@@ -708,7 +724,7 @@
   }
 
   window.NeonPhantom = Object.freeze({
-    BASE, UNIQUE, catalog, state, validPilot,
+    BASE, UNIQUE, catalog, state, attackScale, validPilot,
     addEctoplasm, critBonus, enterShift, finishShift, markEnemy, isMarked, markDamageBonus, reap,
     canDock, dock, undock, carrierDamageReduction, tick, renderMarks, ghostStrike, sprint
   });

@@ -34,7 +34,7 @@
     if (!s || s.scythes.length >= MAX_ACTIVE_SCYTHES) return null;
 
     const baseDist = level >= 2 ? 290 : 230;
-    const damage = 22 + (level - 1) * 7;
+    const damage = 22 + (level - 1) * 8.5;
     const scythe = {
       x: pilot.x,
       y: pilot.y,
@@ -68,7 +68,8 @@
     if (!enemy || enemy.dead || enemy.hp <= 0) return;
     const isCrit = (pilot.phantom && window.NeonPhantom) ?
       (Math.random() < window.NeonPhantom.critBonus(pilot, game.survivalTime || 0)) : false;
-    game.dealDamage(enemy, damage * (pilot.dmgMultiplier || 1), source, isCrit, pilot);
+    const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
+    game.dealDamage(enemy, damage * scale, source, isCrit, pilot);
     if (window.NeonPhantom) {
       window.NeonPhantom.addEctoplasm(pilot, 2);
     }
@@ -164,7 +165,7 @@
             for (const e of enemies) {
               if (!e || e.dead || e.hp <= 0) continue;
               if (Math.hypot(e.x - pilot.x, e.y - pilot.y) <= 120) {
-                dealScytheDamage(game, pilot, e, 45, 'phantom_scythe_burst');
+                dealScytheDamage(game, pilot, e, 65, 'phantom_scythe_burst');
               }
             }
             if ((game.shockwaves?.length || 0) < 40) {
