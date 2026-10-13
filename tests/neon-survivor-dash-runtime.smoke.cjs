@@ -69,8 +69,7 @@ for(const id of ['riftblade','astra','phantom']) {
   if(id==='astra')assert.ok(game.player.astra.blinkFx?.life>0);
   if(id==='phantom') {
     assert.equal(game.player.phantom.shiftActive,true);
-    assert.equal(elements.get('phantom-ecto-hud').hidden,false);
-    assert.match(elements.get('phantom-ecto-text').textContent,/灵质/);
+    assert.equal(elements.get('phantom-ecto-hud').hidden,true,'phantom-ecto-hud permanently hidden');
     assert.equal(game.togglePhantomDock(),false,'Solo Phantom cannot dock');
     assert.doesNotThrow(()=>game.triggerDash(),'Second dash ends shift');
     assert.equal(game.player.phantom.shiftActive,false);

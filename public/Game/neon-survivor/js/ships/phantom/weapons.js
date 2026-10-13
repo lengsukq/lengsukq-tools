@@ -66,10 +66,21 @@
 
   function dealScytheDamage(game, pilot, enemy, damage, source) {
     if (!enemy || enemy.dead || enemy.hp <= 0) return;
+    const hpPercent = enemy.hp / Math.max(enemy.maxHp || enemy.hp, 1);
+    const marked = window.NeonPhantom?.isMarked ? window.NeonPhantom.isMarked(pilot, enemy, game.survivalTime || 0) : false;
+    const executeLvl = pilot.passives?.execute_master || 0;
+    const executeBonus = executeLvl * ((hpPercent < .35 || marked) ? 0.15 : 0);
     const isCrit = (pilot.phantom && window.NeonPhantom) ?
       (Math.random() < window.NeonPhantom.critBonus(pilot, game.survivalTime || 0)) : false;
     const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
-    game.dealDamage(enemy, damage * scale, source, isCrit, pilot);
+    game.dealDamage(enemy, damage * (1 + executeBonus) * scale, source, isCrit, pilot);
+    const gatherLvl = pilot.passives?.soul_gatherer || 0;
+    if (gatherLvl > 0 && marked) {
+      const pState = window.NeonPhantom?.state(pilot);
+      if (pState && pState.dashCharges < (pState.maxDashCharges || 4)) {
+        pState.dashRecharge = (pState.dashRecharge || 0) + 0.12 * gatherLvl;
+      }
+    }
     if (window.NeonPhantom) {
       window.NeonPhantom.addEctoplasm(pilot, 2);
     }

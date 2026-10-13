@@ -227,19 +227,20 @@
   }
   function render(ctx, pilot) {
     const s = pilot?.starWeave;
-    if (!s?.anchors?.length || !ctx) return;
+    if ((!s?.anchors?.length && !s?.missiles?.length) || !ctx) return;
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
     const timeSec = now * 0.001;
-    const pairs = linkedPairs(s.anchors);
+    const anchors = s.anchors || [];
+    const pairs = linkedPairs(anchors);
 
     ctx.save();
 
     // 1. Constellation Enclosed Nebula Field (when 3 nodes form a celestial triangle)
-    if (s.anchors.length >= 3) {
+    if (anchors.length >= 3) {
       ctx.beginPath();
-      ctx.moveTo(s.anchors[0].x, s.anchors[0].y);
-      ctx.lineTo(s.anchors[1].x, s.anchors[1].y);
-      ctx.lineTo(s.anchors[2].x, s.anchors[2].y);
+      ctx.moveTo(anchors[0].x, anchors[0].y);
+      ctx.lineTo(anchors[1].x, anchors[1].y);
+      ctx.lineTo(anchors[2].x, anchors[2].y);
       ctx.closePath();
       const triAlpha = 0.08 + Math.sin(timeSec * 4) * 0.04;
       ctx.fillStyle = `rgba(168, 85, 247, ${triAlpha})`;
@@ -284,7 +285,7 @@
     }
 
     // 3. Four-point Celestial Star Crystal Anchor Nodes
-    for (const anchor of s.anchors) {
+    for (const anchor of anchors) {
       ctx.save();
       ctx.translate(anchor.x, anchor.y);
       const nodePulse = Math.sin(timeSec * 6 + anchor.x) * 1.5;

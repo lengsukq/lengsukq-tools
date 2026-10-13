@@ -63,21 +63,34 @@ window.NeonAstraVisual=NeonAstraVisual;
 function drawAstraBlink(ctx, fx) {
   if (!fx || !ctx || !(fx.life > 0)) return;
   const fade = Math.min(1, fx.life / Math.max(.01, fx.maxLife || .32));
+  const dx = fx.x2 - fx.x1;
+  const dy = fx.y2 - fx.y1;
+  const ang = Math.atan2(dy, dx);
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.lineCap = 'round';
 
-  // 1. Wide ethereal astral fracture beam
-  ctx.strokeStyle = 'rgba(167, 131, 255, 0.4)';
-  ctx.lineWidth = 22 * fade + 4;
+  // 1. Wide ethereal astral fracture tunnel
+  ctx.strokeStyle = 'rgba(168, 85, 247, 0.38)';
+  ctx.lineWidth = 26 * fade + 6;
   ctx.shadowColor = '#c084fc';
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 20;
   ctx.beginPath();
   ctx.moveTo(fx.x1, fx.y1);
   ctx.lineTo(fx.x2, fx.y2);
   ctx.stroke();
 
-  // 2. High-intensity prismatic core beam
+  // 2. Cyan-violet prismatic middle stream
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 9 * fade + 2;
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.moveTo(fx.x1, fx.y1);
+  ctx.lineTo(fx.x2, fx.y2);
+  ctx.stroke();
+
+  // 3. High-intensity white starlight core beam
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 3.5 * fade + 1;
   ctx.shadowColor = '#ffffff';
@@ -87,28 +100,57 @@ function drawAstraBlink(ctx, fx) {
   ctx.lineTo(fx.x2, fx.y2);
   ctx.stroke();
 
-  // 3. Dimensional gateway ripple rings at origin and destination
-  for (const [x, y] of [[fx.x1, fx.y1], [fx.x2, fx.y2]]) {
-    const ringRadius = 12 + 28 * (1 - fade);
-    ctx.strokeStyle = '#d8b4fe';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 12;
+  // 4. Astral hull ghost echo at origin + 3 warp chevrons along tunnel
+  for (let step = 0; step <= 3; step++) {
+    const t = step / 4;
+    const px = fx.x1 + dx * t;
+    const py = fx.y1 + dy * t;
+    const scale = 0.72 + 0.25 * t;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(ang);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = fade * (0.65 - step * 0.12);
+    ctx.strokeStyle = step === 0 ? '#e9d5ff' : '#38bdf8';
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.22)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-10, -14);
+    ctx.lineTo(-5, 0);
+    ctx.lineTo(-10, 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 5. Dimensional gateway ripple rings at origin and destination
+  for (const [x, y, isDest] of [[fx.x1, fx.y1, false], [fx.x2, fx.y2, true]]) {
+    const ringRadius = (isDest ? 16 : 12) + 32 * (1 - fade);
+    ctx.strokeStyle = isDest ? '#67e8f9' : '#d8b4fe';
+    ctx.lineWidth = isDest ? 2.6 : 2;
+    ctx.shadowColor = isDest ? '#38bdf8' : '#c084fc';
+    ctx.shadowBlur = 14;
     ctx.beginPath();
     ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
   }
 
-  // 4. Destination starburst diamond flare
-  const flareSize = 14 * fade;
+  // 6. Destination starburst 8-point diamond flare
+  const flareSize = 18 * fade;
   ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = '#ffffff';
-  ctx.shadowBlur = 14;
+  ctx.shadowColor = '#67e8f9';
+  ctx.shadowBlur = 16;
   ctx.beginPath();
   ctx.moveTo(fx.x2, fx.y2 - flareSize);
-  ctx.lineTo(fx.x2 + flareSize * 0.35, fx.y2);
+  ctx.lineTo(fx.x2 + flareSize * 0.32, fx.y2 - flareSize * 0.32);
+  ctx.lineTo(fx.x2 + flareSize, fx.y2);
+  ctx.lineTo(fx.x2 + flareSize * 0.32, fx.y2 + flareSize * 0.32);
   ctx.lineTo(fx.x2, fx.y2 + flareSize);
-  ctx.lineTo(fx.x2 - flareSize * 0.35, fx.y2);
+  ctx.lineTo(fx.x2 - flareSize * 0.32, fx.y2 + flareSize * 0.32);
+  ctx.lineTo(fx.x2 - flareSize, fx.y2);
+  ctx.lineTo(fx.x2 - flareSize * 0.32, fx.y2 - flareSize * 0.32);
   ctx.closePath();
   ctx.fill();
 

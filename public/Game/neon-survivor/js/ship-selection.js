@@ -24,7 +24,7 @@
       tag: '刺客 · 虚空共生',
       color: '#00f0ff',
       weapon: '初始主武：幽魂之镰',
-      perk: '特性：常驻穿透死印斩击，虚无潜行与连锁死印殉爆，单人虚无过载/联机共生挂载'
+      perk: '特性：多段虚无潜行、虚空聚怪与极速推进、连锁死印殉爆'
     }
   };
 
@@ -144,7 +144,9 @@
 
         const dashChip = document.createElement('span');
         dashChip.className = 'neon-spec-chip';
-        dashChip.textContent = `⚡ ${ship.baseStats.dashCharges}段折跃`;
+        dashChip.textContent = ship.id === 'phantom'
+          ? `👻 ${ship.baseStats.dashCharges}段潜行`
+          : (ship.id === 'astra' ? `✨ ${ship.baseStats.dashCharges}段闪现` : `⚡ ${ship.baseStats.dashCharges}段折跃`);
         specsRow.appendChild(dashChip);
 
         cardInner.appendChild(specsRow);

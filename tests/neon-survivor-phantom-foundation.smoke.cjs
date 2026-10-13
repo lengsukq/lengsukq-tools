@@ -22,25 +22,29 @@ assert.equal(p.catalog.length, 24);
 assert.equal(new Set(p.catalog.map(c => c.id)).size, 24);
 assert.equal(p.catalog.find(c => c.id === 'phantom_scythe').maxLvl, 5);
 assert.equal(p.catalog.find(c => c.id === 'spectral_extend').maxLvl, 2);
+assert.equal(p.catalog.find(c => c.id === 'charge_overflow').name, '潜行超蓄');
+assert.equal(p.catalog.find(c => c.id === 'spiritual_flow').name, '虚空脉动');
 assert.ok(p.catalog.every(c => c.shipId === 'phantom' &&
   ['common', 'rare', 'legendary'].includes(c.rarity)));
 
-// 2. State & Ectoplasm Resource
+// 2. State & Stealth Charges (No Ectoplasm requirement)
 const ghost = {
-  shipId: 'phantom', id: 'p-ghost', x: 0, y: 0, hp: 85,
-  dmgMultiplier: 1
+  shipId: 'phantom', id: 'p-ghost', x: 0, y: 0, hp: 92,
+  dmgMultiplier: 1, level: 1
 };
 let s = p.state(ghost);
-assert.equal(s.ectoplasm, 0);
 assert.equal(s.dashCharges, 2);
-assert.equal(p.addEctoplasm(ghost, 20), 20);
-assert.equal(s.ectoplasm, 20);
-assert.equal(p.critBonus(ghost, 0), 0.05); // 20 ectoplasm -> 5% crit
+assert.equal(p.critBonus(ghost, 0), 0);
 
 s.passiveUpgrades.phantom_core = 3;
-assert.ok(Math.abs(p.critBonus(ghost, 0) - 0.31) < 0.001); // 0.05 + 0.26
+assert.ok(Math.abs(p.critBonus(ghost, 0) - 0.27) < 0.001, 'Phantom core +9% crit per level');
 
-// 3. Spectral Shift & Soul Marks
+s.passiveUpgrades.dual_mind = 2;
+s.shiftActive = true;
+assert.ok(Math.abs(p.critBonus(ghost, 0) - 0.37) < 0.001, 'Dual mind +5% crit per level during stealth/sprint');
+s.shiftActive = false;
+
+// 3. Spectral Shift, Follow-vortex & Soul Marks
 const hits = [];
 const game = {
   state: 'playing', survivalTime: 5, enemies: [], shockwaves: [],
@@ -51,10 +55,27 @@ const game = {
   }
 };
 
+// [J] Sprint
+assert.equal(p.sprint(ghost, game), true);
+assert.equal(s.sprintTimer, 3.0);
+assert.ok(s.sprintCooldown > 0);
+assert.equal(p.sprint(ghost, game), false, 'Sprint on cooldown');
+s.sprintCooldown = 0;
+
+// [K] Player-following Vortex
+const enemyV1 = { x: 50, y: 0, hp: 1000, dead: false };
+game.enemies = [enemyV1];
+assert.equal(p.vortexPull(ghost, game), true);
+assert.ok(s.vortexTimer >= 2.6);
+assert.ok(s.vortexCooldown >= 5.0);
+assert.ok(hits.some(h => h.source === 'phantom_vortex'));
+s.vortexCooldown = 0;
+
+// [Space] Shift
 assert.equal(p.enterShift(ghost, game), true);
 assert.equal(s.dashCharges, 1);
 assert.equal(s.shiftActive, true);
-assert.ok(s.shiftRemaining >= 1.6);
+assert.ok(s.shiftRemaining >= 2.0);
 
 const enemyA = { x: 50, y: 0, hp: 1000, dead: false };
 const enemyB = { x: 120, y: 0, hp: 50, dead: false };
@@ -63,13 +84,11 @@ game.enemies = [enemyA, enemyB];
 assert.equal(p.markEnemy(ghost, enemyA, 5.0), true);
 assert.equal(p.markEnemy(ghost, enemyB, 5.0), true);
 assert.equal(s.marks.size, 2);
-assert.equal(s.ectoplasm, 28); // 20 + 2 * 4
 
-// Reap marks
+// Reap marks on exit
 const countReaped = p.reap(ghost, game);
 assert.equal(countReaped, 2);
-assert.equal(hits.length, 2);
-assert.equal(hits[0].source, 'phantom_reap');
+assert.equal(hits.some(h => h.source === 'phantom_reap'), true);
 assert.equal(enemyB.dead, true);
 assert.ok(s.dashRecharge > 0, 'Killing marked target refunds dash recharge');
 
@@ -89,11 +108,6 @@ assert.equal(ghost.x, 80);
 assert.equal(p.carrierDamageReduction(carrier, Math.PI), 0.40);
 assert.equal(p.carrierDamageReduction(carrier, 0), 0); // Frontal hits not reduced
 
-// Natural ectoplasm gain during dock tick
-const prevEcto = s.ectoplasm;
-p.tick(ghost, game, 1.0);
-assert.ok(s.ectoplasm > prevEcto);
-
 // Slingshot upgrade on eject
 s.warpUpgrades.symbiote_slingshot = 1;
 assert.equal(p.undock(ghost, game, true), true);
@@ -102,4 +116,10 @@ assert.equal(carrier.hasDockedGunner, false);
 assert.ok(p.critBonus(ghost, 5.5) >= 1.0, 'Slingshot grants 100% crit bonus');
 assert.equal(p.canDock(ghost, carrier), false, 'Dock cooldown active after undocking');
 
-console.log('Phantom foundation passed: 24-card catalog, ectoplasm curve, spectral marks & co-op docking.');
+// 5. Finishing shift grants 0.35s invulnerability
+s.dashCharges = 1;
+assert.equal(p.enterShift(ghost, game), true);
+assert.equal(p.finishShift(ghost, game, true), true);
+assert.ok(ghost.invulnTimer >= 0.35, '0.35s un-targetable window on exiting shift');
+
+console.log('Phantom foundation passed: 24-card catalog, stealth charges, sprint/vortex & co-op docking.');

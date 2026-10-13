@@ -29,7 +29,7 @@ game.players.register('guest',mage);
 game.players.register('guest-2',ghost);
 assert.equal(mage.shipId,'astra');assert.equal(ghost.shipId,'phantom');
 assert.equal(mage.weapons.star_weave,1);assert.equal(ghost.weapons.phantom_scythe,1);
-assert.equal(mage.maxHp,95);assert.equal(ghost.maxHp,85);
+assert.equal(mage.maxHp,95);assert.equal(ghost.maxHp,92);
 for(const pilot of [mage,ghost]){
   ships.runAbility(pilot,'onStart',game);
   assert.equal(ships.upgradeCatalogFor(pilot).length,24);

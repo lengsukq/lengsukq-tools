@@ -8,15 +8,19 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
     maxEctoplasm: clamp(s.maxEctoplasm || 100, 1, 200),
     shiftActive: Boolean(s.shiftActive),
     shiftRemaining: clamp(s.shiftRemaining, 0, 10),
-    charges: clamp(s.dashCharges, 0, 3),
+    charges: clamp(s.dashCharges, 0, 4),
     recharge: clamp(s.dashRecharge, 0, 8),
     docked: Boolean(s.docked),
     dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),
-    shiftFlash: clamp(s.shiftFlash,0,.24),
+    shiftFlash: clamp(s.shiftFlash,0,.28),
     reapFlash: clamp(s.reapFlash,0,.28),
+    sprintTimer: clamp(s.sprintTimer,0,8),
+    vortexTimer: clamp(s.vortexTimer,0,8),
     shiftTrail:(s.shiftTrail || []).slice(-10).map(point=>({
       x:clamp(point.x,-1e7,1e7),y:clamp(point.y,-1e7,1e7),
+      angle:clamp(point.angle,-6.29,6.29),
+      seq:Math.floor(clamp(point.seq,0,1e9)),
       life:clamp(point.life,0,.5)
     })),
     visual:(pilot.phantomVisual||[]).slice(-24).map(fx=>({

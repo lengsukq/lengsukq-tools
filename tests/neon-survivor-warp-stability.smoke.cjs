@@ -51,7 +51,7 @@ game.players.host=phantom;
 ships.runAbility(phantom,'onStart',game);
 assert.equal(ships.runAbility(phantom,'onAction',game,'shift'),true);
 assert.equal(phantom.phantom.shiftActive,true);
-for(let frame=0;frame<120;frame++){
+for(let frame=0;frame<135;frame++){
   game.survivalTime+=.016;
   phantom.x+=2;
   context.window.NeonPhantom.tick(phantom,game,.016);

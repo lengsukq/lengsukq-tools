@@ -1080,7 +1080,9 @@
           const action = {
             'btn-skill-ward': 'castAstraWard',
             'btn-skill-meteor': 'castAstraMeteor',
-            'btn-skill-reap': 'triggerPhantomStrike',
+            'btn-skill-sprint': 'triggerPhantomSprint',
+            'btn-skill-vortex': 'triggerPhantomVortex',
+            'btn-skill-reap': 'triggerPhantomVortex',
             'btn-skill-dock': 'togglePhantomDock',
             'btn-skill-blink': 'triggerDash',
             'btn-skill-shift': 'triggerDash',
@@ -1166,10 +1168,13 @@
                 e.preventDefault();
               }
             } else if (shipId === 'phantom') {
-              if (key === 'j' || key === 'q') {
-                this.triggerPhantomReap();
+              if (key === 'j') {
+                this.triggerPhantomSprint();
                 e.preventDefault();
-              } else if (key === 'k' || key === 'e') {
+              } else if (key === 'k') {
+                this.triggerPhantomVortex();
+                e.preventDefault();
+              } else if (key === 'q' || key === 'e') {
                 this.togglePhantomDock();
                 e.preventDefault();
               }
@@ -2094,35 +2099,6 @@
         return this.castAstraMeteor();
       }
 
-      triggerPhantomStrike() {
-        if (this.state === 'lan-client') {
-          if (this.settingsOpen || this.lanCoop?.latest?.guest?.downed) return false;
-          return this.lanCoop?.requestGuestShipAction('strike') === true;
-        }
-        if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
-            this.settingsOpen || this.player?.downed) return false;
-        const ghost = this.player.phantom;
-        if ((ghost?.strikeCooldown || 0) > 0) {
-          this.notifySkillFeedback(`⏳ 死印斩击冷却中 (${ghost.strikeCooldown.toFixed(1)}s)`, '#f43f5e');
-          return false;
-        }
-        if ((ghost?.ectoplasm || 0) < 15) {
-          this.notifySkillFeedback(`⚠️ 灵质不足 (需15/当前${Math.floor(ghost?.ectoplasm || 0)})`, '#c084fc');
-          try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
-          return false;
-        }
-        const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'strike') === true;
-        if (ok) {
-          this.notifySkillFeedback('🗡️ 幽魂死印斩！消耗15灵质 (范围减速施印)', '#00f0ff');
-          try { this.sound?.playZap?.(); } catch (_) {}
-        }
-        return ok;
-      }
-
-      triggerPhantomReap() {
-        return this.triggerPhantomStrike();
-      }
-
       triggerPhantomSprint() {
         if (!this.player || this.player.shipId !== 'phantom' || this.state !== 'playing' ||
             this.player.downed || this.player.hp <= 0) return false;
@@ -2133,10 +2109,38 @@
         }
         const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'sprint') === true;
         if (ok) {
-          this.notifySkillFeedback('💨 幽影疾行！移速爆发+80% (逐渐衰减)', '#00f0ff');
+          this.notifySkillFeedback('💨 幽影疾行！移速爆发+75% (持续时间已累加)', '#00f0ff');
           try { this.sound?.playDash?.(); } catch (_) {}
         }
         return ok;
+      }
+
+      triggerPhantomVortex() {
+        if (this.state === 'lan-client') {
+          if (this.settingsOpen || this.lanCoop?.latest?.guest?.downed) return false;
+          return this.lanCoop?.requestGuestShipAction('vortex') === true;
+        }
+        if (this.state !== 'playing' || this.player?.shipId !== 'phantom' ||
+            this.settingsOpen || this.player?.downed || this.player.hp <= 0) return false;
+        const ghost = this.player.phantom;
+        if ((ghost?.vortexCooldown || 0) > 0) {
+          this.notifySkillFeedback(`⏳ 虚空聚拢冷却中 (${ghost.vortexCooldown.toFixed(1)}s)`, '#f43f5e');
+          return false;
+        }
+        const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this, 'vortex') === true;
+        if (ok) {
+          this.notifySkillFeedback('🌀 虚空聚拢！引力坍缩强力聚拢 (跟随自身)', '#c084fc');
+          try { this.sound?.playZap?.(); } catch (_) {}
+        }
+        return ok;
+      }
+
+      triggerPhantomStrike() {
+        return this.triggerPhantomVortex();
+      }
+
+      triggerPhantomReap() {
+        return this.triggerPhantomVortex();
       }
 
       triggerPhantomSurge() {
@@ -2159,8 +2163,7 @@
         }
         const carrier = this.lanCoop?.ally;
         if (!carrier || !this.lanCoop?.rtc?.connected) {
-          // Solo mode: Trigger no-cost decaying speed boost!
-          this.triggerPhantomSprint();
+          this.notifySkillFeedback('⚠️ 需在联机模式靠近队友 150px 方可共生挂载', '#f43f5e');
           return false;
         }
         const ok = window.NeonShips?.runAbility?.(this.player, 'onAction', this,
@@ -2215,22 +2218,19 @@
             }
             const isPhantom = this.player.shipId === 'phantom';
             const ghost = isPhantom ? window.NeonPhantom?.state(this.player) : null;
-            if (ghost && !ghost.shiftActive) {
-              const minEcto = (ghost.warpUpgrades?.charge_overflow || 0) > 0 ? 10 : 15;
-              if (ghost.dashCharges < 1 && ghost.ectoplasm < minEcto) {
-                this.notifySkillFeedback(`⚠️ 灵质不足 (需${minEcto}/当前${Math.floor(ghost.ectoplasm)})`, '#a855f7');
-                try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
-                return;
-              }
+            if (ghost && !ghost.shiftActive && ghost.dashCharges < 1) {
+              this.notifySkillFeedback('⏳ 潜行充能中...', '#a855f7');
+              try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
+              return;
             }
             const wasShiftActive = isPhantom ? Boolean(ghost?.shiftActive) : false;
             if (window.NeonShips?.runAbility?.(this.player,'onAction',this,
                 {kind:'warp',direction:this.getWarpDirection()}) === true) {
               if (isPhantom) {
                 if (!wasShiftActive) {
-                  this.notifySkillFeedback('👻 进入幽灵化身！(持续消耗灵质 · 穿透无敌)', '#00f0ff');
+                  this.notifySkillFeedback('👻 进入幽灵潜行！(免疫碰撞与弹幕 · 穿透施印)', '#00f0ff');
                 } else {
-                  this.notifySkillFeedback('💥 退出幽灵化身并引爆死印！', '#a855f7');
+                  this.notifySkillFeedback('💥 退出潜行并连锁引爆死印！(获得0.35s无敌)', '#a855f7');
                 }
               }
               this.sound?.playDash?.();
@@ -2420,22 +2420,24 @@
       getLimitBreakChoices(count = this.getUpgradeChoiceCount()) {
         const equippedList = [
           ...Object.keys(this.player.weapons).map(id => ({ id, type: 'weapon' })),
-          ...Object.keys(this.player.passives).map(id => ({ id, type: 'passive' })),
-          { id: 'dash_dmg', type: 'dash' }
+          ...Object.keys(this.player.passives).map(id => ({ id, type: 'passive' }))
         ];
 
-        // Include any unlocked special dash branches into the infinite limit break pool
-        if (this.player.hasAegis || (this.player.dashUpgrades && this.player.dashUpgrades['dash_aegis'])) {
-          equippedList.push({ id: 'dash_aegis', type: 'dash' });
-        }
-        if (this.player.hasDashBlast || (this.player.dashUpgrades && this.player.dashUpgrades['dash_blast'])) {
-          equippedList.push({ id: 'dash_blast', type: 'dash' });
-        }
-        if (this.player.hasFireTrail || (this.player.dashUpgrades && this.player.dashUpgrades['dash_fire'])) {
-          equippedList.push({ id: 'dash_fire', type: 'dash' });
-        }
-        if (this.player.hasDashCryo || (this.player.dashUpgrades && this.player.dashUpgrades['dash_cryo'])) {
-          equippedList.push({ id: 'dash_cryo', type: 'dash' });
+        // Include Riftblade-exclusive dash limit breaks only for Riftblade
+        if (this.player.shipId === 'riftblade') {
+          equippedList.push({ id: 'dash_dmg', type: 'dash' });
+          if (this.player.hasAegis || (this.player.dashUpgrades && this.player.dashUpgrades['dash_aegis'])) {
+            equippedList.push({ id: 'dash_aegis', type: 'dash' });
+          }
+          if (this.player.hasDashBlast || (this.player.dashUpgrades && this.player.dashUpgrades['dash_blast'])) {
+            equippedList.push({ id: 'dash_blast', type: 'dash' });
+          }
+          if (this.player.hasFireTrail || (this.player.dashUpgrades && this.player.dashUpgrades['dash_fire'])) {
+            equippedList.push({ id: 'dash_fire', type: 'dash' });
+          }
+          if (this.player.hasDashCryo || (this.player.dashUpgrades && this.player.dashUpgrades['dash_cryo'])) {
+            equippedList.push({ id: 'dash_cryo', type: 'dash' });
+          }
         }
 
         const shuffled = equippedList.filter(item => !this.banishedUpgrades?.has(item.id)).sort(() => Math.random() - 0.5);
@@ -2748,8 +2750,13 @@
           let badgeText = '';
           let badgeColor = '#00f3ff';
           if (isDash) {
-            badgeText = `⚡ 折跃特化 ➔ Lv.${nextLvl}`;
-            badgeColor = '#00f3ff';
+            if (this.player.shipId === 'phantom') {
+              badgeText = `👻 潜行特化 ➔ Lv.${nextLvl}`;
+              badgeColor = '#c084fc';
+            } else {
+              badgeText = `⚡ 折跃特化 ➔ Lv.${nextLvl}`;
+              badgeColor = '#00f3ff';
+            }
           } else if (isLb) {
             badgeText = `⚡ 破限 +${upg.lbCount}`;
             badgeColor = '#ffea00';
@@ -2768,8 +2775,9 @@
           card.setAttribute?.('aria-pressed', 'false');
           const alreadyPicked = upg.alreadyChosen || this.upgradeSession?.picked.has(upg.id);
           card.className = `upgrade-card ${upg.rarity} ${isLb ? 'limit-break' : ''} ${isDash ? 'dash-card' : ''} ${alreadyPicked ? 'picked' : ''}`;
+          const dashTag = this.player?.shipId === 'phantom' ? 'STEALTH UPGRADE' : 'WARP UPGRADE';
           card.innerHTML = `
-            <div class="rarity-tag" style="${upg.pityGuaranteed ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isLb ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isDash ? 'color:#00f3ff;background:rgba(0,243,255,0.2);' : ''))}">${upg.pityGuaranteed ? '★ 传说保底' : (isDash ? 'WARP UPGRADE' : (isLb ? 'LIMIT BREAK' : upg.rarity))}</div>
+            <div class="rarity-tag" style="${upg.pityGuaranteed ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isLb ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isDash ? 'color:#00f3ff;background:rgba(0,243,255,0.2);' : ''))}">${upg.pityGuaranteed ? '★ 传说保底' : (isDash ? dashTag : (isLb ? 'LIMIT BREAK' : upg.rarity))}</div>
             <div class="upgrade-icon">${upg.icon}</div>
             <div class="upgrade-card-info">
               <div class="upgrade-name">${upg.name}</div>
@@ -3150,27 +3158,17 @@
         }
         const ghostState = isPhantom ? window.NeonPhantom?.state(this.player) : null;
         if (ghostState) {
-          this.player.maxDashCharges = Math.min(3, 2 + (ghostState.warpUpgrades?.charge_overflow || 0));
+          this.player.maxDashCharges = Math.min(4, 2 + (ghostState.warpUpgrades?.charge_overflow || this.player.dashUpgrades?.charge_overflow || 0));
           this.player.dashCharges = ghostState.dashCharges;
           this.player.dashRechargeTimer = ghostState.dashRecharge;
         }
         const ectoPanel = document.getElementById('phantom-ecto-hud');
         if (ectoPanel) {
-          ectoPanel.hidden = !isPhantom;
-          if (ghostState) {
-            const text = document.getElementById('phantom-ecto-text');
-            const fill = document.getElementById('phantom-ecto-fill');
-            const maximum = Math.max(1, ghostState.maxEctoplasm || 100);
-            if (text) text.textContent = `灵质 ${Math.floor(ghostState.ectoplasm || 0)}/${maximum}` +
-              (ghostState.shiftActive ? ' · 潜行' : '') + (ghostState.docked ? ' · 共生' : '');
-            if (fill) fill.style.width = Math.round(100 * Math.min(1,
-              (ghostState.ectoplasm || 0) / maximum)) + '%';
-          }
+          ectoPanel.hidden = true; // 永久隐藏灵质条
         }
         const dockPanel = document.getElementById('phantom-touch-actions');
         if (dockPanel) {
-          dockPanel.hidden = !isPhantom || (this.state !== 'playing' &&
-            !(this.state === 'lan-client' && this.lanCoop?.latest?.phase === 'playing'));
+          dockPanel.hidden = !isPhantom || (!this.lanCoop?.ally && !this.lanCoop?.latest?.host);
           const control = document.getElementById('phantom-dock-action');
           if (control) {
             control.textContent = ghostState?.docked ? '脱离共生 Q' : '共生合体 Q';
@@ -3212,7 +3210,7 @@
         const maxCharges = this.player.maxDashCharges || 3;
         const charges = this.player.dashCharges;
         const rechargeProgress = charges < maxCharges
-          ? (this.player.dashRechargeTimer / (isAstra ? 5 : isPhantom ? 5.5 : this.getEffectiveDashRecharge())) * 100
+          ? (this.player.dashRechargeTimer / (isAstra ? 5 : isPhantom ? (window.NeonPhantom?.getDashRechargeTime?.(this.player, ghostState) || 4.8) : this.getEffectiveDashRecharge())) * 100
           : 0;
 
         if (dashContainer) {
@@ -3250,12 +3248,12 @@
           if (this.player.shipId === 'phantom') {
             const ghost = this.player.phantom;
             const shiftActive = Boolean(ghost?.shiftActive);
-            const ecto = Math.floor(ghost?.ectoplasm || 0);
-            if (dashLabel) dashLabel.textContent = shiftActive ? '引爆' : '化身';
-            if (dashCount) dashCount.textContent = `${ecto}`;
-            touchDashBtn.style.setProperty('--dash-fill', `${Math.min(100, ecto)}%`);
-            touchDashBtn.classList.toggle('dash-empty', ecto < 15 && !shiftActive);
-            touchDashBtn.setAttribute('aria-label', shiftActive ? '退出化身引爆死印' : `幽灵化身：灵质${ecto}/100`);
+            const pCharges = ghost?.dashCharges ?? 0;
+            if (dashLabel) dashLabel.textContent = shiftActive ? '引爆' : '潜行';
+            if (dashCount) dashCount.textContent = `${pCharges}/${maxCharges}`;
+            touchDashBtn.style.setProperty('--dash-fill', `${Math.min(100, Math.round(rechargeProgress))}%`);
+            touchDashBtn.classList.toggle('dash-empty', pCharges === 0 && !shiftActive);
+            touchDashBtn.setAttribute('aria-label', shiftActive ? '退出潜行引爆死印' : `幽灵潜行：${pCharges}/${maxCharges}段可用`);
           } else {
             if (dashLabel && dashLabel.textContent !== '折跃') dashLabel.textContent = '折跃';
             if (dashCount) {
@@ -3271,21 +3269,33 @@
 
         const statTextEl = document.getElementById('dash-stat-text');
         if (statTextEl) {
-          // HUD shows the current uncritical hit value (including global level scaling).
-          const slashD = Math.round((this.player.dashSlashDmg || 95) * this.getLevelDmgMult());
-          const cd = this.getEffectiveDashRecharge().toFixed(1);
-          let extraBadges = [];
-          if (this.player.hasAegis) extraBadges.push(`🛡️光环${this.player.aegisDuration.toFixed(2)}s`);
-          if (this.player.hasDashBlast) extraBadges.push('💥爆轰');
-          if (this.player.hasFireTrail) extraBadges.push('🔥火墙');
-          if (this.player.hasDashCryo) extraBadges.push('❄️冰封');
+          if (isPhantom) {
+            const ghost = this.player.phantom;
+            const pCharges = ghost?.dashCharges ?? 0;
+            const lvl = this.player.level || 1;
+            const scale = window.NeonPhantom?.attackScale?.(this.player) || 1;
+            const coreBonus = (ghost?.passiveUpgrades?.phantom_core || this.player.passives?.phantom_core || 0) * 0.12;
+            const detonBonus = (ghost?.warpUpgrades?.soul_detonation || this.player.dashUpgrades?.soul_detonation || 0) * 0.40;
+            const reapDmg = Math.round((52 + (lvl - 1) * 5.5) * (1 + detonBonus) * (1 + coreBonus) * scale);
+            const cd = (window.NeonPhantom?.getDashRechargeTime?.(this.player, ghost) || 4.8).toFixed(1);
+            statTextEl.innerHTML = `👻 潜行 ${pCharges}段 | 💥 死印 ~${reapDmg} | ⏱️ ${cd}s`;
+          } else {
+            // HUD shows the current uncritical hit value (including global level scaling).
+            const slashD = Math.round((this.player.dashSlashDmg || 95) * this.getLevelDmgMult());
+            const cd = this.getEffectiveDashRecharge().toFixed(1);
+            let extraBadges = [];
+            if (this.player.hasAegis) extraBadges.push(`🛡️光环${this.player.aegisDuration.toFixed(2)}s`);
+            if (this.player.hasDashBlast) extraBadges.push('💥爆轰');
+            if (this.player.hasFireTrail) extraBadges.push('🔥火墙');
+            if (this.player.hasDashCryo) extraBadges.push('❄️冰封');
 
-          const totalDashLb = ((this.player.limitBreaks && this.player.limitBreaks['dash_dmg']) || 0)
-                            + ((this.player.limitBreaks && this.player.limitBreaks['dash_aegis']) || 0)
-                            + ((this.player.limitBreaks && this.player.limitBreaks['dash_blast']) || 0);
-          const lbStr = totalDashLb > 0 ? ` <span style="color:#ffea00;font-weight:900;">(+${totalDashLb}破限)</span>` : '';
-          const extraStr = extraBadges.length > 0 ? ` | ${extraBadges.join(' ')}` : '';
-          statTextEl.innerHTML = `⚡ ${maxCharges}段 | ⚔️ ${slashD}${lbStr} | ⏱️ ${cd}s | 精准连击×${this.player.dashCombo || 0}${extraStr}`;
+            const totalDashLb = ((this.player.limitBreaks && this.player.limitBreaks['dash_dmg']) || 0)
+                              + ((this.player.limitBreaks && this.player.limitBreaks['dash_aegis']) || 0)
+                              + ((this.player.limitBreaks && this.player.limitBreaks['dash_blast']) || 0);
+            const lbStr = totalDashLb > 0 ? ` <span style="color:#ffea00;font-weight:900;">(+${totalDashLb}破限)</span>` : '';
+            const extraStr = extraBadges.length > 0 ? ` | ${extraBadges.join(' ')}` : '';
+            statTextEl.innerHTML = `⚡ ${maxCharges}段 | ⚔️ ${slashD}${lbStr} | ⏱️ ${cd}s | 精准连击×${this.player.dashCombo || 0}${extraStr}`;
+          }
         }
 
         const xpPct = (this.player.xp / this.player.xpNeeded) * 100;
@@ -3378,33 +3388,33 @@
             skillsBar.innerHTML = `
               <button type="button" class="combat-skill-btn" id="btn-skill-reap" title="死印斩击 [J]：消耗15灵质，朝前方扇面释放幽能波，范围减速并施加死印（使目标承受伤害+25%）">
                 <span class="skill-hotkey">J</span>
-                <span class="skill-icon">🗡️</span>
-                <span class="skill-name">死印斩击</span>
-                <span class="skill-cost" id="cost-skill-reap">15灵质</span>
-                <div class="skill-cd-mask" id="mask-skill-reap"></div>
+                <span class="skill-icon" id="icon-skill-sprint">💨</span>
+                <span class="skill-name" id="name-skill-sprint">幽影疾行</span>
+                <span class="skill-cost" id="cost-skill-sprint">极速推进</span>
+                <div class="skill-cd-mask" id="mask-skill-sprint"></div>
               </button>
-              <button type="button" class="combat-skill-btn" id="btn-skill-dock" title="战术共生 / 幽影疾行 [K]：联机靠近队友挂载 / 单人无消耗移速爆发冲刺">
+              <button type="button" class="combat-skill-btn" id="btn-skill-vortex" title="虚空聚拢 [K]：无消耗聚怪，引力中心跟随自身，强力吸聚敌群并减速50%">
                 <span class="skill-hotkey">K</span>
-                <span class="skill-icon" id="icon-skill-dock">🔗</span>
-                <span class="skill-name" id="name-skill-dock">战术共生</span>
-                <span class="skill-cost" id="cost-skill-dock">需队友</span>
-                <div class="skill-cd-mask" id="mask-skill-dock"></div>
+                <span class="skill-icon" id="icon-skill-vortex">🌀</span>
+                <span class="skill-name" id="name-skill-vortex">虚空聚拢</span>
+                <span class="skill-cost" id="cost-skill-vortex">跟随聚怪</span>
+                <div class="skill-cd-mask" id="mask-skill-vortex"></div>
               </button>
-              <button type="button" class="combat-skill-btn" id="btn-skill-shift" title="幽灵化身 / 退出引爆 [空格]：灵质驱动虚无形态，穿透无敌并在脱离时引爆死印">
+              <button type="button" class="combat-skill-btn" id="btn-skill-shift" title="幽灵潜行 / 退出引爆 [空格]：消耗1段充能，免疫碰撞与弹幕，穿透施印并在脱离时引爆死印">
                 <span class="skill-hotkey">空格</span>
                 <span class="skill-icon" id="icon-skill-shift">👻</span>
-                <span class="skill-name" id="name-skill-shift">幽灵化身</span>
-                <span class="skill-cost" id="cost-skill-shift">灵质驱动</span>
+                <span class="skill-name" id="name-skill-shift">幽灵潜行</span>
+                <span class="skill-cost" id="cost-skill-shift">充能驱动</span>
                 <div class="skill-cd-mask" id="mask-skill-shift"></div>
               </button>`;
 
-            skillsBar.querySelector('#btn-skill-reap')?.addEventListener('click', (e) => {
+            skillsBar.querySelector('#btn-skill-sprint')?.addEventListener('click', (e) => {
               if (this.isDuplicateCombatSkillClick(e)) return;
-              e.stopPropagation(); this.triggerPhantomStrike();
+              e.stopPropagation(); this.triggerPhantomSprint();
             });
-            skillsBar.querySelector('#btn-skill-dock')?.addEventListener('click', (e) => {
+            skillsBar.querySelector('#btn-skill-vortex')?.addEventListener('click', (e) => {
               if (this.isDuplicateCombatSkillClick(e)) return;
-              e.stopPropagation(); this.togglePhantomDock();
+              e.stopPropagation(); this.triggerPhantomVortex();
             });
             skillsBar.querySelector('#btn-skill-shift')?.addEventListener('click', (e) => {
               if (this.isDuplicateCombatSkillClick(e)) return;
@@ -3429,6 +3439,7 @@
           // controller's glyph onto each skill without overwriting the key.
           for (const [id, key] of [
             ['btn-skill-ward', 'x'], ['btn-skill-meteor', 'y'],
+            ['btn-skill-sprint', 'x'], ['btn-skill-vortex', 'y'],
             ['btn-skill-reap', 'x'], ['btn-skill-dock', 'y'],
             ['btn-skill-blink', 'rt'], ['btn-skill-shift', 'rt'],
             ['btn-skill-dash', 'rt']
@@ -3488,90 +3499,76 @@
         } else if (shipId === 'phantom') {
           const ghostState = window.NeonPhantom?.state(this.player);
           const shiftActive = Boolean(ghostState?.shiftActive);
-          const docked = Boolean(ghostState?.docked);
-          const ecto = Math.floor(ghostState?.ectoplasm || 0);
+          const pCharges = ghostState?.dashCharges ?? 0;
+          const maxC = this.player?.maxDashCharges || 2;
 
-          const reapCost = document.getElementById('cost-skill-reap');
-          const reapBtn = document.getElementById('btn-skill-reap');
-          const reapMask = document.getElementById('mask-skill-reap');
-          const strikeCd = ghostState?.strikeCooldown || 0;
-          if (reapCost && reapBtn) {
-            if (strikeCd > 0) {
-              reapBtn.classList.remove('active-state');
-              reapCost.textContent = '冷却中';
-              if (reapMask) {
-                reapMask.style.height = `${Math.min(100, (strikeCd / 4.5) * 100)}%`;
-                reapMask.style.background = 'rgba(0, 0, 0, 0.76)';
-                reapMask.textContent = strikeCd.toFixed(1) + 's';
+          // 1. [J] 幽影疾行
+          const sprintCost = document.getElementById('cost-skill-sprint');
+          const sprintBtn = document.getElementById('btn-skill-sprint');
+          const sprintMask = document.getElementById('mask-skill-sprint');
+          const sprintTimer = ghostState?.sprintTimer || 0;
+          const sprintCd = ghostState?.sprintCooldown || 0;
+          if (sprintCost && sprintBtn) {
+            if (sprintTimer > 0) {
+              sprintBtn.classList.add('active-state');
+              sprintCost.textContent = `疾行中 (${sprintTimer.toFixed(1)}s)`;
+              if (sprintMask) {
+                sprintMask.style.height = '100%';
+                sprintMask.style.background = 'rgba(0, 240, 255, 0.35)';
+                sprintMask.textContent = sprintTimer.toFixed(1) + 's';
               }
-            } else if (ecto < 15) {
-              reapBtn.classList.remove('active-state');
-              reapCost.textContent = '需15灵质';
-              if (reapMask) {
-                reapMask.style.height = '0%';
-                reapMask.textContent = '';
+            } else if (sprintCd > 0) {
+              sprintBtn.classList.remove('active-state');
+              sprintCost.textContent = '冷却中';
+              if (sprintMask) {
+                sprintMask.style.height = `${Math.min(100, (sprintCd / 4.5) * 100)}%`;
+                sprintMask.style.background = 'rgba(0, 0, 0, 0.76)';
+                sprintMask.textContent = sprintCd.toFixed(1) + 's';
               }
             } else {
-              reapBtn.classList.remove('active-state');
-              reapCost.textContent = '15灵质';
-              if (reapMask) {
-                reapMask.style.height = '0%';
-                reapMask.textContent = '';
+              sprintBtn.classList.remove('active-state');
+              sprintCost.textContent = '极速就绪';
+              if (sprintMask) {
+                sprintMask.style.height = '0%';
+                sprintMask.textContent = '';
               }
             }
           }
 
-          const dockIcon = document.getElementById('icon-skill-dock');
-          const dockName = document.getElementById('name-skill-dock');
-          const dockCost = document.getElementById('cost-skill-dock');
-          const dockBtn = document.getElementById('btn-skill-dock');
-          const dockMask = document.getElementById('mask-skill-dock');
-          if (dockName && dockCost) {
-            if (docked) {
-              dockBtn?.classList.add('active-state');
-              if (dockIcon) dockIcon.textContent = '⚡';
-              dockName.textContent = '脱离共生';
-              dockCost.textContent = '按E脱离';
-              if (dockMask) { dockMask.style.height = '0%'; dockMask.textContent = ''; }
-            } else if (this.lanCoop?.ally) {
-              dockBtn?.classList.remove('active-state');
-              if (dockIcon) dockIcon.textContent = '🔗';
-              dockName.textContent = '战术共生';
-              dockCost.textContent = '靠近队友';
-              if (dockMask) { dockMask.style.height = '0%'; dockMask.textContent = ''; }
+          // 2. [K] 虚空聚拢
+          const vortexCost = document.getElementById('cost-skill-vortex');
+          const vortexBtn = document.getElementById('btn-skill-vortex');
+          const vortexMask = document.getElementById('mask-skill-vortex');
+          const vTimer = ghostState?.vortexTimer || 0;
+          const vCd = ghostState?.vortexCooldown || 0;
+          if (vortexCost && vortexBtn) {
+            if (vTimer > 0) {
+              vortexBtn.classList.add('active-state');
+              vortexCost.textContent = `聚怪中 (${vTimer.toFixed(1)}s)`;
+              if (vortexMask) {
+                vortexMask.style.height = '100%';
+                vortexMask.style.background = 'rgba(168, 85, 247, 0.35)';
+                vortexMask.textContent = vTimer.toFixed(1) + 's';
+              }
+            } else if (vCd > 0) {
+              vortexBtn.classList.remove('active-state');
+              vortexCost.textContent = '冷却中';
+              if (vortexMask) {
+                vortexMask.style.height = `${Math.min(100, (vCd / 6.0) * 100)}%`;
+                vortexMask.style.background = 'rgba(0, 0, 0, 0.76)';
+                vortexMask.textContent = vCd.toFixed(1) + 's';
+              }
             } else {
-              // Solo mode: 幽影疾行 (移速爆发，逐渐衰减，无能量消耗，仅5s CD)
-              const sprint = ghostState?.sprintTimer || 0;
-              const sprintCd = ghostState?.sprintCooldown || 0;
-              if (dockIcon) dockIcon.textContent = '💨';
-              dockName.textContent = '幽影疾行';
-              if (sprint > 0) {
-                dockBtn?.classList.add('active-state');
-                dockCost.textContent = `疾速+${Math.round((sprint / 3.0) * 80)}% (${sprint.toFixed(1)}s)`;
-                if (dockMask) {
-                  dockMask.style.height = '100%';
-                  dockMask.style.background = 'rgba(0, 240, 255, 0.35)';
-                  dockMask.textContent = sprint.toFixed(1) + 's';
-                }
-              } else if (sprintCd > 0) {
-                dockBtn?.classList.remove('active-state');
-                dockCost.textContent = '冷却中';
-                if (dockMask) {
-                  dockMask.style.height = `${Math.min(100, (sprintCd / 5.0) * 100)}%`;
-                  dockMask.style.background = 'rgba(0, 0, 0, 0.76)';
-                  dockMask.textContent = sprintCd.toFixed(1) + 's';
-                }
-              } else {
-                dockBtn?.classList.remove('active-state');
-                dockCost.textContent = '按E极速 (无消耗)';
-                if (dockMask) {
-                  dockMask.style.height = '0%';
-                  dockMask.textContent = '';
-                }
+              vortexBtn.classList.remove('active-state');
+              vortexCost.textContent = '聚拢就绪';
+              if (vortexMask) {
+                vortexMask.style.height = '0%';
+                vortexMask.textContent = '';
               }
             }
           }
 
+          // 3. [空格] 幽灵潜行 / 退出引爆
           const shiftIcon = document.getElementById('icon-skill-shift');
           const shiftName = document.getElementById('name-skill-shift');
           const shiftCost = document.getElementById('cost-skill-shift');
@@ -3579,20 +3576,23 @@
           const shiftMask = document.getElementById('mask-skill-shift');
           if (shiftName && shiftCost) {
             if (shiftActive) {
+              const rem = ghostState?.shiftRemaining || 0;
               shiftBtn?.classList.add('active-state');
               if (shiftIcon) shiftIcon.textContent = '💥';
               shiftName.textContent = '退出引爆';
-              shiftCost.textContent = `剩余 ${ecto} 灵质`;
+              shiftCost.textContent = `潜行中 (${rem.toFixed(1)}s)`;
               if (shiftMask) {
                 shiftMask.style.height = '100%';
                 shiftMask.style.background = 'rgba(0, 240, 255, 0.3)';
-                shiftMask.textContent = '消耗中';
+                shiftMask.textContent = rem.toFixed(1) + 's';
               }
             } else {
               shiftBtn?.classList.remove('active-state');
               if (shiftIcon) shiftIcon.textContent = '👻';
-              shiftName.textContent = '幽灵化身';
-              shiftCost.textContent = ecto >= 15 ? `按空格 (${ecto}/100)` : `需15灵质 (${ecto}/100)`;
+              shiftName.textContent = '幽灵潜行';
+              shiftCost.textContent = pCharges > 0
+                ? `${pCharges}/${maxC}段就绪`
+                : '充能中';
               if (shiftMask) {
                 shiftMask.style.height = '0%';
                 shiftMask.textContent = '';
@@ -4858,6 +4858,9 @@
           this.combatTelemetry.invulnerableSeconds += Math.min(dt, this.player.invulnTimer);
           this.player.invulnTimer -= dt;
         }
+        if (this.player.lastSlashFx && this.player.lastSlashFx.life > 0) {
+          this.player.lastSlashFx.life = Math.max(0, this.player.lastSlashFx.life - dt);
+        }
 
         // Dash 3-Charge Recharge System
         if (this.player.shipId === 'phantom') {
@@ -4947,14 +4950,31 @@
             }
           }
 
-          // Trail phantom particles
+          // Trail phantom particles & hyper-spatial slash ribbon
+          const dashAng = Math.atan2(this.player.dashDir.y, this.player.dashDir.x);
+          if (this.player.dashStartX !== undefined) {
+            this.player.lastSlashFx = {
+              x1: this.player.dashStartX,
+              y1: this.player.dashStartY,
+              x2: this.player.x,
+              y2: this.player.y,
+              angle: dashAng,
+              life: 0.28,
+              maxLife: 0.28,
+              fire: Boolean(this.player.hasFireTrail),
+              cryo: Boolean(this.player.hasDashCryo),
+              precise: Boolean(this.player.dashPreciseHit)
+            };
+          }
           if (this.particles.length < (this.fxLow ? 20 : 60)) {
             this.particles.push({
               type: 'afterimage',
-              x: this.player.x,y: this.player.y,
+              x: this.player.x, y: this.player.y,
+              angle: dashAng,
               radius: this.player.radius * (this.player.hasFireTrail ? 1.4 : 1.1),
-              color: this.player.hasFireTrail ? 'rgba(255, 0, 128, 0.65)' : 'rgba(0, 243, 255, 0.55)',
-              life: 0.2,maxLife: 0.2
+              color: this.player.hasFireTrail ? 'rgba(255, 0, 128, 0.72)' :
+                this.player.hasDashCryo ? 'rgba(56, 189, 248, 0.72)' : 'rgba(0, 243, 255, 0.65)',
+              life: 0.24, maxLife: 0.24
             });
           }
 
@@ -5030,13 +5050,14 @@
           if (moveLen > 0.05) {
             const normX = moveX / moveLen;
             const normY = moveY / moveLen;
+            const spectralExtend = this.player.phantom?.warpUpgrades?.spectral_extend ||
+              this.player.dashUpgrades?.spectral_extend || 0;
             const phaseSpeed = this.player.shipId === 'phantom' &&
-              this.player.phantom?.shiftActive ? window.NeonPhantom?.BASE?.shiftSpeedMultiplier || 1.45 : 1;
+              this.player.phantom?.shiftActive ? (1.40 + spectralExtend * 0.15) : 1;
             const astraKite = this.player.shipId === 'astra' &&
               ((this.player.astra?.kiteSpeedTimer || 0) > 0) ? 1.5 : 1;
             const phantomSprint = this.player.shipId === 'phantom' &&
-              ((this.player.phantom?.sprintTimer || 0) > 0) ?
-              1.0 + ((this.player.phantom.sprintTimer / 3.0) * 0.8) : 1;
+              ((this.player.phantom?.sprintTimer || 0) > 0) ? 1.75 : 1;
             const astraTurretAnchor = this.player.shipId === 'astra' &&
               this.player.astra?.wardActive ? 0.20 : 1;
             this.player.vx = normX * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint * astraTurretAnchor;
@@ -6153,26 +6174,7 @@
         if (this.player.downed) return;
         if (this.player.invulnTimer > 0) return;
         if (this.player.shipId === 'phantom' && this.player.phantom?.shiftActive) {
-          // Targeted Ghost Form limitation:
-          // Hull HP is shielded, but ranged bullets & explosions destabilize the spectral state by draining ectoplasm!
-          const ghost = this.player.phantom;
-          const ectoDrain = Math.max(8, Math.min(18, Math.round(dmg * 0.35)));
-          ghost.ectoplasm = Math.max(0, ghost.ectoplasm - ectoDrain);
-          this.texts.push({
-            x: this.player.x,
-            y: this.player.y - 22,
-            text: `灵质 -${ectoDrain}`,
-            color: '#c084fc',
-            size: 14,
-            life: 0.65,
-            maxLife: 0.65
-          });
-          try { this.sound?.playLaser?.(180, 'sine'); } catch (_) {}
-          if (ghost.ectoplasm <= 0) {
-            window.NeonPhantom?.finishShift(this.player, this, false);
-            this.notifySkillFeedback('⚠️ 灵质被密集火力击溃！化身瓦解并殉爆', '#f43f5e');
-          }
-          this.player.invulnTimer = 0.18; // Short grace window against simultaneous bullet impacts
+          // Immune to all collision and projectile damage while shifted
           return;
         }
         window.NeonRogueEndless?.onDamageTaken(this);
@@ -6372,11 +6374,28 @@
             ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
             ctx.fill();
           } else if (p.type === 'afterimage') {
-            ctx.strokeStyle = p.color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-            ctx.stroke();
+            if (Number.isFinite(p.angle)) {
+              ctx.translate(p.x, p.y);
+              ctx.rotate(p.angle);
+              ctx.strokeStyle = p.color;
+              ctx.fillStyle = p.color;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(22, 0);
+              ctx.lineTo(-12, -17);
+              ctx.lineTo(-6, 0);
+              ctx.lineTo(-12, 17);
+              ctx.closePath();
+              ctx.stroke();
+              ctx.globalAlpha = Math.max(0, progress * 0.28);
+              ctx.fill();
+            } else {
+              ctx.strokeStyle = p.color;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+              ctx.stroke();
+            }
           } else if (p.type === 'lightning') {
             ctx.strokeStyle = p.color;
             ctx.lineWidth = 3;
@@ -6611,6 +6630,41 @@
             ctx.fill();
           }
 
+          // Crowd-control Status Visuals: Freeze Slow / Stun / Fear
+          if ((e.freezeTimer || 0) > 0) {
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) {
+              const ang = (k / 6) * Math.PI * 2 + this.survivalTime * 1.5;
+              const r = e.radius + 4;
+              const px = Math.cos(ang) * r;
+              const py = Math.sin(ang) * r;
+              if (k === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.stroke();
+          }
+          if ((e.stunnedUntil || 0) > this.survivalTime) {
+            const stunAng = this.survivalTime * 7;
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 2.0;
+            ctx.beginPath();
+            ctx.arc(0, -e.radius - 7, 6, stunAng, stunAng + Math.PI * 1.3);
+            ctx.stroke();
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(Math.cos(stunAng) * 6, -e.radius - 7 + Math.sin(stunAng) * 6, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (!e.isBoss && (e.fearedUntil || 0) > this.survivalTime) {
+            ctx.strokeStyle = '#e879f9';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius + 5 + Math.sin(this.survivalTime * 16) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+
           // Elite Enemy Ring & Badge
           if (e.isElite) {
             ctx.strokeStyle = '#ffd700';
@@ -6834,10 +6888,13 @@
         // Draw Plasma Dash Trails (Warp Laser Wall)
         this.dashTrails.forEach((dtTrail) => {
           ctx.save();
-          const progress = dtTrail.life / dtTrail.maxLife;
-          ctx.globalAlpha = Math.max(0, progress);
+          const progress = Math.max(0, dtTrail.life / dtTrail.maxLife);
+          ctx.lineCap = 'round';
+          ctx.globalAlpha = progress * 0.85;
           ctx.strokeStyle = dtTrail.color;
-          ctx.lineWidth = 14;
+          ctx.shadowColor = dtTrail.color;
+          ctx.shadowBlur = 16;
+          ctx.lineWidth = 16;
           ctx.beginPath();
           ctx.moveTo(dtTrail.x1, dtTrail.y1);
           ctx.lineTo(dtTrail.x2, dtTrail.y2);
@@ -6845,13 +6902,40 @@
 
           // High-energy white core
           ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 4;
+          ctx.lineWidth = 4.5;
           ctx.beginPath();
           ctx.moveTo(dtTrail.x1, dtTrail.y1);
           ctx.lineTo(dtTrail.x2, dtTrail.y2);
           ctx.stroke();
           ctx.restore();
         });
+
+        // Draw Riftblade Hyper-Spatial Katana Slash Ribbon
+        if (this.player.lastSlashFx && this.player.lastSlashFx.life > 0) {
+          const sfx = this.player.lastSlashFx;
+          const fade = Math.max(0, Math.min(1, sfx.life / (sfx.maxLife || 0.28)));
+          const mainCol = sfx.fire ? '#ff007f' : sfx.cryo ? '#38bdf8' : '#00f3ff';
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.globalAlpha = fade * 0.72;
+          ctx.strokeStyle = mainCol;
+          ctx.shadowColor = mainCol;
+          ctx.shadowBlur = 18;
+          ctx.lineWidth = 18 * fade + 4;
+          ctx.beginPath();
+          ctx.moveTo(sfx.x1, sfx.y1);
+          ctx.lineTo(sfx.x2, sfx.y2);
+          ctx.stroke();
+
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4 * fade + 1.5;
+          ctx.beginPath();
+          ctx.moveTo(sfx.x1, sfx.y1);
+          ctx.lineTo(sfx.x2, sfx.y2);
+          ctx.stroke();
+          ctx.restore();
+        }
 
         // Draw Phase Aegis Aura (时空相位无敌光环)
         if (this.player.aegisTimer > 0) {
@@ -6924,8 +7008,14 @@
         ctx.save();
         ctx.translate(fighter.x, fighter.y);
         ctx.rotate(fighter.aimAngle || 0);
-        if (fighter.downed) ctx.globalAlpha = .5;
-        if ((fighter.invulnTimer || 0) > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
+        const isPhantomShifted = fighter.shipId === 'phantom' &&
+          Boolean(fighter.phantom?.shiftActive || fighter.spectral?.shiftActive);
+        if (fighter.downed) {
+          ctx.globalAlpha = .5;
+        } else if (isPhantomShifted) {
+          // Smooth breathing spectral wraith cloak instead of 60ms hit-strobe
+          ctx.globalAlpha = 0.46 + Math.sin(performance.now() * 0.009) * 0.12;
+        } else if ((fighter.invulnTimer || 0) > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
           ctx.globalAlpha = 0.4;
         }
         // The same bounded warp pulse is drawn for host, remote pilots and

@@ -23,13 +23,20 @@
   function damage(pilot,game,enemy,base,source) {
     if (!alive(enemy)) return false;
     const hpPercent = enemy.hp / Math.max(enemy.maxHp || enemy.hp,1);
-    const execute = (rank(pilot,'execute_master') * (hpPercent < .35 ? .12 : 0));
-    const ecto = window.NeonPhantom?.state(pilot)?.ectoplasm || 0;
-    const bonus = Math.min(.35, ecto / 500) + execute;
+    const marked = window.NeonPhantom?.isMarked ? window.NeonPhantom.isMarked(pilot, enemy, game.survivalTime || 0) : false;
+    const executeLvl = rank(pilot,'execute_master');
+    const executeBonus = executeLvl * ((hpPercent < .35 || marked) ? 0.15 : 0);
     const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
-    game.dealDamage(enemy,base * (1 + bonus) * scale,source,
-      Math.random() < Math.min(1, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0),pilot);
-    window.NeonPhantom?.addEctoplasm(pilot,1 + rank(pilot,'soul_gatherer'));
+    const isCrit = Math.random() < Math.min(1, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0);
+    game.dealDamage(enemy,base * (1 + executeBonus) * scale,source,isCrit,pilot);
+    const gatherLvl = rank(pilot,'soul_gatherer');
+    if (gatherLvl > 0 && marked) {
+      const pState = window.NeonPhantom?.state(pilot);
+      if (pState && pState.dashCharges < (pState.maxDashCharges || 4)) {
+        pState.dashRecharge = (pState.dashRecharge || 0) + 0.15 * gatherLvl;
+      }
+    }
+    window.NeonPhantom?.addEctoplasm(pilot,1 + gatherLvl);
     fx(pilot,'soul',pilot,enemy,15,.2);
     return true;
   }
@@ -111,12 +118,16 @@
     const s=state(pilot), p=window.NeonPhantom?.state(pilot);
     if(p) {
       // Passive effects apply to the class itself, not global Riftblade slots.
-      p.maxEctoplasm=100+rank(pilot,'phantom_core')*8;
+      const overflow = Math.min(2, Math.max(0, p.warpUpgrades?.charge_overflow || pilot.dashUpgrades?.charge_overflow || 0));
+      p.maxEctoplasm=100+rank(pilot,'phantom_core')*8+overflow*25;
       if(rank(pilot,'death_reversal')>=1 && !pilot.cheatDeathUsed)pilot.hasCheatDeath=true;
       // Recompute from registered base each tick; no permanent low-HP stacking.
-      const base=(window.NeonShips?.get('phantom')?.baseStats.regen ?? .5) +
+      const base=(window.NeonShips?.get('phantom')?.baseStats.regen ?? .75) +
         (pilot.passives?.armor || 0)*1.8;
-      const extra=pilot.hp < pilot.maxHp*.45 ? rank(pilot,'stealth_armor')*.12 : 0;
+      const armorLvl = rank(pilot,'stealth_armor');
+      const isLowHp = pilot.hp < pilot.maxHp*.45;
+      const isShift = Boolean(p.shiftActive);
+      const extra = (isLowHp || isShift) ? armorLvl * 0.35 : 0;
       pilot.regen=base+extra;
     }
     let fired=0;

@@ -93,15 +93,15 @@ Object.assign(ghost.phantom.passiveUpgrades,ghost.passives);
 ghost.hp=20;
 env.window.NeonPhantomArsenal.tick(ghost,game,.1);
 assert.equal(ghost.phantom.maxEctoplasm,108,'Core boosts resource capacity');
-assert.equal(ghost.regen,.62,'Low-life stealth armour regeneration');
+assert.equal(Math.round(ghost.regen * 100) / 100, 1.10,'Low-life stealth armour regeneration');
 ghost.hp=80;
 env.window.NeonPhantomArsenal.tick(ghost,game,.1);
-assert.equal(ghost.regen,.5,'Stealth armour must stop above low-life threshold');
+assert.equal(ghost.regen,.75,'Stealth armour must stop above low-life threshold');
 ghost.phantom.ectoplasm=0;
 env.window.NeonPhantom.addEctoplasm(ghost,10);
 assert.ok(ghost.phantom.ectoplasm>10,'Spiritual-flow multiplier works');
-assert.ok(env.window.NeonPhantom.critBonus(ghost,game.survivalTime)>.1,
-  'Core and dual mind increase crit probability');
+assert.ok(env.window.NeonPhantom.critBonus(ghost,game.survivalTime)>=.08,
+  'Core increases crit probability');
 ghost.phantom.slingshotBuffUntil=game.survivalTime+4;
 env.window.NeonPhantomArsenal.damage(ghost,game,enemies[0],20,'phantom_crit_audit');
 assert.equal(damage.at(-1).crit,true,'100% slingshot crit applies to arsenal too');

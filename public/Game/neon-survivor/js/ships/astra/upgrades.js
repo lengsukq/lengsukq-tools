@@ -138,7 +138,6 @@
         }
         break;
       }
-      fx(pilot,'burst',pilot,null,radius,.28);
       case 'chrono_bind': { // Slow several linked enemies, bosses less.
         let n = 0;
         for (const e of list) {
