@@ -186,6 +186,15 @@ UI按照视口宽高自适应：竖屏战斗HUD双排、升级卡纵向展开；
 
 暂停 / 结束成绩中附有难度、当前无敌覆盖率、精准折跃和全局毁灭掉落次数，便于平衡观察。
 
+## 房主与房客的体验一致
+
+联机时房客驾驶的是一艘**和房主完全相同**的战舰：同样的移动速度、同样的折跃距离、同样的特效和同样的 HUD 数字。具体包括：
+
+- **折跃/闪现/潜行的位移距离完全一致**，并且随等级、推进器模组和推进器破限一起成长。此前房客的折跃速度是写死的，1级就比房主短约 10%，满配短约 44%，而且选了推进器也不会变快。
+- **折跃斩光刃、相位无敌光环**在双方屏幕上都会显示。此前这些特效只画给房主自己的战机，房客折跃时谁都看不到光刃。
+- **技能坞与 HUD 的数值**（斩击伤害、精准连击、折跃冷却、光环/爆轰/火墙/冰封标记）由房主权威计算后同步，房客看到的不是近似值。
+- **粒子、冲击波、飘字等装饰特效**的同步上限对齐房主实际能产生的数量，并且帧超预算时会把损失摊到各类特效上，而不是先把粒子清空。
+
 ## 暂停页：查看当前装配与特效
 
 按 **P / Esc**、点顶部暂停按钮或手柄 **Start** 暂停后，弹窗最上方是「当前装配」面板，用来快速核对这一局到底带了什么：
@@ -199,7 +208,7 @@ UI按照视口宽高自适应：竖屏战斗HUD双排、升级卡纵向展开；
 
 ## 开发维护与验证
 
-- 游戏主入口为 `index.html`，核心代码位于 `js/core/` 目录（原 `js/core.js` 已按职责拆为 36 个模块，`NeonSurvivorGame` 定义在 `core/game.js`，其余模块用 `NeonCore.define(NeonSurvivorGame, class { ... })` 把方法挂到同一个原型上）；六阶规则集中于 `core/constants.js` 的 `NEON_DIFFICULTIES`，光环时长集中于同文件的 `NEON_AEGIS_DURATIONS`。
+- 游戏主入口为 `index.html`，核心代码位于 `js/core/` 目录（原 `js/core.js` 已按职责拆为 37 个模块，`NeonSurvivorGame` 定义在 `core/game.js`，其余模块用 `NeonCore.define(NeonSurvivorGame, class { ... })` 把方法挂到同一个原型上）；六阶规则集中于 `core/constants.js` 的 `NEON_DIFFICULTIES`，光环时长集中于同文件的 `NEON_AEGIS_DURATIONS`。
 - 核心模块按职责分布：`core/simulation/*` 是世界推进（`index.js` 是 `update(dt)` 编排器），`core/render/*` 是绘制（`index.js` 是 `render()` 编排器），`core/combat/*` 是开火与伤害，`core/director/*` 是刷怪与 Boss，`core/progression/*` 是升级，`core/ui/*` 是 HUD。加载顺序以 `index.html` 为准。
 - 肉鸽扩展拆为 `js/endless.js`（阶段与路线）、`js/relics.js`（遗物）、`js/fusions.js`（武器融合）、`js/events.js`（限时事件）、`js/ui.js`（奖励菜单与HUD）；样式在 `css/game.css`。
 - `getDifficultyRules()` 提供掉落、敌人伤害、数量和精英频率系数；`getPassiveSlotLimit()` 负责进阶 V 后模组限额。

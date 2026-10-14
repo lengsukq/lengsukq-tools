@@ -58,6 +58,9 @@ const sandbox = {
 };
 let counter = 0;
 vm.createContext(sandbox);
+// The shared PilotSpeed model lives in core (a later classic script in the
+// page); pilots.js calls it at run time.
+vm.runInContext(fs.readFileSync(root + 'js/core/simulation/speed.js', 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/combat/pilots.js', 'utf8'), sandbox);
 for (const script of ['rtc', 'coop']) {
   vm.runInContext(fs.readFileSync(root + 'js/network/' + script + '.js', 'utf8'), sandbox);

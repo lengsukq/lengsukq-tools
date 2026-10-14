@@ -1,16 +1,10 @@
     /* Derived stats: move speed, passives, dash charges, orbiters and drones. */
     NeonCore.define(NeonSurvivorGame, class {
       recalculateMoveSpeed() {
+        // The formula lives in simulation/speed.js so the host, the host's
+        // simulation of a remote ally and the guest's prediction all agree.
         // 等级移速成长：每级+6，最多+120；全局硬上限385（推进器/破限叠加也不超）
-        const LEVEL_SPEED_CAP = 120;
-        const TOTAL_SPEED_CAP = 385;
-        const p = this.player.passives || {};
-        const levelBonus = Math.min(LEVEL_SPEED_CAP, (this.player.level - 1) * 6);
-        const thrusterMult = 1.0 + (p.thruster || 0) * 0.12;
-        const lbBonus = ((this.player.limitBreaks && this.player.limitBreaks.thruster) || 0) * 5;
-        const shipSpeed = window.NeonShips?.get?.(this.player.shipId)?.baseStats.speed || 240;
-        this.player.baseSpeed = Math.min(TOTAL_SPEED_CAP,
-          Math.round(shipSpeed * thrusterMult + levelBonus + lbBonus));
+        PilotSpeed.recalculate(this.player);
       }
 
       recalculatePassives() {
@@ -67,66 +61,70 @@
         this.recalculateDashStats();
       }
 
-      recalculateDashStats() {
-        const du = this.player.dashUpgrades || {};
+      recalculateDashStats(pilot = this.player) {
+        // Parametrised so a remote ally gets the SAME derived dash stats as
+        // the host's own pilot. Without this the guest's HUD showed a
+        // hardcoded 95 slash damage, no combo and no aegis/fire/cryo badges,
+        // because those fields only ever existed on the host's player object.
+        const du = pilot.dashUpgrades || {};
 
         // 1. Max charges: 3 base + dash_charge
-        const baseCharges = window.NeonShips?.get(this.player.shipId)?.baseStats.dashCharges || 3;
-        this.player.maxDashCharges = Math.min(9, baseCharges + (du.dash_charge || 0));
-        this.player.dashCharges = Math.min(this.player.maxDashCharges, this.player.dashCharges);
+        const baseCharges = window.NeonShips?.get(pilot.shipId)?.baseStats.dashCharges || 3;
+        pilot.maxDashCharges = Math.min(9, baseCharges + (du.dash_charge || 0));
+        pilot.dashCharges = Math.min(pilot.maxDashCharges, pilot.dashCharges);
 
         // 2. Recharge cooldown: reduced by haste and dash_charge
         const chargeHaste = (du.dash_charge || 0) * 0.12;
-        this.player.dashRechargeTime = Math.max(0.9, 2.2 / (1 + chargeHaste));
+        pilot.dashRechargeTime = Math.max(0.9, 2.2 / (1 + chargeHaste));
 
         // 3. Slash Damage
         const dmgLvl = du.dash_dmg || 0;
         const dmgBoost = 1.0 + dmgLvl * 0.6 + (dmgLvl >= 5 ? 0.6 : 0);
         // Shared level growth (+3% / level) is applied exactly once in dealDamage().
         // Dash mastery, passives and limit breaks remain separate sources of power.
-        const dashBreaks = (this.player.limitBreaks || {}).dash_dmg || 0;
-        this.player.dashSlashDmg = Math.round(95 * this.player.dmgMultiplier * dmgBoost * Math.pow(1.25, dashBreaks));
-        this.player.dashAlwaysCrit = dmgLvl >= 5;
+        const dashBreaks = (pilot.limitBreaks || {}).dash_dmg || 0;
+        pilot.dashSlashDmg = Math.round(95 * pilot.dmgMultiplier * dmgBoost * Math.pow(1.25, dashBreaks));
+        pilot.dashAlwaysCrit = dmgLvl >= 5;
 
         // 4. Slash Width & Invulnerability
         const areaLvl = du.dash_area || 0;
-        this.player.dashSlashWidth = (18 + areaLvl * 10) * this.player.areaMultiplier;
-        this.player.dashInvulnBonus = Math.min(0.08, areaLvl * 0.02);
+        pilot.dashSlashWidth = (18 + areaLvl * 10) * pilot.areaMultiplier;
+        pilot.dashInvulnBonus = Math.min(0.08, areaLvl * 0.02);
 
         // 5. Blast Nova
         const blastLvl = du.dash_blast || 0;
-        this.player.hasDashBlast = blastLvl > 0;
-        this.player.dashBlastDamage = blastLvl > 0 ? Math.round((140 + (blastLvl - 1) * 70) * this.player.dmgMultiplier * Math.pow(1.3, (this.player.limitBreaks || {}).dash_blast || 0)) : 0;
-        this.player.dashBlastRadius = (110 + (blastLvl - 1) * 35) * this.player.areaMultiplier;
+        pilot.hasDashBlast = blastLvl > 0;
+        pilot.dashBlastDamage = blastLvl > 0 ? Math.round((140 + (blastLvl - 1) * 70) * pilot.dmgMultiplier * Math.pow(1.3, (pilot.limitBreaks || {}).dash_blast || 0)) : 0;
+        pilot.dashBlastRadius = (110 + (blastLvl - 1) * 35) * pilot.areaMultiplier;
 
         // 6. Fire Trail
         const fireLvl = du.dash_fire || 0;
-        this.player.hasFireTrail = fireLvl > 0;
-        this.player.fireTrailDuration = 2.2 + fireLvl * 0.4;
-        this.player.fireTrailDamage = fireLvl > 0 ? Math.round((55 + (fireLvl - 1) * 30) * this.player.dmgMultiplier * Math.pow(1.25, (this.player.limitBreaks || {}).dash_fire || 0)) : 0;
+        pilot.hasFireTrail = fireLvl > 0;
+        pilot.fireTrailDuration = 2.2 + fireLvl * 0.4;
+        pilot.fireTrailDamage = fireLvl > 0 ? Math.round((55 + (fireLvl - 1) * 30) * pilot.dmgMultiplier * Math.pow(1.25, (pilot.limitBreaks || {}).dash_fire || 0)) : 0;
 
         // 7. Cryo Freeze
         const cryoLvl = du.dash_cryo || 0;
-        this.player.hasDashCryo = cryoLvl > 0;
-        this.player.dashCryoDuration = 2.0 + cryoLvl * 0.5 + ((this.player.limitBreaks || {}).dash_cryo || 0) * 0.5;
+        pilot.hasDashCryo = cryoLvl > 0;
+        pilot.dashCryoDuration = 2.0 + cryoLvl * 0.5 + ((pilot.limitBreaks || {}).dash_cryo || 0) * 0.5;
 
         // 8. Phase Aegis Aura (时空相位无敌光环)
         const aegisLvl = du.dash_aegis || 0;
-        this.player.hasAegis = aegisLvl > 0;
+        pilot.hasAegis = aegisLvl > 0;
         if (aegisLvl > 0) {
           const damages = [0, 55, 75, 100, 130, 165];
           const radii = [45, 55, 65, 80, 95, 110];
-          const breaks = (this.player.limitBreaks || {}).dash_aegis || 0;
-          this.player.aegisDuration = NEON_AEGIS_DURATIONS[Math.min(aegisLvl, 6) - 1] || 0.15;
+          const breaks = (pilot.limitBreaks || {}).dash_aegis || 0;
+          pilot.aegisDuration = NEON_AEGIS_DURATIONS[Math.min(aegisLvl, 6) - 1] || 0.15;
           // Infinite limit breaks must not evolve into a full-screen passive kill aura.
-          this.player.aegisDamage = Math.round((damages[Math.min(aegisLvl, 6) - 1] || 0) * this.player.dmgMultiplier * Math.min(3, Math.pow(1.25, breaks)));
-          this.player.aegisRadius = radii[Math.min(aegisLvl, 6) - 1] * this.player.areaMultiplier * Math.min(1.7, Math.pow(1.1, breaks));
-          this.player.hasAegisBurst = aegisLvl >= 6;
+          pilot.aegisDamage = Math.round((damages[Math.min(aegisLvl, 6) - 1] || 0) * pilot.dmgMultiplier * Math.min(3, Math.pow(1.25, breaks)));
+          pilot.aegisRadius = radii[Math.min(aegisLvl, 6) - 1] * pilot.areaMultiplier * Math.min(1.7, Math.pow(1.1, breaks));
+          pilot.hasAegisBurst = aegisLvl >= 6;
         } else {
-          this.player.aegisDuration = 0;
-          this.player.aegisDamage = 0;
-          this.player.aegisRadius = 0;
-          this.player.hasAegisBurst = false;
+          pilot.aegisDuration = 0;
+          pilot.aegisDamage = 0;
+          pilot.aegisRadius = 0;
+          pilot.hasAegisBurst = false;
         }
       }
 

@@ -6,6 +6,21 @@
   'use strict';
   const dist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
   const validTick = dt => Number.isFinite(dt) && dt > 0 && dt <= .25;
+
+  // ---------------------------------------------------------------------------
+  // Movement lives in ONE place: core/simulation/speed.js (PilotSpeed).
+  //
+  // "How fast does a pilot move" used to be written three times -- the host's
+  // own player, this file's stepRemote, and network/prediction.js -- and they
+  // disagreed: the ally's dash was a hardcoded 780 px/s against the host's
+  // baseSpeed * 3.6, the thruster multiplier was 0.15 here and 0.12 there,
+  // limit-break speed was missing from two of them, and the ally's baseSpeed
+  // was never recalculated after a guest picked Thruster. A guest therefore
+  // dashed 10% short at level 1 and 44% short fully upgraded.
+  //
+  // PilotSpeed is a const in a later classic script, but every reference here
+  // is inside a function body that only runs during gameplay, long after all
+  // scripts have loaded.
   function inputFor(pilot, now) {
     if (!pilot || !Number.isFinite(now)) return { dx:0,dy:0,aim:0,dash:false };
     const fresh = now - (pilot.lastInputAt || 0) <= 350;
@@ -37,11 +52,13 @@
     }
     if (!pilot || pilot.hp <= 0 || pilot.downed || pilot.charges <= 0 || pilot.dash > 0) return false;
     pilot.charges--;
-    pilot.dash = .18;
+    pilot.dash = PilotSpeed.DASH_DURATION;
     pilot.invuln = Math.max(pilot.invuln || 0, .28);
     const warp = pilot.dashUpgrades || {};
     if (warp.dash_aegis) pilot.invuln = Math.max(pilot.invuln, .4);
     pilot.dashHitEnemies = new Set();
+    pilot.dashStartX = pilot.x;
+    pilot.dashStartY = pilot.y;
     if (warp.dash_blast) {
       const radius = 100 + warp.dash_blast * 25;
       for (const enemy of game.enemies || []) {
@@ -59,6 +76,9 @@
     if (!game || !pilot || !validTick(dt)) return false;
     pilot.aimAngle = input.aim;
     pilot.level = game.player.level;
+    // Keep the cached baseSpeed in step with the level the pilot just gained,
+    // so the value the snapshot sends the guest is always current.
+    PilotSpeed.recalculate(pilot);
     pilot.xp = game.player.xp;
     pilot.xpNeeded = game.player.xpNeeded;
     pilot.invuln = Math.max(0,(pilot.invuln || 0)-dt);
@@ -79,16 +99,27 @@
       const recharge = 2.2 * (pilot.cdrMultiplier || 1) * (thruster >= 4 ? .7 : thruster >= 2 ? .85 : 1);
       if (pilot.recharge >= recharge) { pilot.recharge -= recharge; pilot.charges++; }
     } else pilot.recharge = 0;
-    const speed = pilot.downed ? 0 : pilot.dash > 0 ? 780 : Math.min(385,
-      ((pilot.baseSpeed || 240) + Math.min(120, (pilot.level - 1) * 6)) *
-      (1 + .15 * (pilot.passives?.thruster || 0)));
+    // Dash burst and class states come from the shared model, so a remote ally
+    // moves at exactly the speed the host's own pilot would.
+    const speed = PilotSpeed.move(pilot, pilot.dash > 0);
     const dx = Number.isFinite(input.dx) ? input.dx : 0;
     const dy = Number.isFinite(input.dy) ? input.dy : 0;
     if (!pilot.phantom?.docked) {
-      const shiftSpeed = pilot.phantom?.shiftActive ?
-        window.NeonPhantom?.BASE?.shiftSpeedMultiplier || 1.4 : 1;
-      pilot.x += dx * speed * shiftSpeed * dt;
-      pilot.y += dy * speed * shiftSpeed * dt;
+      pilot.x += dx * speed * dt;
+      pilot.y += dy * speed * dt;
+    }
+    // The host draws the ally's warp ribbon too, so a guest's dash is as
+    // visible on the host's screen as the host's own dash is.
+    if (pilot.dash > 0 && Number.isFinite(pilot.dashStartX)) {
+      const warp = pilot.dashUpgrades || {};
+      pilot.lastSlashFx = {
+        x1: pilot.dashStartX, y1: pilot.dashStartY, x2: pilot.x, y2: pilot.y,
+        life: .28, maxLife: .28,
+        fire: Boolean(warp.dash_fire), cryo: Boolean(warp.dash_cryo),
+        precise: Boolean(pilot.dashPreciseHit)
+      };
+    } else if (pilot.lastSlashFx && pilot.lastSlashFx.life > 0) {
+      pilot.lastSlashFx.life = Math.max(0, pilot.lastSlashFx.life - dt);
     }
     // Recalculate once, not once in the ship hook and again in ally regen.
     // The previous code double-added armour regen for co-op clients.
@@ -170,5 +201,12 @@
     }
     return pilot.hp <= 0;
   }
-  window.NeonPilotSystem=Object.freeze({ inputFor, startDash, stepRemote, resolveRemoteHits });
+  // Wrapped, not direct references: this file loads BEFORE core/simulation/
+  // speed.js, so evaluating PilotSpeed.* here would hit the temporal dead zone.
+  window.NeonPilotSystem=Object.freeze({ inputFor, startDash, stepRemote, resolveRemoteHits,
+    baseSpeedFor: pilot => PilotSpeed.base(pilot),
+    recalculateSpeed: pilot => PilotSpeed.recalculate(pilot),
+    speedMultiplierFor: pilot => PilotSpeed.multiplier(pilot),
+    moveSpeed: (pilot, dashing) => PilotSpeed.move(pilot, dashing),
+    dashSpeedFor: pilot => PilotSpeed.dash(pilot) });
 })();

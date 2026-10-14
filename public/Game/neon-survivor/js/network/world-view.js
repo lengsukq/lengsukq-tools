@@ -158,20 +158,33 @@
     player.crystals = state.host.crystals || 0;
     player.maxDashCharges = state.guest.maxCharges || 3;
     player.dashCharges = state.guest.charges ?? 3;
-    player.dashRechargeTime = 2.2;
+    // The host's real cooldown (reduced by dash_charge and haste), not a constant.
+    player.dashRechargeTime = state.guest.dashRechargeTime || 2.2;
     player.dashRechargeTimer = state.guest.recharge || 0;
     player.cdrMultiplier = state.guest.cdrMultiplier || 1;
     player.dmgMultiplier = state.guest.dmgMultiplier || 1;
     player.areaMultiplier = state.guest.areaMultiplier || 1;
-    player.dashSlashDmg = 95;
-    player.dashCombo = 0;
-    player.aegisTimer = 0;
-    player.aegisDuration = 0;
-    player.hasAegis = false;
+    // Host-authoritative dash stats. These used to be hardcoded (95 damage,
+    // 0 combo, no aegis), so the guest's own dock and HUD disagreed with the
+    // host's about the very ship it was flying.
+    player.baseSpeed = state.guest.baseSpeed || player.baseSpeed;
+    player.dashSlashDmg = state.guest.dashSlashDmg || 95;
+    player.dashSlashWidth = state.guest.dashSlashWidth || 18;
+    player.dashCombo = state.guest.dashCombo || 0;
+    player.aegisTimer = state.guest.aegisTimer || 0;
+    player.aegisDuration = state.guest.aegisDuration || 0;
+    player.aegisRadius = state.guest.aegisRadius || 0;
+    player.hasAegis = Boolean(state.guest.hasAegis);
+    player.hasDashBlast = Boolean(state.guest.hasDashBlast);
+    player.hasFireTrail = Boolean(state.guest.hasFireTrail);
+    player.hasDashCryo = Boolean(state.guest.hasDashCryo);
+    player.dashBlastRadius = state.guest.dashBlastRadius || 0;
+    player.fireTrailDuration = state.guest.fireTrailDuration || 0;
+    player.dashCryoDuration = state.guest.dashCryoDuration || 0;
     player.weapons = state.guest.weapons || { blaster: 1 };
     player.passives = state.guest.passives || {};
     player.dashUpgrades = state.guest.dashUpgrades || {};
-    player.limitBreaks = player.limitBreaks || {};
+    player.limitBreaks = state.guest.limitBreaks || {};
     view.survivalTime = state.time || 0;
     view.kills = state.kills || 0;
     view.difficulty = state.difficulty || 0;

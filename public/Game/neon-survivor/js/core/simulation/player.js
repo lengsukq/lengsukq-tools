@@ -70,7 +70,7 @@
           this.player.isDashing = false;
         } else if (this.player.isDashing) {
           this.player.dashTimeLeft -= dt;
-          const dashSpeed = this.player.baseSpeed * 3.6;
+          const dashSpeed = PilotSpeed.dash(this.player);
           const previousDashX = this.player.x;
           const previousDashY = this.player.y;
           this.player.x += this.player.dashDir.x * dashSpeed * dt;
@@ -249,18 +249,11 @@
           if (moveLen > 0.05) {
             const normX = moveX / moveLen;
             const normY = moveY / moveLen;
-            const spectralExtend = this.player.phantom?.warpUpgrades?.spectral_extend ||
-              this.player.dashUpgrades?.spectral_extend || 0;
-            const phaseSpeed = this.player.shipId === 'phantom' &&
-              this.player.phantom?.shiftActive ? (1.40 + spectralExtend * 0.15) : 1;
-            const astraKite = this.player.shipId === 'astra' &&
-              ((this.player.astra?.kiteSpeedTimer || 0) > 0) ? 1.5 : 1;
-            const phantomSprint = this.player.shipId === 'phantom' &&
-              ((this.player.phantom?.sprintTimer || 0) > 0) ? 1.75 : 1;
-            const astraTurretAnchor = this.player.shipId === 'astra' &&
-              this.player.astra?.wardActive ? 0.20 : 1;
-            this.player.vx = normX * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint * astraTurretAnchor;
-            this.player.vy = normY * this.player.baseSpeed * phaseSpeed * astraKite * phantomSprint * astraTurretAnchor;
+            // One shared model, so the host's own speed and a remote ally's
+            // speed cannot drift apart (see simulation/speed.js).
+            const speed = PilotSpeed.move(this.player);
+            this.player.vx = normX * speed;
+            this.player.vy = normY * speed;
           } else {
             this.player.vx *= 0.8;
             this.player.vy *= 0.8;

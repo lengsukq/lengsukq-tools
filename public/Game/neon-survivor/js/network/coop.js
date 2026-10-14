@@ -126,7 +126,15 @@
         'dash','invuln','recharge','lastSeq','maxCharges','pendingUpgrades',
         'cdrMultiplier','dmgMultiplier','areaMultiplier','upgradeRound',
         'upgradeCapacity','upgradeFinished',
-        'downed','reviveIn']),
+        'downed','reviveIn',
+        // Guest-side parity: without these the guest predicted movement with
+        // its own formula, showed a hardcoded slash damage and never drew its
+        // own aegis aura, fire trail or cryo tint.
+        'baseSpeed','dashSlashDmg','dashCombo','dashSlashWidth','dashRechargeTime',
+        'hasAegis','aegisDuration','aegisRadius','aegisTimer',
+        'hasDashBlast','hasFireTrail','hasDashCryo',
+        'dashBlastRadius','fireTrailDuration','dashCryoDuration']),
+        limitBreaks: bag(ally.limitBreaks, 16),
         weapons: bag(ally.weapons, 4), passives: bag(ally.passives, 4),
         ...(window.NeonShips?.projectForNetwork?.(ally) || {}),
         dashUpgrades: bag(ally.dashUpgrades, 10),
@@ -137,18 +145,18 @@
       enemies: limit(nearbyEnemies, 105,
         ['x','y','vx','vy','hp','maxHp','radius','color','type','isBoss','isElite',
           'hasShield','arming','aimTimer','coopCapture','coopExposed']),
-      bullets: limit(game.bullets, 90, ['x','y','vx','vy','radius','color','type','isLevel5']),
-      enemyBullets: limit(game.enemyBullets, 90, ['x','y','radius','color','damage']),
-      gems: limit(game.gems, 75, ['x','y','radius','type','color','value']),
-      shockwaves: limit(game.shockwaves, 20, ['x','y','radius','color','alpha']),
-      particles: limit(game.particles, 38, ['type','x','y','x1','y1','x2','y2',
+      bullets: limit(game.bullets, 120, ['x','y','vx','vy','radius','color','type','isLevel5']),
+      enemyBullets: limit(game.enemyBullets, 130, ['x','y','radius','color','damage']),
+      gems: limit(game.gems, 90, ['x','y','radius','type','color','value']),
+      shockwaves: limit(game.shockwaves, 40, ['x','y','radius','color','alpha']),
+      particles: limit(game.particles, 60, ['type','x','y','x1','y1','x2','y2',
         'radius','color','life','maxLife']),
-      lightningTethers: limit(game.lightningTethers, 16, ['x1','y1','x2','y2']),
-      blackHoles: limit(game.blackHoles, 12, ['x','y','radius','rotAngle']),
-      mines: limit(game.mines, 18, ['x','y','radius']),
-      laserBeams: limit(game.laserBeams, 20, ['x','y','angle','width','length']),
+      lightningTethers: limit(game.lightningTethers, 24, ['x1','y1','x2','y2']),
+      blackHoles: limit(game.blackHoles, 16, ['x','y','radius','rotAngle']),
+      mines: limit(game.mines, 24, ['x','y','radius']),
+      laserBeams: limit(game.laserBeams, 24, ['x','y','angle','width','length']),
       companionDrones: [
-        ...limit(game.companionDrones, 8, ['x','y','angle']),
+        ...limit(game.companionDrones, 12, ['x','y','angle']),
         ...Array.from({
           length: ally.hp > 0 && ally.weapons?.drones ? Math.min(5, 1 + ally.weapons.drones) : 0
         }, (_, i) => {
@@ -162,7 +170,7 @@
         })
       ],
       orbiters: [
-        ...limit(game.orbiters, 8, ['angle','distance','radius','color'])
+        ...limit(game.orbiters, 12, ['angle','distance','radius','color'])
           .map(orb => ({ ...orb, centerX: round(game.player.x), centerY: round(game.player.y) })),
         ...Array.from({ length: ally.weapons?.orbit ? Math.min(5, 1 + ally.weapons.orbit) : 0 }, (_, i) => ({
           id: 800000 + i, angle: round((ally.orbitPhase || 0) + i * Math.PI * 2 /
@@ -171,33 +179,47 @@
           centerX: round(ally.x), centerY: round(ally.y)
         }))
       ],
-      dashTrails: limit(game.dashTrails, 16, ['x1','y1','x2','y2','color','life','maxLife']),
-      texts: limit(game.texts, 18, ['x','y','text','color','size','life','maxLife'])
+      dashTrails: limit(game.dashTrails, 24, ['x1','y1','x2','y2','color','life','maxLife']),
+      texts: limit(game.texts, 40, ['x','y','text','color','size','life','maxLife'])
     };
     return window.NeonLanSnapshots?.decorate(frame, game, receiverId) || frame;
   }
   // Keep within the RTCDataChannel's 40k frame limit, so crowded boss fights
   // do not silently stop synchronizing. Critical players and boss entities
-  // are never removed. Decorative effects are the first fields to trim.
+  // are never removed. Decorative effects are trimmed first.
+  const SNAPSHOT_LIMIT = 18000;
+  // Cosmetic layers, in trim order. The FLOOR is what each layer keeps during
+  // the first pass: a single dense layer used to be emptied completely (a
+  // guest lost every particle in a crowded fight, which is why co-op "effects
+  // looked worse" than the host's). Shaving each layer down to a floor first
+  // spreads the loss instead of zeroing whichever layer happens to be first.
+  const TRIMMABLE = Object.freeze([
+    ['particles', 24], ['texts', 12], ['shockwaves', 16], ['dashTrails', 10],
+    ['companionDrones', 6], ['laserBeams', 10], ['mines', 10], ['blackHoles', 8],
+    ['lightningTethers', 10], ['orbiters', 6], ['gems', 45], ['bullets', 60],
+    ['enemyBullets', 60]
+  ]);
   function boundedSnapshot(game, ally, seq, resonance = null, receiverId = 'guest') {
     const frame = snapshot(game, ally, seq, resonance, receiverId);
     // Stay below conservative mobile SCTP message budgets and minimize latency.
-    const LIMIT = 15000;
+    const LIMIT = SNAPSHOT_LIMIT;
     let size = JSON.stringify(frame).length;
     if (size <= LIMIT) return frame;
-    for (const field of ['particles','texts','shockwaves','dashTrails',
-      'companionDrones','laserBeams','mines','blackHoles','lightningTethers',
-      'orbiters','gems','bullets','enemyBullets']) {
-      const items = frame[field];
-      while (items?.length && size > LIMIT) {
+    const trim = (items, floor) => {
+      while (items?.length > floor && size > LIMIT) {
         // JSON-stringifying the whole snapshot for every removed effect
         // caused quadratic CPU spikes in dense fights.
         const last = items[items.length - 1];
         size -= JSON.stringify(last).length + (items.length > 1 ? 1 : 0);
         items.pop();
       }
-      if (size <= LIMIT) return frame;
-    }
+    };
+    // Pass 1: shave every cosmetic layer down to its floor.
+    for (const [field, floor] of TRIMMABLE) trim(frame[field], floor);
+    if (size <= LIMIT) return frame;
+    // Pass 2: still oversized, so the floors have to go too.
+    for (const [field] of TRIMMABLE) trim(frame[field], 0);
+    if (size <= LIMIT) return frame;
     // Bosses survive priority culling; trim only regular enemies.
     while (frame.enemies.length && size > LIMIT) {
       // Avoid Array.findLastIndex: missing in some older tablet WebViews.
@@ -1044,6 +1066,13 @@
         ally.maxCharges = Math.min(9, 3 + (ally.dashUpgrades.dash_charge || 0));
         ally.charges = Math.min(ally.maxCharges, ally.charges + 1);
       }
+      // Give the ally the SAME derived stats the host's own pilot gets, so the
+      // guest's dock, HUD and aura match instead of showing a hardcoded 95
+      // slash damage, no combo and no aegis/fire/cryo badges. Speed is
+      // recalculated too: it was previously frozen at the ship's base value,
+      // so a guest that picked Thruster never actually got faster.
+      this.game.recalculateDashStats?.(ally);
+      PilotSpeed.recalculate(ally);
     }
     pickGuestUpgrade(id) {
       if (!guestChoosingUpgrade(this.latest) ||
@@ -1515,6 +1544,10 @@
       if (!this.guestView && world) this.guestView = world.create(game, frame, this);
       const view = this.guestView && world?.updateView(this.guestView, frame, game, this);
       if (!view) return;
+      // The guest's own warp ribbon is predicted locally, so it appears on this
+      // screen the moment the dash starts instead of one round-trip later.
+      view.player.lastSlashFx = this.predicted?.slashFx?.life > 0
+        ? this.predicted.slashFx : null;
       this.currentRenderState = frame;
       // Invoke the production render() directly. No duplicate game painter.
       game.render.call(view);
@@ -1561,5 +1594,5 @@
     }
   }
   window.NeonLanCoop = Object.freeze({ Coop, newAlly, normalizeInput,
-    snapshot, boundedSnapshot, safeSnapshot });
+    snapshot, boundedSnapshot, safeSnapshot, SNAPSHOT_LIMIT, TRIMMABLE });
 })();

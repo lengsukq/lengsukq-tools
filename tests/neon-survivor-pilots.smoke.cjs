@@ -5,7 +5,9 @@ const vm=require('node:vm');
 const root='public/Game/neon-survivor/js/';
 const env={window:{},console};
 vm.createContext(env);
-for(const f of ['ships','ships.generated','players','combat/pilots'])
+// core/simulation/speed.js owns the shared PilotSpeed model that pilots.js
+// calls at run time (in the page it is a later classic script).
+for(const f of ['core/simulation/speed','ships','ships.generated','players','combat/pilots'])
   vm.runInContext(fs.readFileSync(root+f+'.js','utf8'),env);
 const {createRemotePilot}=env.window.NeonPlayers;
 const pilotSystem=env.window.NeonPilotSystem;

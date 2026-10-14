@@ -17,19 +17,21 @@
     };
   }
 
+  // The guest predicts with the SAME model the host simulates with, so a dash
+  // covers exactly the same ground on both screens. This used to hardcode 780
+  // px/s for riftblade while the host used baseSpeed * 3.6, which made a
+  // guest's dash 10% short at level 1 and 44% short when fully upgraded; the
+  // other ships were not predicted at all.
   function moveSpeed(guest, now, state) {
     if (!guest || guest.downed) return 0;
-    if (guest.shipId === 'riftblade' && now < state.dashUntil) return 780;
-    const base = window.NeonShips?.get?.(guest.shipId)?.baseStats?.speed || 240;
-    const level = Math.max(1, guest.level || 1);
-    const thruster = guest.passives?.thruster || 0;
-    let speed = Math.min(385, (base + Math.min(120, (level - 1) * 6)) * (1 + .15 * thruster));
-    if (guest.shipId === 'astra' && guest.arcane?.wardActive) speed *= .2;
-    if (guest.shipId === 'phantom') {
-      if (guest.spectral?.docked) return 0;
-      if (guest.spectral?.shiftActive) speed *= window.NeonPhantom?.BASE?.shiftSpeedMultiplier || 1.45;
-    }
-    return speed;
+    // A docked phantom rides its carrier; the host pins it there every tick.
+    if (guest.shipId === 'phantom' && guest.spectral?.docked) return 0;
+    // The snapshot carries the host's authoritative baseSpeed. Prefer it, so
+    // no formula can drift; fall back to the shared model before the first
+    // snapshot arrives.
+    const pilot = Number.isFinite(guest.baseSpeed)
+      ? guest : { ...guest, baseSpeed: PilotSpeed.base(guest) };
+    return PilotSpeed.move(pilot, now < state.dashUntil);
   }
 
   function advance(state, guest, input, dt, now) {
@@ -40,6 +42,15 @@
     state.x += x;
     state.y += y;
     state.steps.push({ at: now, x, y });
+    // The locally predicted slash ribbon grows with the dash and fades after
+    // it, exactly like the host's own ribbon (simulation/player.js).
+    if (state.slashFx && state.slashFx.life > 0) {
+      state.slashFx.life = Math.max(0, state.slashFx.life - dt);
+      if (now < state.dashUntil) {
+        state.slashFx.x2 = state.x;
+        state.slashFx.y2 = state.y;
+      }
+    }
     while (state.steps.length > 120 || state.steps[0]?.at < now - HISTORY_MS) state.steps.shift();
     // Smooth discrepancies every visual frame, not in 15Hz snapshot-sized jumps.
     const fraction = 1 - Math.exp(-CORRECTION_RATE * dt);
@@ -101,7 +112,19 @@
   function dash(state, guest, now) {
     if (!state || !guest || guest.downed || guest.charges <= 0) return false;
     if (guest.shipId === 'astra' && guest.arcane?.wardActive) return false;
-    if (guest.shipId === 'riftblade') state.dashUntil = now + 180;
+    if (guest.shipId === 'riftblade') {
+      state.dashUntil = now + PilotSpeed.DASH_DURATION * 1000;
+      // The ribbon is the signature of a riftblade dash. Build it locally so
+      // it appears on the guest's own screen immediately instead of one
+      // round-trip later (or never, if the snapshot drops it).
+      state.slashFx = {
+        x1: state.x, y1: state.y, x2: state.x, y2: state.y,
+        life: .28, maxLife: .28,
+        fire: Boolean(guest.dashUpgrades?.dash_fire),
+        cryo: Boolean(guest.dashUpgrades?.dash_cryo),
+        precise: false
+      };
+    }
     state.dashEffectUntil = now + 290;
     return true;
   }

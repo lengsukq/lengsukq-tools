@@ -29,6 +29,7 @@ public/Game/
       ui/hud.js               # HUD、武器栏、战绩表、技能反馈
       ui/combat-dock.js       # 局内战术技能坞
       ui/loadout.js           # 暂停页装配面板：装备、当前等级特效、技能与遗物
+      simulation/speed.js     # PilotSpeed：房主/队友/房客预测共用的唯一移动与折跃模型
       combat/firing.js        # 索敌与七种通用武器开火
       combat/damage.js        # 伤害结算、掉落、限频音效、玩家受击
       combat/rewards.js       # 击杀奖励、战利品、晶体压缩
@@ -86,7 +87,7 @@ public/Game/
     MANUAL.md                 # 玩家指南、机制和开发说明
 ```
 
-原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 36 个模块，最大文件 457 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
+原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 37 个模块，最大文件 457 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
 
 **新增核心逻辑时**：不要重新堆进单个文件。把方法写进已有的对应模块，用 `NeonCore.define(NeonSurvivorGame, class { ... })` 挂到原型上；新文件必须加进 `index.html` 的脚本列表（`core/define.js` 最先、`core/game.js` 在定义类之前、`core/boot.js` 最后），否则一致性测试会失败。
 
@@ -275,6 +276,34 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 
 **刻意保留**：首领名与警报里的英文括注（`双生裁决者 · 共振要塞 (DUAL REACTOR)`、`(SWARM RUSH)`）属于既有的双语美术风格，中文名在前、不影响理解；手柄按键图例（`LB` / `RT` / `Menu`）是实体按键丝印，不是内部标识。
 
+## 房主与房客的一致性（co-op parity）
+
+**不变量：房客的位移、折跃距离、特效和 HUD 数字必须与房主完全一致。**
+
+「一个飞行员移动多快」原本被写了三份：房主自己的玩家（`progression/recalculate.js` + `simulation/player.js`）、房主对远端队友的模拟（`combat/pilots.js` 的 `stepRemote`）、以及房客的本地预测（`network/prediction.js`）。三份在每一项上都对不上：
+
+| 项 | 房主自己 | 房主模拟的队友 | 房客预测 |
+| --- | --- | --- | --- |
+| 折跃速度 | `baseSpeed * 3.6`（1级 864，上限 1386） | 写死 **780** | 写死 **780** |
+| 推进器系数 | `0.12` | `0.15` | `0.15` |
+| 破限移速 | 有 | **无** | **无** |
+| `baseSpeed` 重算 | 每次升级重算 | **从不重算**（永远是战舰基础值） | 自算一份 |
+| 星织风筝 / 幽灵疾行 / 星网延展 | 有 | **无** | 只有部分 |
+
+后果就是：**房客的折跃距离永远比房主短**——1级短 10%，满配短 44%——而且越升级差得越多；队友选了推进器也不会真的变快。
+
+现在全部收敛到 `js/core/simulation/speed.js` 的 `PilotSpeed`（纯函数，`base` / `compute` / `multiplier` / `move` / `dash` / `dashDistance`），三处调用点都只读它，快照再携带房主权威的 `baseSpeed`，房客不再自己猜。
+
+另外修掉的三处「只有房主看得见」：
+
+- **折跃斩光刃**（`player.lastSlashFx`）原本只在 `renderSlashFx` 里读 `this.player`，所以房客折跃时光刃**在谁的屏幕上都看不到**——裂锋最标志性的特效在联机里等于不存在。现在房主为每个队友生成光刃（`stepRemote`），房客用自己的预测本地生成（`prediction.dash`），`renderSlashFx` 遍历所有飞行员。
+- **相位光环**同理，`renderAegisAura` 现在遍历所有飞行员。
+- **房客自己的折跃数值**原本在 `world-view.js` 里写死（斩击伤害 95、连击 0、无光环/火墙/冰霜），所以房客的 HUD 和技能坞在描述它自己驾驶的这艘船时和房主说的不一样。现在 `recalculateDashStats(pilot)` 可为队友复用，数值随快照下发。
+
+**特效保真度**：快照的装饰层上限原本远低于房主自己能产生的量（粒子 38 vs 60、冲击波 20 vs 40、飘字 18 vs 40），而 `boundedSnapshot` 的裁剪顺序又把粒子排在第一个**整个清空**——密集战斗里房客一个粒子都看不到，这就是「特效很垃圾」的来源。现在上限对齐房主的产生上限，裁剪改为**两趟**：先把每层削到各自的 floor，仍然超预算才连 floor 一起放弃。这样超预算时损失是摊到所有特效上，而不是先杀掉粒子。预算 `SNAPSHOT_LIMIT` 从 15000 提到 18000 并导出，供测试引用。
+
+`tests/neon-survivor-coop-parity.smoke.cjs` 钉住以上每一条，并且验证过还原旧实现后确实变红（把队友折跃速度改回写死的 780，测试报出「模拟折跃只走了 143.0，应为 ~228.1」）。
+
 ## 暂停页：装配与特效面板
 
 暂停页现在以「当前装配」为主体，而不是只有一行 `装配武器 星梭织阵 Lv.1`。面板分五段，全部由 `js/core/ui/loadout.js` 的 `renderLoadoutPanel()` 生成，在 `pauseGame()` 里调用：
@@ -329,6 +358,7 @@ node tests/neon-survivor-render-batching.smoke.cjs
 node tests/neon-survivor-adaptive-quality.smoke.cjs
 node tests/neon-survivor-ui-labels.smoke.cjs
 node tests/neon-survivor-pause-loadout.smoke.cjs
+node tests/neon-survivor-coop-parity.smoke.cjs
 node tools/neon-survivor/profile-phases.cjs
 git diff --check
 ```

@@ -277,9 +277,11 @@
       }
 
       renderSlashFx(ctx, visible) {
-        // Draw Riftblade Hyper-Spatial Katana Slash Ribbon
-        if (this.player.lastSlashFx && this.player.lastSlashFx.life > 0) {
-          const sfx = this.player.lastSlashFx;
+        // Riftblade hyper-spatial katana slash ribbon, for EVERY pilot.
+        // This used to read this.player only, so a guest's dash ribbon was
+        // invisible to the host and to the guest alike -- the signature
+        // riftblade effect simply never appeared in co-op.
+        for (const sfx of this.pilotSlashRibbons()) {
           const fade = Math.max(0, Math.min(1, sfx.life / (sfx.maxLife || 0.28)));
           const mainCol = sfx.fire ? '#ff007f' : sfx.cryo ? '#38bdf8' : '#00f3ff';
           ctx.save();
@@ -307,16 +309,36 @@
         }
       }
 
+      /** Live slash ribbons: the local pilot first, then every remote ally. */
+      pilotSlashRibbons() {
+        const ribbons = [];
+        if (this.player?.lastSlashFx?.life > 0) ribbons.push(this.player.lastSlashFx);
+        for (const ally of this.lanCoop?.allies?.values?.() || []) {
+          if (ally?.lastSlashFx?.life > 0) ribbons.push(ally.lastSlashFx);
+        }
+        return ribbons;
+      }
+
       renderAegisAura(ctx, visible) {
-        // Draw Phase Aegis Aura (时空相位无敌光环)
-        if (this.player.aegisTimer > 0) {
+        // Phase Aegis Aura (时空相位无敌光环), for EVERY pilot. Like the slash
+        // ribbon this only ever drew the local player, so an ally's aegis was
+        // invisible to the whole room.
+        const pilots = [this.player];
+        for (const ally of this.lanCoop?.allies?.values?.() || []) pilots.push(ally);
+        for (const pilot of pilots) {
+          if (pilot && pilot.aegisTimer > 0) this.drawAegisAura(ctx, pilot);
+        }
+      }
+
+      drawAegisAura(ctx, pilot) {
+        {
           ctx.save();
-          ctx.translate(this.player.x, this.player.y);
+          ctx.translate(pilot.x, pilot.y);
           ctx.strokeStyle = '#ffd700';
           ctx.lineWidth = 3.5;
           ctx.fillStyle = 'rgba(255, 215, 0, 0.15)';
           ctx.beginPath();
-          ctx.arc(0, 0, this.player.aegisRadius, 0, Math.PI * 2);
+          ctx.arc(0, 0, pilot.aegisRadius, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
@@ -326,8 +348,8 @@
           ctx.beginPath();
           for (let k = 0; k < 6; k++) {
             const ang = (k / 6) * Math.PI * 2 + this.survivalTime * 4.5;
-            const px = Math.cos(ang) * (this.player.aegisRadius * 0.92);
-            const py = Math.sin(ang) * (this.player.aegisRadius * 0.92);
+            const px = Math.cos(ang) * (pilot.aegisRadius * 0.92);
+            const py = Math.sin(ang) * (pilot.aegisRadius * 0.92);
             if (k === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
           }
@@ -335,7 +357,7 @@
           ctx.stroke();
 
           // Expanding pulse wave
-          const pulse = ((performance.now() / 250) % 1) * this.player.aegisRadius;
+          const pulse = ((performance.now() / 250) % 1) * pilot.aegisRadius;
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
           ctx.lineWidth = 1.5;
           ctx.beginPath();

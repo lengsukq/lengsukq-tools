@@ -97,7 +97,7 @@ for(const frame of frames){
   assert.equal(frame.payload.localPlayerId,frame.id);
   assert.equal(frame.payload.players.length,4);
   assert.equal(frame.payload.guest.x,coop.allies.get(frame.id).x);
-  assert.ok(JSON.stringify(frame.payload).length<=15000);
+  assert.ok(JSON.stringify(frame.payload).length<=window.NeonLanCoop.SNAPSHOT_LIMIT);
 }
 // All remote players must receive individual upgrade drafts and all of them
 // must complete/retain choices before the shared world can resume.
