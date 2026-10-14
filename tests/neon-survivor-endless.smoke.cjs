@@ -2,13 +2,17 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 const legacy = fs.readFileSync('public/Game/neon_survivor.html', 'utf8');
 assert.match(legacy, /neon-survivor\/index\.html/);
-for (const file of ['relics', 'fusions', 'events', 'rarity', 'endless', 'ui', 'core']) {
+for (const file of ['relics', 'fusions', 'events', 'rarity', 'endless', 'ui']) {
   assert.ok(html.includes('/Game/neon-survivor/js/' + file + '.js'), 'Missing module ' + file);
+}
+for (const part of neonCore.coreScriptPaths()) {
+  assert.ok(html.includes('/Game/neon-survivor/' + part), 'Missing core module ' + part);
 }
 assert.match(html, /game\.css/);
 assert.ok(html.indexOf('id="help-endless"') > html.indexOf('id="modal-help"'),
@@ -37,9 +41,7 @@ const sandbox = {
   setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const name of ['relics', 'fusions', 'events', 'rarity', 'endless', 'core']) {
-  vm.runInContext(fs.readFileSync(root + 'js/' + name + '.js', 'utf8'), sandbox);
-}
+neonCore.runScripts(sandbox, ['relics', 'fusions', 'events', 'rarity', 'endless']);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const { NeonRogueRelics: relics, NeonRogueFusions: fusions,
   NeonRogueEndless: endless, NeonRogueEvents: events } = sandbox.window;
@@ -74,7 +76,11 @@ assert.equal(game.endlessMode, true);
 assert.equal(game.state, 'endless-choice');
 assert.equal(currentChoice.options.length, 3);
 assert.ok(currentChoice.options.some(c => c.kind === 'relic'));
-const firstReward = currentChoice.options.find(c => c.kind === 'relic');
+// The offered relics are rolled at random. Never take boss_hunter here: the
+// assertions further down acquire it from a clean slate, and owning it already
+// makes that acquire correctly return false.
+const firstReward = currentChoice.options.find(c => c.kind === 'relic' && c.id !== 'boss_hunter');
+assert.ok(firstReward, 'the offer must contain a relic other than boss_hunter');
 game.state = 'playing';
 currentChoice.onPick(firstReward);
 assert.ok(game.endlessState.relics.includes(firstReward.id));
