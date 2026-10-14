@@ -1,0 +1,393 @@
+    /* World layer: gems, shockwaves, particles and enemies. */
+    NeonCore.define(NeonSurvivorGame, class {
+      renderGems(ctx, visible) {
+        // 2. Draw XP Gems & Items
+        this.gems.forEach((g) => {
+          if (!visible(g.x, g.y, (g.radius || 8) + 12)) return;
+          ctx.save();
+          if (g.type === 'heal') {
+            ctx.fillStyle = '#00ff66';
+            const s = g.radius;
+            ctx.fillRect(g.x - s * 0.35, g.y - s, s * 0.7, s * 2);
+            ctx.fillRect(g.x - s, g.y - s * 0.35, s * 2, s * 0.7);
+          } else if (g.type === 'magnet') {
+            ctx.strokeStyle = '#00f3ff';
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.arc(g.x, g.y, g.radius, Math.PI, 0, false);
+            ctx.stroke();
+          } else if (g.type === 'nuke') {
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(g.x, g.y, g.radius * 0.9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          } else {
+            // Standard XP Diamond (crisp and high performance)
+            ctx.fillStyle = g.color;
+            ctx.beginPath();
+            ctx.moveTo(g.x, g.y - g.radius * 1.3);
+            ctx.lineTo(g.x + g.radius, g.y);
+            ctx.lineTo(g.x, g.y + g.radius * 1.3);
+            ctx.lineTo(g.x - g.radius, g.y);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.restore();
+        });
+      }
+
+      renderShockwaves(ctx, visible) {
+        // 3. Draw Shockwaves
+        this.shockwaves.forEach((sw) => {
+          if (!visible(sw.x, sw.y, sw.radius || 30)) return;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+          ctx.strokeStyle = sw.color;
+          ctx.globalAlpha = sw.alpha;
+          ctx.lineWidth = 3.5;
+          ctx.stroke();
+          ctx.restore();
+        });
+      }
+
+      renderParticles(ctx, visible) {
+        // 4. Draw Particles (Optimized batch rendering)
+        this.particles.forEach((p) => {
+          if (!visible(p.x ?? p.x1, p.y ?? p.y1, p.type === 'lightning' ? 600 : 30)) return;
+          ctx.save();
+          const progress = p.life / p.maxLife;
+          ctx.globalAlpha = Math.max(0, progress);
+
+          if (p.type === 'spark') {
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (p.type === 'afterimage') {
+            if (Number.isFinite(p.angle)) {
+              ctx.translate(p.x, p.y);
+              ctx.rotate(p.angle);
+              ctx.strokeStyle = p.color;
+              ctx.fillStyle = p.color;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(22, 0);
+              ctx.lineTo(-12, -17);
+              ctx.lineTo(-6, 0);
+              ctx.lineTo(-12, 17);
+              ctx.closePath();
+              ctx.stroke();
+              ctx.globalAlpha = Math.max(0, progress * 0.28);
+              ctx.fill();
+            } else {
+              ctx.strokeStyle = p.color;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+          } else if (p.type === 'lightning') {
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(p.x1, p.y1);
+            const midX = (p.x1 + p.x2) / 2 + (Math.random() - 0.5) * 30;
+            const midY = (p.y1 + p.y2) / 2 + (Math.random() - 0.5) * 30;
+            ctx.lineTo(midX, midY);
+            ctx.lineTo(p.x2, p.y2);
+            ctx.stroke();
+          }
+          ctx.restore();
+        });
+      }
+
+      renderEnemies(ctx, visible) {
+        // 5. Draw Enemies
+        this.enemies.forEach((e) => {
+          const margin = e.type === 'sniper' ? 640 :
+            e.type === 'shield_pylon' ? 125 : (e.radius || 20) + (e.isBoss ? 95 : 30);
+          if (!visible(e.x, e.y, margin)) return;
+          ctx.save();
+          ctx.translate(e.x, e.y);
+          if (e.isBoss) {
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = e.color;
+          }
+          ctx.fillStyle = e.color;
+
+          if (e.isBoss) {
+            if (e.type === 'boss_dual_reactor') {
+              // Two rotating reactors visually distinguish the co-op boss.
+              const t = this.survivalTime;
+              ctx.beginPath();
+              for (let i = 0; i < 8; i++) {
+                const a = t * 0.35 + i * Math.PI / 4;
+                const radius = e.radius * (i % 2 ? 0.86 : 1.08);
+                if (i === 0) ctx.moveTo(Math.cos(a) * radius, Math.sin(a) * radius);
+                else ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+              }
+              ctx.closePath();
+              ctx.fill();
+              ctx.strokeStyle = e.coopExposed > 0 ? '#9dfff3' : '#ffbf80';
+              ctx.lineWidth = 4;
+              ctx.stroke();
+              for (const offset of [-19, 19]) {
+                ctx.fillStyle = e.coopExposed > 0 ? '#ffffff' : '#143747';
+                ctx.beginPath();
+                ctx.arc(offset, 0, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#8fffe4';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+              }
+            } else if (e.type === 'boss_nexus') {
+              // Storm Nexus: Dual counter-rotating cyan rings + electric core
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#fff';
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius + 8, this.survivalTime * 2.5, this.survivalTime * 2.5 + Math.PI * 1.4);
+              ctx.stroke();
+              ctx.strokeStyle = '#00f3ff';
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius + 15, -this.survivalTime * 2, -this.survivalTime * 2 + Math.PI * 1.4);
+              ctx.stroke();
+            } else if (e.type === 'boss_carrier') {
+              // Omega Carrier: Hexagonal armored fortress
+              ctx.beginPath();
+              for (let k = 0; k < 6; k++) {
+                const ang = (k / 6) * Math.PI * 2 + this.survivalTime * 0.5;
+                const px = Math.cos(ang) * e.radius;
+                const py = Math.sin(ang) * e.radius;
+                if (k === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.closePath();
+              ctx.fill();
+              ctx.strokeStyle = '#fff';
+              ctx.lineWidth = 3;
+              ctx.stroke();
+
+              // Translucent Hexagonal Forcefield if shielded
+              if (e.hasShield) {
+                ctx.save();
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 4;
+                ctx.fillStyle = 'rgba(0, 243, 255, 0.14)';
+                ctx.beginPath();
+                for (let k = 0; k < 6; k++) {
+                  const ang = (k / 6) * Math.PI * 2 - this.survivalTime * 1.2;
+                  const px = Math.cos(ang) * (e.radius + 20);
+                  const py = Math.sin(ang) * (e.radius + 20);
+                  if (k === 0) ctx.moveTo(px, py);
+                  else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+              }
+            } else if (e.type === 'boss_devourer') {
+              // Singularity Devourer: Void Eye with swirling dark pupil
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#050010';
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius * 0.55, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#ff00aa';
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius + 12, this.survivalTime * 3, this.survivalTime * 3 + Math.PI * 1.6);
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else if (e.type === 'nexus_pylon') {
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          } else if (e.type === 'shield_drone') {
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) {
+              const ang = (k / 6) * Math.PI * 2;
+              const px = Math.cos(ang) * e.radius;
+              const py = Math.sin(ang) * e.radius;
+              if (k === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            if (this.currentBoss && this.currentBoss.type === 'boss_carrier' && !this.currentBoss.dead) {
+              ctx.save();
+              ctx.strokeStyle = 'rgba(0, 243, 255, 0.45)';
+              ctx.lineWidth = 2.5;
+              ctx.beginPath();
+              ctx.moveTo(0, 0);
+              ctx.lineTo(this.currentBoss.x - e.x, this.currentBoss.y - e.y);
+              ctx.stroke();
+              ctx.restore();
+            }
+          } else if (e.type === 'shield_pylon') {
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 234, 0, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, 110, 0, Math.PI * 2);
+            ctx.stroke();
+          } else if (e.type === 'kamikaze') {
+            // 引信期间闪烁翻倍 + 红色预警环
+            if (e.arming) {
+              ctx.strokeStyle = 'rgba(255, 51, 0, 0.85)';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(0, 0, e.radius + 9, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            const a = Math.atan2(e.vy, e.vx);
+            ctx.rotate(a);
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+            ctx.fill();
+            const blinkFreq = e.arming ? 40 : 20;
+            ctx.fillStyle = Math.sin(this.survivalTime * blinkFreq) > 0 ? '#ffff00' : '#ff0000';
+            ctx.beginPath();
+            ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (e.type === 'sniper') {
+            const a = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+            ctx.rotate(a);
+            ctx.beginPath();
+            ctx.moveTo(e.radius * 1.5, 0);
+            ctx.lineTo(-e.radius, -e.radius * 0.8);
+            ctx.lineTo(-e.radius * 0.3, 0);
+            ctx.lineTo(-e.radius, e.radius * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            if (e.aimTimer > 0) {
+              ctx.save();
+              ctx.strokeStyle = 'rgba(255, 0, 170, 0.4)';
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([8, 8]);
+              ctx.beginPath();
+              ctx.moveTo(0, 0);
+              ctx.lineTo(600, 0);
+              ctx.stroke();
+              ctx.restore();
+            }
+          } else if (e.type === 'larvae') {
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (e.type === 'charger') {
+            // Sharp Triangle
+            const a = Math.atan2(e.vy, e.vx);
+            ctx.rotate(a);
+            ctx.beginPath();
+            ctx.moveTo(e.radius * 1.4, 0);
+            ctx.lineTo(-e.radius, -e.radius);
+            ctx.lineTo(-e.radius * 0.4, 0);
+            ctx.lineTo(-e.radius, e.radius);
+            ctx.closePath();
+            ctx.fill();
+          } else if (e.type === 'spitter') {
+            // Hexagon turret
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const ang = (i / 6) * Math.PI * 2;
+              const px = Math.cos(ang) * e.radius;
+              const py = Math.sin(ang) * e.radius;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+          } else {
+            // Diamond / Swarmer
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Crowd-control Status Visuals: Freeze Slow / Stun / Fear
+          if ((e.freezeTimer || 0) > 0) {
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) {
+              const ang = (k / 6) * Math.PI * 2 + this.survivalTime * 1.5;
+              const r = e.radius + 4;
+              const px = Math.cos(ang) * r;
+              const py = Math.sin(ang) * r;
+              if (k === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.stroke();
+          }
+          if ((e.stunnedUntil || 0) > this.survivalTime) {
+            const stunAng = this.survivalTime * 7;
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 2.0;
+            ctx.beginPath();
+            ctx.arc(0, -e.radius - 7, 6, stunAng, stunAng + Math.PI * 1.3);
+            ctx.stroke();
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(Math.cos(stunAng) * 6, -e.radius - 7 + Math.sin(stunAng) * 6, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (!e.isBoss && (e.fearedUntil || 0) > this.survivalTime) {
+            ctx.strokeStyle = '#e879f9';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius + 5 + Math.sin(this.survivalTime * 16) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+
+          // Elite Enemy Ring & Badge
+          if (e.isElite) {
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2.2;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            ctx.arc(0, 0, e.radius + 6, this.survivalTime * 2.2, this.survivalTime * 2.2 + Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('★ELITE', 0, -e.radius - 12);
+          }
+
+          // Enemy HP Bar (if damaged)
+          if (e.hp < e.maxHp && !e.isBoss) {
+            const barW = e.radius * 2;
+            const barH = 4;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(-barW / 2, -e.radius - (e.isElite ? 22 : 9), barW, barH);
+            ctx.fillStyle = e.isElite ? '#ffd700' : '#00ffaa';
+            ctx.fillRect(-barW / 2, -e.radius - (e.isElite ? 22 : 9), Math.max(0, (e.hp / e.maxHp) * barW), barH);
+          }
+
+          ctx.restore();
+        });
+      }
+    });

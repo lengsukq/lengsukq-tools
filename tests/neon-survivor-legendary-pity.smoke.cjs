@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/js/';
 
 class Element {
@@ -27,9 +28,7 @@ const sandbox = {
   setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const file of ['rarity', 'endless', 'network/experience', 'network/coop', 'core']) {
-  vm.runInContext(fs.readFileSync(root + file + '.js', 'utf8'), sandbox);
-}
+neonCore.runScripts(sandbox, ['rarity', 'endless', 'network/experience', 'network/coop']);
 // Natural rolls choose common cards; only the pity rule may force legendary.
 vm.runInContext('Math.random = () => 0', sandbox);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);

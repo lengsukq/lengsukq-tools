@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const sandbox={
   window:{addEventListener(){}},console,performance:{now:()=>1000},
   navigator:{getGamepads:()=>[]},document:{getElementById:()=>null},
@@ -10,8 +11,7 @@ const sandbox={
 };
 vm.createContext(sandbox);
 const root='public/Game/neon-survivor/js/';
-for(const file of ['network/coop','core'])
-  vm.runInContext(fs.readFileSync(root+file+'.js','utf8'),sandbox);
+neonCore.runScripts(sandbox, ['network/coop']);
 const proto=vm.runInContext('NeonSurvivorGame.prototype',sandbox);
 const Coop=sandbox.window.NeonLanCoop.Coop;
 const makeGame=()=>Object.assign(Object.create(proto),{

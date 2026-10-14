@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/js/';
 class Element {
   constructor() {
@@ -26,9 +27,7 @@ const sandbox = {
   setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const name of ['rarity', 'network/experience', 'network/coop', 'core']) {
-  vm.runInContext(fs.readFileSync(root + name + '.js', 'utf8'), sandbox);
-}
+neonCore.runScripts(sandbox, ['rarity', 'network/experience', 'network/coop']);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const Coop = sandbox.window.NeonLanCoop.Coop;
 function create(difficulty, level = 2, credits = 1) {

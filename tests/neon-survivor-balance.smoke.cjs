@@ -2,9 +2,10 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 
 const html = fs.readFileSync('public/Game/neon-survivor/index.html', 'utf8');
-const source = fs.readFileSync('public/Game/neon-survivor/js/core.js', 'utf8');
+const source = neonCore.coreSource();
 const storage = new Map();
 const sandbox = {
   window: { addEventListener() {} },
@@ -18,7 +19,7 @@ const sandbox = {
   setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-vm.runInContext(source, sandbox);
+neonCore.runCore(sandbox);
 
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const tiers = vm.runInContext('NEON_DIFFICULTIES', sandbox);

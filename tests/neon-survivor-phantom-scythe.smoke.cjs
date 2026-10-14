@@ -2,11 +2,12 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 
 assert.ok(html.includes('js/ships.generated.js'));
-assert.ok(html.indexOf('js/ships.generated.js') < html.indexOf('js/core.js'));
+assert.ok(html.indexOf('js/ships.generated.js') < html.indexOf(neonCore.coreScriptPaths()[0]));
 
 const ctx = { window: {}, console };
 vm.createContext(ctx);

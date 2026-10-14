@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/js/';
 class Node {
   constructor() { this.children = []; this.style = {}; this.className = ''; }
@@ -17,9 +18,7 @@ const ctx = {
   setTimeout,clearTimeout,setInterval,clearInterval
 };
 vm.createContext(ctx);
-for (const file of ['ships','ships.generated','core']) {
-  vm.runInContext(fs.readFileSync(root + file + '.js','utf8'),ctx);
-}
+neonCore.runScripts(ctx, ['ships','ships.generated']);
 const registry = ctx.window.NeonShips;
 const proto = vm.runInContext('NeonSurvivorGame.prototype',ctx);
 for (const [id, hp, speed, regen, skillCount] of [

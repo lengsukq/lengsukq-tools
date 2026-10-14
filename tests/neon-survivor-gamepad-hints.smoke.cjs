@@ -2,11 +2,12 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root+'index.html','utf8');
 const css = fs.readFileSync(root+'css/game.css','utf8');
 assert.ok(html.includes('/js/gamepad-hints.js'));
-assert.ok(html.indexOf('/js/gamepad-hints.js') < html.indexOf('/js/core.js'));
+assert.ok(html.indexOf('/js/gamepad-hints.js') < html.indexOf(neonCore.coreScriptPaths()[0]));
 assert.match(css, /\.neon-gamepad-connected \.neon-gamepad-key/);
 assert.match(css, /\.neon-gamepad-hint-row[\s\S]*display: none/);
 
@@ -56,7 +57,7 @@ hints.sync(null);
 assert.equal(hints.connected,false);
 assert.ok(!classes.has('neon-gamepad-connected'),'Hints disappear when last pad disconnects');
 
-vm.runInContext(fs.readFileSync(root+'js/core.js','utf8'),ctx);
+neonCore.runCore(ctx);
 const prototype = vm.runInContext('NeonSurvivorGame.prototype',ctx);
 const game=Object.create(prototype);
 game.state='levelup';

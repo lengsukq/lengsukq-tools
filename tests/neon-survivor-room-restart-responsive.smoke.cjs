@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const calls = { mounted: 0, removed: 0, sent: [], profiles: [] };
 const pause = {style:{display:'none'},dataset:{lanPreviousDisplay:'inline-flex'}};
@@ -134,7 +135,9 @@ for (const snippet of [
 const html = fs.readFileSync(root+'index.html','utf8');
 assert.match(html, /css\/game\.css\?v=upgrade-readable-20261012/,
   'CSS must be cache-busted so users receive the updated layout');
-assert.match(html, /js\/core\.js\?v=upgrade-readable-20261012/,
+const cssToken = (html.match(/css\/game\.css\?v=([^"']+)/) || [])[1];
+assert.ok(cssToken, 'CSS must be cache-busted so users receive the updated layout');
+assert.equal(neonCore.coreEntryTag().query, '?v=' + cssToken,
   'DOM generator must share the CSS cache version to avoid mixing incompatible markup');
 assert.match(latest, /#modal-levelup \.upgrade-card-info \{/,
   'upgrade name, description, level, and stats must occupy the same right-hand column');
@@ -147,7 +150,7 @@ assert.ok(ui.includes("back.onclick = closeLobby") && ui.includes("event.key !==
   'lobby needs an explicit back action and keyboard escape');
 assert.ok(fs.readFileSync(root+'js/gamepad-menus.js','utf8').includes("#neon-lan-back"),
   'controller B uses the same lobby exit action');
-const core = fs.readFileSync(root+'js/core.js','utf8');
+const core = neonCore.coreSource();
 assert.match(core,/class="upgrade-icon">\$\{upg.icon\}<\/div>\s*<div class="upgrade-card-info">/,
   'upgrade card must place icon on the left and descriptions in a shared right-side column');
 assert.match(core,/<div class="upgrade-stat-text"[^>]*>⚡ \$\{nextText\}<\/div>/,

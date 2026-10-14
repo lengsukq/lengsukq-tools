@@ -2,10 +2,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 assert.ok(html.indexOf('js/rarity.js') < html.indexOf('js/endless.js'));
-assert.ok(html.indexOf('js/rarity.js') < html.indexOf('js/core.js'));
+assert.ok(html.indexOf('js/rarity.js') < html.indexOf(neonCore.coreScriptPaths()[0]));
 const sandbox = { window: {}, console };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/rarity.js', 'utf8'), sandbox);
@@ -50,7 +51,7 @@ assert.ok(normal.rare > max.rare,
 assert.ok(max.common > normal.common,
   'Common cards become relatively more frequent');
 // Endless and co-op must call the SAME weights, rather than diverging.
-const core = fs.readFileSync(root + 'js/core.js', 'utf8');
+const core = neonCore.coreSource();
 const endless = fs.readFileSync(root + 'js/endless.js', 'utf8');
 assert.match(core, /NeonUpgradeRarity\?\.pickForPilot\(/);
 assert.match(endless, /NeonUpgradeRarity\?\.pick\(eligible, count, difficulty, random\)/);

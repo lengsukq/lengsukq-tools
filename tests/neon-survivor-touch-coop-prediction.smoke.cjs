@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const listeners = new Map();
 const element = () => ({ style: {}, addEventListener(event, fn) { this[event] = fn; } });
@@ -25,7 +26,7 @@ const context = {
   setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync(root+'js/core.js','utf8'), context);
+neonCore.runCore(context);
 const proto = vm.runInContext('NeonSurvivorGame.prototype',context);
 const game = Object.create(proto);
 game.state = 'playing';

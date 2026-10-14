@@ -2,11 +2,12 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 assert.ok(html.indexOf('js/combat/weapons.js') > 0);
 assert.ok(html.indexOf('js/combat/weapons.js') < html.indexOf('js/network/coop.js'));
-assert.ok(html.indexOf('js/combat/weapons.js') < html.indexOf('js/core.js'));
+assert.ok(html.indexOf('js/combat/weapons.js') < html.indexOf(neonCore.coreScriptPaths()[0]));
 const context = { window: {}, console };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(root + 'js/combat/weapons.js', 'utf8'), context);

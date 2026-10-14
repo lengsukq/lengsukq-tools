@@ -2,10 +2,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 const css = fs.readFileSync(root + 'css/game.css', 'utf8');
-const core = fs.readFileSync(root + 'js/core.js', 'utf8');
+const core = neonCore.coreSource();
 assert.match(html, /network\/teammates\.js/);
 assert.ok(html.indexOf('network/teammates.js') < html.indexOf('network/coop.js'));
 assert.match(css, /\.neon-teammate-indicator/);

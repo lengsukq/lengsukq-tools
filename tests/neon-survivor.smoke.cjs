@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 
 const html = fs.readFileSync('public/Game/neon-survivor/index.html', 'utf8');
 assert.match(html, /id="btn-test-vibrate"/);
@@ -42,7 +43,7 @@ const sandbox = {
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('public/Game/gamepad_haptics.js', 'utf8'), sandbox);
 sandbox.GamepadHaptics = window.GamepadHaptics;
-vm.runInContext(fs.readFileSync('public/Game/neon-survivor/js/core.js', 'utf8'), sandbox);
+neonCore.runCore(sandbox);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const game = Object.create(proto);
 Object.assign(game, {

@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const base = 'public/Game/neon-survivor/js/';
 const ctx = { window: {}, console };
 vm.createContext(ctx);
@@ -38,7 +39,7 @@ const phantom = { id:'phantom', shipId:'phantom', hp:85, x:0, y:0 };
 const canvas = new Proxy({}, { get(_obj, key) { return () => {}; } });
 assert.equal(ships.drawPilotEffects(canvas, astra, game), true);
 assert.equal(ships.drawPilotEffects(canvas, phantom, game), true);
-const core = fs.readFileSync(base + 'core.js', 'utf8');
+const core = neonCore.coreSource();
 assert.ok(core.includes('NeonShips?.drawPilotEffects'));
 assert.ok(core.includes('NeonShips?.drawWorldEffects'));
 console.log('Ship effects passed: auto-loaded per-ship visuals, one world render per type and no core-specific visual registry.');

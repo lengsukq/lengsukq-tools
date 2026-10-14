@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root='public/Game/neon-survivor/js/';
 const context={window:{addEventListener(){}}, console,
   document:{getElementById(){return null;}},
@@ -9,8 +10,7 @@ const context={window:{addEventListener(){}}, console,
   localStorage:{getItem(){return null;},setItem(){}},
   performance:{now:()=>1000},setTimeout,clearTimeout,setInterval,clearInterval};
 vm.createContext(context);
-for(const name of ['ships','ships.generated','rarity','core'])
-  vm.runInContext(fs.readFileSync(root+name+'.js','utf8'),context);
+neonCore.runScripts(context, ['ships','ships.generated','rarity']);
 const registry=context.window.NeonShips;
 const proto=vm.runInContext('NeonSurvivorGame.prototype',context);
 const originalCards=vm.runInContext('UPGRADES_DB',context);

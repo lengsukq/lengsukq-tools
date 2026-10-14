@@ -2,9 +2,10 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
-const core = fs.readFileSync(root + 'js/core.js', 'utf8');
+const core = neonCore.coreSource();
 const coop = fs.readFileSync(root + 'js/network/coop.js', 'utf8');
 for (const name of ['encounters', 'experience', 'coop'])
   assert.ok(html.includes('/js/network/' + name + '.js'), 'Missing module ' + name);
@@ -22,8 +23,7 @@ const sandbox = {
   performance: { now: () => 1000 }, setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const file of ['network/experience','network/encounters','network/coop','core'])
-  vm.runInContext(fs.readFileSync(root+'js/'+file+'.js','utf8'), sandbox);
+neonCore.runScripts(sandbox, ['network/experience','network/encounters','network/coop']);
 const { NeonLanExperience: xp, NeonLanEncounters: encounters, NeonLanCoop } = sandbox.window;
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const host = {

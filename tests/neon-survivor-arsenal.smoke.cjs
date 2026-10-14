@@ -2,12 +2,12 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
-const core = fs.readFileSync(root + 'js/core.js', 'utf8');
 assert.match(html, /js\/arsenal\.js/);
-assert.ok(html.indexOf('js/arsenal.js') < html.indexOf('js/core.js'),
+assert.ok(html.indexOf('js/arsenal.js') < html.indexOf(neonCore.coreScriptPaths()[0]),
   'Fire-control module must load before the game engine');
 
 const sandbox = {
@@ -19,7 +19,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/arsenal.js', 'utf8'), sandbox);
-vm.runInContext(core, sandbox);
+neonCore.runCore(sandbox);
 
 const arsenal = sandbox.window.NeonLegendaryArsenal;
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);

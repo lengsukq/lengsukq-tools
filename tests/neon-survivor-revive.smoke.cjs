@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/js/';
 const html = fs.readFileSync('public/Game/neon-survivor/index.html', 'utf8');
 assert.ok(html.indexOf('js/network/revive.js') < html.indexOf('js/network/coop.js'));
@@ -14,9 +15,7 @@ const context = {
   setInterval, clearInterval, setTimeout, clearTimeout
 };
 vm.createContext(context);
-for (const module of ['network/revive', 'network/coop', 'core']) {
-  vm.runInContext(fs.readFileSync(root + module + '.js', 'utf8'), context);
-}
+neonCore.runScripts(context, ['network/revive', 'network/coop']);
 const revive = context.window.NeonLanRevive;
 const Coop = context.window.NeonLanCoop.Coop;
 const Game = vm.runInContext('NeonSurvivorGame.prototype', context);

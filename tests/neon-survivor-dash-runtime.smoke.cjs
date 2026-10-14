@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root='public/Game/neon-survivor/js/';
 const elements=new Map();
 const el=id => elements.get(id) || null;
@@ -14,8 +15,7 @@ const env={window:{addEventListener(){}},document:{getElementById:el},
   localStorage:{getItem:()=>null,setItem(){}},
   setTimeout,clearTimeout,setInterval,clearInterval};
 vm.createContext(env);
-for(const module of ['ships','ships.generated','core'])
-  vm.runInContext(fs.readFileSync(root+module+'.js','utf8'),env);
+neonCore.runScripts(env, ['ships','ships.generated']);
 const ships=env.window.NeonShips;
 const proto=vm.runInContext('NeonSurvivorGame.prototype',env);
 const SoundEngine=vm.runInContext('SoundEngine',env);

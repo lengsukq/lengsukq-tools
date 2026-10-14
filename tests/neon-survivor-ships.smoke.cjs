@@ -2,13 +2,14 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 assert.ok(html.indexOf('js/ships.js') > 0);
 assert.ok(html.indexOf('js/ships.js') < html.indexOf('js/ships.generated.js'));
 assert.ok(html.indexOf('js/ships.generated.js') < html.indexOf('js/players.js'));
 assert.ok(html.indexOf('js/ships.js') < html.indexOf('js/players.js'));
-assert.ok(html.indexOf('js/ships.js') < html.indexOf('js/core.js'));
+assert.ok(html.indexOf('js/ships.js') < html.indexOf(neonCore.coreScriptPaths()[0]));
 const sandbox = { window: {}, console, performance: { now: () => 1000 } };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/ships.js', 'utf8'), sandbox);

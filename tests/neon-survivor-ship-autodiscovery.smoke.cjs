@@ -5,6 +5,7 @@ const fsp = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const { pathToFileURL } = require('node:url');
 
 async function main() {
@@ -12,7 +13,7 @@ async function main() {
   const html = fs.readFileSync(root + 'index.html', 'utf8');
   assert.ok(html.includes('js/ships.generated.js'));
   assert.ok(html.indexOf('js/ships.js') < html.indexOf('js/ships.generated.js'));
-  assert.ok(html.indexOf('js/ships.generated.js') < html.indexOf('js/core.js'));
+  assert.ok(html.indexOf('js/ships.generated.js') < html.indexOf(neonCore.coreScriptPaths()[0]));
   assert.ok(html.includes('id="neon-ship-selector"'));
   const { buildShipBundle } = await import(pathToFileURL(path.resolve('tools/neon-survivor/generate-ships.mjs')).href);
   const rootFiles = path.resolve(root + 'js');

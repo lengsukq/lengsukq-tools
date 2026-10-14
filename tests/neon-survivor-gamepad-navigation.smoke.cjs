@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const context = {window: {}, document: {querySelector: () => null}};
 vm.createContext(context);
@@ -19,7 +20,7 @@ for (const [start,count,dx,dy,cols,expected] of [
   `Responsive ${cols}-column grid from ${start}`);
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 const css = fs.readFileSync(root + 'css/game.css', 'utf8');
-const core = fs.readFileSync(root + 'js/core.js', 'utf8');
+const core = neonCore.coreSource();
 const guest = fs.readFileSync(root + 'js/network/coop.js', 'utf8');
 assert.match(css, /#modal-levelup \.upgrade-grid\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/);
 assert.match(css, /\.neon-touch-enabled\[data-neon-control-layout="arc"\]/);

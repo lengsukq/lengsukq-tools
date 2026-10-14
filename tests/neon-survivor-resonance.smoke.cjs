@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const neonCore = require('./helpers/neon-core.cjs');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root + 'index.html', 'utf8');
 assert.match(html, /network\/resonance\.js/);
@@ -14,9 +15,7 @@ const sandbox = {
   performance: { now: () => 0 }, setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-for (const name of ['network/resonance', 'network/coop', 'core']) {
-  vm.runInContext(fs.readFileSync(root + 'js/' + name + '.js', 'utf8'), sandbox);
-}
+neonCore.runScripts(sandbox, ['network/resonance', 'network/coop']);
 const { link, update, recordDash } = sandbox.window.NeonLanResonance;
 const { Coop } = sandbox.window.NeonLanCoop;
 const host = { x: 0, y: 0, hp: 70, maxHp: 100, dmgMultiplier: 1 };
