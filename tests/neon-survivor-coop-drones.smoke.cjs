@@ -176,6 +176,61 @@ function world() {
     'and the host builds the ally\'s orbiters without the ally ever running a frame');
 }
 
+// ---------------------------------------------------------------------------
+// 6. Each drone fires exactly once per interval, in a real host frame.
+//
+//    js/core/game.js runs game.update(dt) and then lanCoop.updateHost(dt). The
+//    transport used to simulate the guest's drones itself, which was the only
+//    simulation there was -- but once the per-pilot phase existed too, a guest's
+//    drones fired twice per frame. One drone per interval is the invariant.
+// ---------------------------------------------------------------------------
+{
+  const { game, ally } = world();
+  game.player.weapons = {};
+  ally.weapons = { drones: 3 };
+  game.enemies = [{ x: 400, y: 200, hp: 1e6, radius: 12, dead: false }];
+  const coop = new sandbox.window.NeonLanCoop.Coop(game,
+    { role: 'host', connected: true, capacity: 2, send: () => true });
+  coop.allies.set('guest', ally);
+  coop.resonances.set('guest', { link: null, pulseCooldown: 0, lastDash: {} });
+  coop.ally = ally;
+  coop.resonance = { link: null, pulseCooldown: 0, lastDash: {} };
+
+  const SECONDS = 5;
+  const TICKS = SECONDS * 60;
+  for (let i = 0; i < TICKS; i++) {
+    game.updateCompanionDrones(1 / 60);   // the world's phase
+    coop.updateHost(1 / 60);              // the transport's tick
+  }
+  const drones = ally.companionDrones.length;
+  assert.ok(drones > 1, 'the test needs more than one drone to be meaningful');
+  const interval = ally.companionDrones[0].shootInterval;
+  const expected = drones * SECONDS / interval;
+  assert.ok(Math.abs(game.bullets.length - expected) <= drones + 2,
+    `each of ${drones} drones must fire once per ${interval.toFixed(2)}s: expected `
+    + `about ${expected.toFixed(0)} bullets in ${SECONDS}s, got ${game.bullets.length}`);
+  assert.ok(game.bullets.length < expected * 1.5,
+    'a drone must not be simulated twice');
+}
+
+// ---------------------------------------------------------------------------
+// 7. A drone's bullet is attributed to the pilot that owns the drone, because
+//    the owner decides whose level, crit rate and link bonus apply.
+// ---------------------------------------------------------------------------
+{
+  const { game, ally } = world();
+  game.player.weapons = {};
+  ally.weapons = { drones: 2 };
+  game.enemies = [{ x: 400, y: 200, hp: 1e6, radius: 12, dead: false }];
+  for (let i = 0; i < 60; i++) game.updateCompanionDrones(1 / 60);
+  assert.ok(game.bullets.length > 0, 'the drones fired');
+  for (const bullet of game.bullets) {
+    assert.equal(bullet.ownerId, 'guest',
+      'an ally\'s drone bullet must carry its owner, or the hit is credited to the host');
+    assert.equal(bullet.owner, 'guest');
+  }
+}
+
 console.log('Co-op drones passed: the host simulates every pilot\'s drones and '
   + 'orbiters, they damage and fire from their owner, the wire carries them with a '
   + 'replicated orbit centre, and no unread copy of a layer is sent.');

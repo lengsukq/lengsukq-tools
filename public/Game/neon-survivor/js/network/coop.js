@@ -572,30 +572,6 @@
           const resonance = this.resonances.get(id);
           if (resonance) window.NeonLanResonance?.update(game, ally, resonance, dt);
           this.updateGuestWeapons(dt, ally);
-          if (ally.weapons?.drones) {
-            const level = ally.weapons.drones;
-            const count = Math.min(5, 1 + level);
-            ally.dronePhase = (ally.dronePhase || 0) + dt * 2.4;
-            ally.droneShotTime = (ally.droneShotTime || 0) + dt;
-            if (ally.droneShotTime >= Math.max(.24, .58 - level * .07) * ally.cdrMultiplier) {
-              ally.droneShotTime = 0;
-              let target = null, closest = 550;
-              for (const e of game.enemies) {
-                if (e.dead) continue;
-                const d = Math.hypot(e.x - ally.x, e.y - ally.y);
-                if (d < closest) { target = e; closest = d; }
-              }
-              if (target && game.bullets.length < 160) {
-                const x = ally.x + Math.cos(ally.dronePhase) * 52;
-                const y = ally.y + Math.sin(ally.dronePhase) * 52;
-                const a = Math.atan2(target.y - y, target.x - x);
-                game.bullets.push({ type:'blaster', x, y, vx:Math.cos(a)*900,
-                  vy:Math.sin(a)*900, radius:3.5, life:1,
-                  damage:22*ally.dmgMultiplier*(1+(level-1)*.3),
-                  pierce:1, color:'#00ffaa', owner:id, ownerId:id });
-              }
-            }
-          }
           window.NeonPilotSystem?.resolveRemoteHits(game, ally);
         }
         // Existing Resonance works on two ships at a time. Simulate each
@@ -975,31 +951,10 @@
       // The world calls NeonShips.onTick for every registered pilot. Running
       // class weapons here again would double remote fire and mana recovery.
       this.updateGuestWeapons(dt);
-      if (ally.weapons.drones) {
-        const level = ally.weapons.drones;
-        const nearest = game.enemies.filter(enemy => !enemy.dead).reduce((best, enemy) => {
-          const distance = Math.hypot(enemy.x - ally.x, enemy.y - ally.y);
-          return distance < (best?.distance || 550) ? { enemy, distance } : best;
-        }, null);
-        ally.dronePhase = (ally.dronePhase || 0) + dt * 2.4;
-        ally.droneShotTime = (ally.droneShotTime || 0) + dt;
-        const interval = Math.max(.24, .58 - level * .07) * ally.cdrMultiplier;
-        if (ally.droneShotTime >= interval) {
-          ally.droneShotTime = 0;
-          if (nearest && game.bullets.length < 160) {
-            const x = ally.x + Math.cos(ally.dronePhase) * 52;
-            const y = ally.y + Math.sin(ally.dronePhase) * 52;
-            const angle = Math.atan2(nearest.enemy.y - y, nearest.enemy.x - x);
-            game.bullets.push({
-              type: 'blaster', x, y, vx: Math.cos(angle) * 900,
-              vy: Math.sin(angle) * 900, radius: 3.5,
-              damage: 22 * ally.dmgMultiplier * (1 + (level - 1) * .3),
-              pierce: 1, color: '#00ffaa', life: 1.0,
-              owner: ally.id || 'guest', ownerId: ally.id || 'guest'
-            });
-          }
-        }
-      }
+      // Companion drones and orbiters are NOT simulated here: they belong to the
+      // pilot (pilot.companionDrones / pilot.orbiters) and game.update() runs
+      // those phases for every registered pilot. Simulating them here as well
+      // fired a guest's drones twice per frame.
       // All registered remote pilots use the same authority-only projectile,
       // contact, shield and one-time cheat-death resolver.
       window.NeonPilotSystem?.resolveRemoteHits(game, ally);

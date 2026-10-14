@@ -114,6 +114,11 @@
               if (target) {
                 const a = Math.atan2(target.y - dy, target.x - dx);
                 this.sound.playLaser(920, 'triangle');
+                // The owner decides which PILOT the hit is attributed to, and
+                // therefore whose level, crit rate and co-op link bonus apply.
+                // Without it an ally's drone damage was credited to the host.
+                const owner = pilot.playerId || pilot.id ||
+                  (pilot === this.player ? 'host' : 'guest');
                 this.bullets.push({
                   x: dx,
                   y: dy,
@@ -122,7 +127,9 @@
                   radius: 3.5,
                   damage: dr.damage,
                   color: '#00ffaa',
-                  life: 0.8
+                  life: 0.8,
+                  owner,
+                  ownerId: owner
                 });
               }
             }

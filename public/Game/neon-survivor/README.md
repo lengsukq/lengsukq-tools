@@ -361,11 +361,14 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 
 ### 房客自己的无人机与环绕体
 
-`syncOrbiters()` / `syncDrones()` / `updateCompanionDrones()` 原本全部写死 `this.player` 与 `this.orbiters`，而**远端队友没有任何客户端在跑这 27 个阶段**。于是房客选了无人机或环绕体武器后：不产生伤害、不发射子弹、**在谁的屏幕上都画不出来**——房主只模拟自己的。房主曾经试着把房客的无人机合成进 `frame.guest.companionDrones`，但全仓没有任何代码读那个字段，所以那是一份纯粹的死负载。
+`syncOrbiters()` / `syncDrones()` / `updateCompanionDrones()` 原本全部写死 `this.player` 与 `this.orbiters`，而**远端队友没有任何客户端在跑这 27 个阶段**。于是：
 
-现在所有权落在飞行员身上（`pilot.companionDrones` / `pilot.orbiters`），房主对**每个**飞行员跑这两段，`game.companionDrones` / `game.orbiters` 退化为「所有飞行员的聚合视图」，供渲染与快照共用（`refreshPilotEntities()`，每次 sync 之后也刷新，因此永远不会过期一帧）。无人机找目标时改为**从无人机自己出发**（`findNearestEnemy(range, origin)`，默认参数保证既有调用点不变）。
+- **环绕体**：房客的环绕体从来不存在——不造成伤害、不发射、在谁的屏幕上都画不出来。房主把一份合成副本塞进 `frame.guest.companionDrones`，但全仓没有任何代码读那个字段，所以那是纯粹的死负载。
+- **无人机**：`coop.js` 里另有一份针对房客的手写模拟，所以**子弹和伤害是有的**，但它只按**一个**无人机的节奏开火（房客升到 3 级有 4 架无人机，实测 5 秒只打出 13 发，而房主的 4 架会打出 54 发），而且那些无人机**同样画不出来**（渲染读的是那份死负载）。
 
-`tests/neon-survivor-coop-drones.smoke.cjs` 钉住：房主为每个飞行员建并推进这两类武器、房客的环绕体真的造成切割伤害、无人机真的开火且**打自己附近的敌人**、线上带着每个飞行员的条目与复制过来的轨道中心、以及不再发送那份无人读取的死负载。改前跑同一段脚本得到：`ally.orbiters = undefined`、`ally.companionDrones = undefined`、`bullets fired = 0`。
+现在所有权落在飞行员身上（`pilot.companionDrones` / `pilot.orbiters`），房主对**每个**飞行员跑这两段，`game.companionDrones` / `game.orbiters` 退化为「所有飞行员的聚合视图」，供渲染与快照共用（`refreshPilotEntities()`，每次 sync 之后也刷新，因此永远不会过期一帧）。无人机找目标时改为**从无人机自己出发**（`findNearestEnemy(range, origin)`，默认参数保证既有调用点不变），子弹带上 `owner`/`ownerId`，所以命中归属正确的飞行员（此前房客的无人机伤害被记在房主头上）。
+
+`coop.js` 里那份手写模拟**必须删掉**：保留它会让房客的无人机每帧被模拟两次（实测 5 秒 65 发，应为 54 发）。`tests/neon-survivor-coop-drones.smoke.cjs` 现在直接钉住这一点——「每架无人机每个间隔只开一枪」——并验证过还原旧代码后报出 `expected about 54 bullets in 5s, got 65`。同一测试还覆盖：房主为每个飞行员建并推进这两类武器、房客的环绕体真的造成切割伤害、无人机**打自己附近的敌人**、线上带着每个飞行员的条目与复制过来的轨道中心、以及不再发送那份无人读取的死负载。
 
 `tests/neon-survivor-coop-delivery.smoke.cjs` 是这次的直接回归测试：每层到上限的世界必须**整层送达**（改前会红），超预算时只有装饰受损，极端超预算时 `enemyBullets` 仍完整且 Boss 仍在。`tests/neon-survivor-shared-render.smoke.cjs` 增加了**渲染对等**断言：同一个世界分别以「房主行实体」和「过网往返后的实体」喂进真实 `render()`，要求两次画布操作序列**逐条相同**——这是「完全一样」在无浏览器环境下能给出的最强证明，也是「缺席字段解码为 `0`/`''`」这一决定的依据。
 
