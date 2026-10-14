@@ -51,6 +51,13 @@ class Node {
   }
   setAttribute(key, value) { this.attributes[key] = value; }
   remove() { this.isConnected = false; }
+  // The lobby attaches a keydown handler, focuses the room-code field and
+  // selects it before copying. The mock only needs these to exist.
+  addEventListener() {}
+  removeEventListener() {}
+  focus() {}
+  select() {}
+  click() {}
 }
 function find(node, predicate) {
   if (predicate(node)) return node;
@@ -65,7 +72,10 @@ function environment(url, { failJoin = false } = {}) {
   const document = {
     body: new Node('body'),
     createElement(tag) { return new Node(tag); },
-    getElementById(id) { return find(this.body, node => node.id === id); }
+    getElementById(id) { return find(this.body, node => node.id === id); },
+    // The in-game leave button prefers the HUD container; falling back to body
+    // is the documented behaviour when the HUD is absent.
+    querySelector() { return null; }
   };
   document.body.isConnected = true;
   class FakeRTC {
