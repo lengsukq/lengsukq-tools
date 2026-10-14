@@ -407,6 +407,13 @@
         this.launchingMatch = false;
         return false;
       }
+      // Adopt the announced epoch BEFORE any snapshot is emitted. Guests set
+      // their roundId from this packet, and they reject every snapshot whose
+      // round does not match. Announcing roundId+1 without adopting it left the
+      // host stamping snapshots with the OLD round, so a guest rejected all of
+      // them and sat on "正在同步房主战场…" forever while its inputs kept
+      // reaching the host.
+      this.roundId = packet.round;
       this.readyRoom.start();
       this.game.selectedShipId = host.shipId;
       this.pendingGuestShipId = shipIds.guest;

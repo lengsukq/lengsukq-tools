@@ -131,4 +131,38 @@ assert.equal(host.beginHostMatch(), false, 'Duplicate start cannot restart');
 assert.equal(hostMessages.some(m => m.type === 'match_start'), true);
 assert.equal(hostMessages.some(m => m.type === 'ready_roster'), true);
 assert.equal(guestMessages.some(m => m.type === 'ready_update'), true);
+
+// The announced round epoch must be adopted by BOTH sides. match_start carries
+// roundId+1 and the guest adopts it, so a host that never adopted it stamped
+// every snapshot with the OLD round. The guest then rejected all of them and
+// sat on "正在同步房主战场…" forever, while its inputs still reached the host
+// (the input path never checks the round) -- which is exactly what players saw.
+assert.equal(host.roundId, guest.roundId,
+  'host and guest must agree on the round epoch established by match_start');
+
+hostGame.lanCoop = host;
+guestGame.lanCoop = guest;
+Object.assign(hostGame, {
+  enemies: [], bullets: [], enemyBullets: [], gems: [], shockwaves: [], particles: [],
+  lightningTethers: [], blackHoles: [], mines: [], laserBeams: [], companionDrones: [],
+  orbiters: [], dashTrails: [], texts: [],
+  survivalTime: 3, kills: 0, difficulty: 0, endlessMode: false
+});
+Object.assign(hostGame.player, { x: 10, y: 20, hp: 100, maxHp: 100, level: 1 });
+Object.assign(host.ally, { x: 30, y: 40, hp: 100, maxHp: 100 });
+
+const first = window.NeonLanCoop.boundedSnapshot(hostGame, host.ally, 1, host.resonance);
+assert.equal(first.round, guest.roundId, 'snapshots must carry the adopted round');
+assert.equal(guest.latest, null, 'the guest starts with nothing to render');
+guest.onMessage(first, 'host');
+assert.equal(guest.latest?.seq, 1,
+  'the guest must accept the first snapshot instead of sitting on the sync placeholder');
+assert.equal(guest.latest.guest.x, 30, 'the accepted snapshot must carry the guest position');
+
+// The epoch must still reject late snapshots from a previous run.
+guest.onMessage({ ...first, round: first.round - 1, seq: 2 }, 'host');
+assert.equal(guest.latest.seq, 1, 'a stale-round snapshot must still be rejected');
+guest.onMessage({ ...first, seq: 3 }, 'host');
+assert.equal(guest.latest.seq, 3, 'a newer snapshot in the same round must be accepted');
+
 console.log('Ready room passed: 2–4 seat model, host-only launch, guest ship choice, ready toggle and replay resistance.');
