@@ -11,7 +11,40 @@ public/Game/
   neon-survivor/
     index.html                # 页面DOM与游戏内操作说明
     css/game.css              # 游戏视觉样式
-    js/core.js                # 现有战斗逻辑与接入点
+    js/core/                  # 核心游戏逻辑（原 7270 行 js/core.js 已拆分）
+      define.js               # NeonCore.define：把类表达式的方法混入原型
+      constants.js            # 难度表、光环时长、SafeStorage、Vec
+      data/upgrades.js        # UPGRADES_DB 升级卡目录
+      audio.js                # SoundEngine 程序化 Web Audio 合成
+      game.js                 # class NeonSurvivorGame：构造、生命周期、主循环
+      difficulty.js           # 六阶规则、槽位上限、战绩存档
+      input/controls.js       # 键鼠/触屏/全屏/游戏内说明
+      input/gamepad.js        # 手柄连接、菜单导航与震动
+      ships/abilities.js      # 战舰主动技能与折跃/冲刺入口
+      progression/catalog.js  # 经验曲线、候选卡、稀有度、破限
+      progression/session.js  # 一次升级会话：预选/确认/重随/放逐/保留
+      progression/apply.js    # 应用升级与破限
+      progression/recalculate.js # 移速/被动/折跃/环绕刃/僚机重算
+      ui/upgrade-panel.js     # 升级卡渲染与选择状态
+      ui/hud.js               # HUD、武器栏、战绩表、技能反馈
+      ui/combat-dock.js       # 局内战术技能坞
+      combat/firing.js        # 索敌与七种通用武器开火
+      combat/damage.js        # 伤害结算、掉落、限频音效、玩家受击
+      combat/rewards.js       # 击杀奖励、战利品、晶体压缩
+      director/scaling.js     # 自适应难度与波次缩放输入
+      director/spawning.js    # 波次节奏、蜂群、精英、防挂机追兵
+      director/boss.js        # Boss 战
+      simulation/index.js     # update(dt)：一次有序的世界推进
+      simulation/player.js    # 玩家状态：回复、折跃移动、光环、瞄准、镜头
+      simulation/weapons.js   # 武器计时、激光束、僚机
+      simulation/effects.js   # 黑洞、地雷、尾迹、电链、冲击波、粒子、飘字
+      simulation/bullets.js   # 玩家子弹与敌方弹幕
+      simulation/enemies.js   # 敌人推进、碰撞、控制与死亡
+      simulation/gems.js      # 经验晶体、掉落与拾取
+      render/index.js         # render()：相机准备与有序绘制
+      render/fighter.js       # 战机绘制与赛博网格背景
+      render/world.js         # 世界层：晶体、冲击波、粒子、敌人
+      render/effects.js       # 特效层：电链、黑洞、地雷、光束、僚机、子弹、战机特效、飘字
     js/players.js             # V6玩家注册表：稳定ID、最多4人状态容器
     js/ships.js               # 通用ShipRegistry：定义/渲染/能力/卡池接口，无战舰硬编码
     js/ships.generated.js     # 自动生成：已扫描战舰的静态插件包，不要手动编辑
@@ -51,11 +84,13 @@ public/Game/
     MANUAL.md                 # 玩家指南、机制和开发说明
 ```
 
-原有核心较大，本版本先做无风险抽离，并将**所有新的玩法逻辑**放在独立模块中，而不是继续扩张HTML。后续应按测试覆盖情况再逐步拆分核心战斗代码，避免一次性大规模重写。
+原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 34 个模块，最大文件 455 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
+
+**新增核心逻辑时**：不要重新堆进单个文件。把方法写进已有的对应模块，用 `NeonCore.define(NeonSurvivorGame, class { ... })` 挂到原型上；新文件必须加进 `index.html` 的脚本列表（`core/define.js` 最先、`core/game.js` 在定义类之前、`core/boot.js` 最后），否则一致性测试会失败。
 
 ## V6：在文件夹中新增战舰（自动注册）
 
-**只需在 `public/Game/neon-survivor/js/ships/<shipId>/` 新建目录并放入战舰JS文件。** 启动 `npm run dev` 或部署 `npm run build` 前，`predev` / `prebuild` 自动运行扫描器并重建 `ships.generated.js`，无须再修改 `js/ships.js`、`js/core.js` 或 `index.html` 的战舰清单。若已经打开开发服务器，新增文件后可以执行 `npm run ships:generate` 并刷新页面，或重新启动 `npm run dev`。静态网页浏览器不能自行枚举文件夹，因此**不会在运行中的网页直接发现未构建的文件**。
+**只需在 `public/Game/neon-survivor/js/ships/<shipId>/` 新建目录并放入战舰JS文件。** 启动 `npm run dev` 或部署 `npm run build` 前，`predev` / `prebuild` 自动运行扫描器并重建 `ships.generated.js`，无须再修改 `js/ships.js`、`js/core/` 或 `index.html` 的战舰清单。若已经打开开发服务器，新增文件后可以执行 `npm run ships:generate` 并刷新页面，或重新启动 `npm run dev`。静态网页浏览器不能自行枚举文件夹，因此**不会在运行中的网页直接发现未构建的文件**。
 
 ```text
 js/ships/
@@ -133,7 +168,7 @@ MCP Goal/Plan《霓虹幸存者 V6：可扩展四人联机与四战舰架构》�
 
 基础架构用 `node tests/neon-survivor-players.smoke.cjs`、`node tests/neon-survivor-ships.smoke.cjs`、`node tests/neon-survivor-combat-weapons.smoke.cjs` 和 `node tests/neon-survivor-astra-foundation.smoke.cjs` 测试；浏览器真机联机及四舰玩法尚未完成。
 
-脚本以 `index.html` 中的实际次序为准：公共肉鸽模块 → 通用 `ships.js` → 自动生成 `ships.generated.js`（所有舰种私有模块）→ `players.js`/`combat/*.js` → `network/*.js` → `core.js`。无额外浏览器运行时依赖。
+脚本以 `index.html` 中的实际次序为准：公共肉鸽模块 → 通用 `ships.js` → 自动生成 `ships.generated.js`（所有舰种私有模块）→ `players.js`/`combat/*.js` → `network/*.js` → `js/core/`（`define.js` 最先，`game.js` 在定义 `NeonSurvivorGame` 之前，其余核心模块挂原型，`boot.js` 最后启动）。无额外浏览器运行时依赖。测试通过 `tests/helpers/neon-core.cjs` 从 `index.html` 解析这个顺序，因此调整核心文件列表不需要改测试。
 
 无尽接口：`window.NeonRogueEndless`；战斗事件只由核心调用公开钩子，UI 不直接操作战斗模型。
 
@@ -189,6 +224,8 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 ## 验证
 
 ```sh
+node tests/neon-survivor-core-split.smoke.cjs
+node tests/neon-survivor-script-order.smoke.cjs
 node tests/neon-survivor.smoke.cjs
 node tests/neon-survivor-touch.smoke.cjs
 node tests/neon-survivor-balance.smoke.cjs

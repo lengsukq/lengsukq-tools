@@ -186,7 +186,8 @@ UI按照视口宽高自适应：竖屏战斗HUD双排、升级卡纵向展开；
 
 ## 开发维护与验证
 
-- 游戏主入口为 `index.html`，核心代码位于 `js/core.js` 中的 `NeonSurvivorGame`；六阶规则集中于 `NEON_DIFFICULTIES`，光环时长集中于 `NEON_AEGIS_DURATIONS`。
+- 游戏主入口为 `index.html`，核心代码位于 `js/core/` 目录（原 `js/core.js` 已按职责拆为 34 个模块，`NeonSurvivorGame` 定义在 `core/game.js`，其余模块用 `NeonCore.define(NeonSurvivorGame, class { ... })` 把方法挂到同一个原型上）；六阶规则集中于 `core/constants.js` 的 `NEON_DIFFICULTIES`，光环时长集中于同文件的 `NEON_AEGIS_DURATIONS`。
+- 核心模块按职责分布：`core/simulation/*` 是世界推进（`index.js` 是 `update(dt)` 编排器），`core/render/*` 是绘制（`index.js` 是 `render()` 编排器），`core/combat/*` 是开火与伤害，`core/director/*` 是刷怪与 Boss，`core/progression/*` 是升级，`core/ui/*` 是 HUD。加载顺序以 `index.html` 为准。
 - 肉鸽扩展拆为 `js/endless.js`（阶段与路线）、`js/relics.js`（遗物）、`js/fusions.js`（武器融合）、`js/events.js`（限时事件）、`js/ui.js`（奖励菜单与HUD）；样式在 `css/game.css`。
 - `getDifficultyRules()` 提供掉落、敌人伤害、数量和精英频率系数；`getPassiveSlotLimit()` 负责进阶 V 后模组限额。
 - `rollNormalDrop(roll, source)` 集中掉率判断；`source === 'nuke'` 禁止新的核爆道具掉落。
