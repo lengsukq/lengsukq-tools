@@ -138,8 +138,11 @@ async function main() {
   assert.equal(await guest.join(guestRTC, 'bc3t92'), 'BC3T92');
   await new Promise(resolve => setTimeout(resolve, 1400));
   assert.equal(accepted.description.sdp, answer.description.sdp);
-  assert.ok(statuses.some(s => s.includes('已连接座位')),
+  const seatStatus = statuses.find(s => s.includes('已连接队友'));
+  assert.ok(seatStatus,
     'Host must report successful seat-specific connection for the multi-peer protocol');
+  assert.ok(!seatStatus.includes('guest'),
+    'the lobby must number the seat, never print the internal seat id');
   await host.close();
   await guest.close();
 

@@ -257,6 +257,13 @@ const card = (id, rarity, extra = {}) => ({
   const labels = calls.filter(call => call[0] === 'fillText').map(call => call[1]);
   assert.deepEqual(labels, ['★精英'], 'the elite badge must be Chinese, like the rest of the game');
   assert.ok(!labels.some(text => /ELITE/i.test(text)), 'no English elite badge may remain');
+
+  // The help panel documents this badge, so it must name it the same way.
+  const helpHtml = require('node:fs').readFileSync(
+    require('node:path').join(neonCore.ROOT, 'index.html'), 'utf8');
+  assert.ok(!helpHtml.includes('★ELITE'),
+    'the manual must not document a badge the game no longer draws');
+  assert.ok(helpHtml.includes('★精英'), 'the manual must document the badge the game draws');
 }
 
 // ---------------------------------------------------------------------------

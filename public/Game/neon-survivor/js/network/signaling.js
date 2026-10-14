@@ -97,7 +97,10 @@
             if (this.accepted.has(id)) continue;
             await rtc.acceptAnswer(JSON.stringify(signal), id);
             this.accepted.add(id);
-            this.onStatus('已连接座位 ' + id + '，继续等待其他队员…');
+            // Seat ids are internal tokens ("guest", "guest-2", "guest-3").
+            // Number them for the player instead of printing the token.
+            const seat = id === 'guest' ? 1 : (Number(id.split('-')[1]) || 1);
+            this.onStatus(`已连接队友 ${seat}，继续等待其他队员…`);
             onReady?.(id);
           }
           if (this.accepted.size >= this.capacity - 1) {
