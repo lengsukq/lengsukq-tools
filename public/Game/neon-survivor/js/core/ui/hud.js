@@ -293,8 +293,13 @@
         const bSecs = Math.floor(bestTimeSec % 60);
         const bestTimeStr = `${bMins.toString().padStart(2, '0')}:${bSecs.toString().padStart(2, '0')}`;
 
+        // Ships that register their own deck (astra, phantom) are absent from the
+        // global UPGRADES_DB, so this must resolve through the ACTIVE catalog.
+        // Looking only at UPGRADES_DB printed raw internal ids in the pause,
+        // game-over and victory tables ("star_weave Lv.1" instead of "星梭织阵 Lv.1").
+        const activeCatalog = this.getUpgradeCatalog?.(this.player) || UPGRADES_DB;
         let weaponNames = Object.keys(this.player.weapons).map(id => {
-          const def = UPGRADES_DB.find(u => u.id === id);
+          const def = activeCatalog.find(u => u.id === id);
           return `${def ? def.name : id} Lv.${this.player.weapons[id]}`;
         }).join(', ');
         const rogue = this.endlessMode && this.endlessState ? this.endlessState : null;

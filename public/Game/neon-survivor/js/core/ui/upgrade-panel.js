@@ -1,4 +1,12 @@
     /* Level-up card markup and selection state. */
+    /* Chinese labels for the card rarity badge. The badge used to print the raw
+     * internal tokens ("common"/"rare"/"legendary") and the English literals
+     * "WARP UPGRADE" / "STEALTH UPGRADE" / "LIMIT BREAK" straight into the UI.
+     * The domain is closed: ships.js registerUpgradeCatalog rejects any rarity
+     * outside these three, and UPGRADES_DB only ever uses them. */
+    const NEON_RARITY_LABELS = Object.freeze({
+      common: '普通', rare: '稀有', legendary: '传说'
+    });
     NeonCore.define(NeonSurvivorGame, class {
       renderUpgradeChoices(choices) {
         this.upgradeGrid.innerHTML = '';
@@ -55,9 +63,9 @@
           card.setAttribute?.('aria-pressed', 'false');
           const alreadyPicked = upg.alreadyChosen || this.upgradeSession?.picked.has(upg.id);
           card.className = `upgrade-card ${upg.rarity} ${isLb ? 'limit-break' : ''} ${isDash ? 'dash-card' : ''} ${alreadyPicked ? 'picked' : ''}`;
-          const dashTag = this.player?.shipId === 'phantom' ? 'STEALTH UPGRADE' : 'WARP UPGRADE';
+          const dashTag = this.player?.shipId === 'phantom' ? '潜行强化' : '折跃强化';
           card.innerHTML = `
-            <div class="rarity-tag" style="${upg.pityGuaranteed ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isLb ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isDash ? 'color:#00f3ff;background:rgba(0,243,255,0.2);' : ''))}">${upg.pityGuaranteed ? '★ 传说保底' : (isDash ? dashTag : (isLb ? 'LIMIT BREAK' : upg.rarity))}</div>
+            <div class="rarity-tag" style="${upg.pityGuaranteed ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isLb ? 'color:#ffd700;background:rgba(255,215,0,0.25);' : (isDash ? 'color:#00f3ff;background:rgba(0,243,255,0.2);' : ''))}">${upg.pityGuaranteed ? '★ 传说保底' : (isDash ? dashTag : (isLb ? '超频破限' : (NEON_RARITY_LABELS[upg.rarity] || '普通')))}</div>
             <div class="upgrade-icon">${upg.icon}</div>
             <div class="upgrade-card-info">
               <div class="upgrade-name">${upg.name}</div>

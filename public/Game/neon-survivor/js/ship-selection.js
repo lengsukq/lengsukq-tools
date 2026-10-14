@@ -79,10 +79,16 @@
 
       // In real DOM with classList support, render full rich holographic card structure
       if (typeof button.classList !== 'undefined') {
+        // This fallback is the documented path for a newly added ship directory,
+        // so it must never print the raw internal weapon id. Resolve the display
+        // name through the ship's own registered deck and degrade to a generic
+        // label rather than leaking a token like "star_weave".
+        const deck = window.NeonShips?.upgradeCatalogFor?.({ shipId: ship.id });
+        const startingWeaponName = deck?.find?.(card => card.id === ship.startingWeapon)?.name;
         const info = ARCHETYPES[ship.id] || {
           tag: '深空特制战机',
           color: '#38bdf8',
-          weapon: `初始：${ship.startingWeapon}`,
+          weapon: `初始主武：${startingWeaponName || '战舰专属武器'}`,
           perk: ship.description
         };
 

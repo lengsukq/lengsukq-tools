@@ -252,6 +252,26 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 - **精灵缓存 `drawImage`**：已实现并实测为**倒退**（`renderEnemyBullets` 0.019 → 0.026ms，整帧 0.150 → 0.200ms）。它把"一次批处理 `fill`"拆成 N 次 `drawImage`，而现代 Canvas2D 会把单个批处理路径合并为一次 GPU 绘制，N 次 blit 仍是 N 次绘制；再加上每实体的缓存查找（字符串 key 还会每帧分配）。已回退。
 - **完整 WebGL2 后端**：收益上限最高，但画面正确性无法在无浏览器的环境里验证，属于必须真机验收的独立工作，未纳入本次改动。
 
+## 界面文案与内部标识
+
+**不变量：任何玩家可见的文本都不能直接打印内部标识符或原始英文枚举值。**
+
+注册表里的 `id` / `rarity` 是机器标识，不是文案。星织与幽灵各自注册了独立的升级卡表（`window.NeonShips.registerUpgradeCatalog`），因此**它们不在全局 `UPGRADES_DB` 里**——任何按名字查找升级卡的地方都必须走 `game.getUpgradeCatalog(player)`，只查 `UPGRADES_DB` 会命中失败并回退到原始 `id`。
+
+已修复的四处泄漏（`node tests/neon-survivor-ui-labels.smoke.cjs` 全部覆盖，且逐条验证过"还原成旧代码后测试确实变红"）：
+
+| 位置 | 玩家原本看到的 | 现在显示 |
+| --- | --- | --- |
+| `js/core/ui/hud.js` 结算表「装配武器」（暂停 / 坠毁 / 胜利三处共用） | `star_weave Lv.1` | `星梭织阵 Lv.1` |
+| `js/core/ui/upgrade-panel.js` 升级卡稀有度角标 | `common` / `rare` / `legendary` | `普通` / `稀有` / `传说` |
+| 同上，折跃卡与破限卡角标 | `WARP UPGRADE` / `STEALTH UPGRADE` / `LIMIT BREAK` | `折跃强化` / `潜行强化` / `超频破限` |
+| `js/core/render/world.js` 精英怪头顶标签 | `★ELITE` | `★精英` |
+| `js/ship-selection.js` 新增战舰的兜底文案 | `初始：star_weave` | 走该舰卡表取中文名，取不到则 `战舰专属武器` |
+
+稀有度中文标签集中在 `js/core/ui/upgrade-panel.js` 的 `NEON_RARITY_LABELS`；测试会断言它覆盖**所有已注册卡表 + `UPGRADES_DB`** 出现过的稀有度，避免将来新增稀有度时静默退回英文。
+
+**刻意保留**：首领名与警报里的英文括注（`双生裁决者 · 共振要塞 (DUAL REACTOR)`、`(SWARM RUSH)`）属于既有的双语美术风格，中文名在前、不影响理解；手柄按键图例（`LB` / `RT` / `Menu`）是实体按键丝印，不是内部标识。
+
 ## 验证
 
 ```sh
@@ -283,6 +303,7 @@ node tests/neon-survivor-hud-throttle.smoke.cjs
 node tests/neon-survivor-entity-caps.smoke.cjs
 node tests/neon-survivor-render-batching.smoke.cjs
 node tests/neon-survivor-adaptive-quality.smoke.cjs
+node tests/neon-survivor-ui-labels.smoke.cjs
 node tools/neon-survivor/profile-phases.cjs
 git diff --check
 ```

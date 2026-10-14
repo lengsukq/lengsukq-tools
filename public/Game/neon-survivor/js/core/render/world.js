@@ -393,7 +393,7 @@
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 9px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('★ELITE', 0, -e.radius - 12);
+            ctx.fillText('★精英', 0, -e.radius - 12);
           }
 
           // Enemy HP Bar (if damaged)
