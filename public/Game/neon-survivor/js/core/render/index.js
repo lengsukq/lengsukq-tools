@@ -17,7 +17,62 @@
         return this.fxShadow !== false;
       }
 
+      /** Feed one frame's render cost into the adaptive quality ladder.
+       *
+       * Only the authoritative world tracks cost: the co-op guest view shares
+       * the host's canvas, so letting a guest view resize it would fight the
+       * host. A user preference change resets `qualityIndex`, which makes the
+       * next frame re-derive the starting level from that preference.
+       */
+      trackFrameCost(costMs) {
+        const ladder = QualityLadder;
+        if (this.qualityIndex === undefined) {
+          this.qualityIndex = ladder.startIndex(this.fxLow);
+          this.qualityAccum = 0;
+          this.qualitySamples = 0;
+          this.qualityGood = 0;
+          // Apply the starting level so dpr/fxShadow always agree with the
+          // reported level. Idempotent when the settings pass already set the
+          // same values, which is the normal case.
+          this.applyQuality(this.qualityIndex);
+        }
+        this.qualityAccum += Number.isFinite(costMs) ? costMs : 0;
+        this.qualitySamples++;
+        if (this.qualitySamples < ladder.SAMPLE_FRAMES) return;
+        const average = this.qualityAccum / this.qualitySamples;
+        this.qualityAccum = 0;
+        this.qualitySamples = 0;
+        const step = ladder.decide(this.qualityIndex, average, this.qualityGood, this.fxLow);
+        if (step > 0) {
+          this.qualityGood = 0;
+          this.applyQuality(this.qualityIndex + 1);
+        } else if (step < 0) {
+          this.qualityGood = 0;
+          this.applyQuality(this.qualityIndex - 1);
+        } else if (average < ladder.BUDGET_MS * ladder.RECOVER_RATIO) {
+          this.qualityGood++;
+        } else {
+          this.qualityGood = 0;
+        }
+      }
+
+      /** Apply a ladder level: backing-store scale and shadow blur. */
+      applyQuality(index) {
+        const ladder = QualityLadder;
+        const level = ladder.level(index);
+        this.qualityIndex = ladder.LEVELS.indexOf(level);
+        this.qualityLevel = level.name;
+        this.fxShadow = level.shadow;
+        const dpr = Math.min(window.devicePixelRatio || 1, level.dprCap);
+        if (this.dpr !== dpr) {
+          this.dpr = dpr;
+          this.resize?.();
+        }
+        return level;
+      }
+
       render() {
+        const started = performance.now();
         const ctx = this.ctx;
         ctx.save();
         try {
@@ -86,5 +141,8 @@
         } finally {
           ctx.restore();
         }
+        // Adaptive quality only governs the authoritative world; the guest
+        // renders through a view of the host's canvas.
+        if (!this.isGuestWorldView) this.trackFrameCost(performance.now() - started);
       }
     });

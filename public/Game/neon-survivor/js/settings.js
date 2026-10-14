@@ -74,6 +74,10 @@
     // so low-effects mode drops it entirely. Adaptive quality may lower it
     // further at runtime; it never forces it back on.
     game.fxShadow = !state.lowEffects;
+    // A preference change re-derives the adaptive ladder's starting level on
+    // the next rendered frame; the preference is also the best level the
+    // ladder may recover back to.
+    game.qualityIndex = undefined;
     const dpr = Math.min(window.devicePixelRatio || 1, state.lowEffects ? 1.25 : 2);
     if (game.dpr !== dpr) {
       game.dpr = dpr;
