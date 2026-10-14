@@ -314,7 +314,7 @@ for (const shipId of ['riftblade', 'astra', 'phantom']) {
 // ---------------------------------------------------------------------------
 {
   const coop = read('js/network/coop.js');
-  assert.match(coop, /const SNAPSHOT_LIMIT = 18000/, 'the frame budget must be explicit');
+  assert.match(coop, /const SNAPSHOT_LIMIT = 34000/, 'the frame budget must be explicit');
   const { TRIM_ORDER, ENTITY_ARRAYS } = sandbox.window.NeonLanSchema;
   assert.ok(TRIM_ORDER.length > 5, 'trimming must be table-driven');
   const floors = Object.fromEntries(TRIM_ORDER.map(spec => [spec.name, spec.floor]));

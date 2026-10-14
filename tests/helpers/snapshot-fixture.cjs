@@ -1,10 +1,15 @@
 /* A deliberately rich co-op world for snapshot contract tests.
  *
  * Every replicated field is populated with a distinctive value so a missing or
- * renamed field is visible, and every entity array is filled past its declared
- * cap so the producer's limits and the validator's limits are exercised
- * together. Shared by the byte-identity check and the schema test so both
- * describe the same world.
+ * renamed field is visible, every entity array is filled past its declared cap
+ * so the producer's limits and the validator's limits are exercised together,
+ * and the numbers span the range the real producers use (the arena culls normal
+ * enemies beyond ~1650 units, so coordinates are a few thousand at most).
+ *
+ * The field lists and value kinds come from NeonLanSchema itself. The fixture
+ * used to keep its own copy, which read the wrong property and therefore always
+ * fell back to that copy -- a second declaration of the contract, in the test
+ * that exists to prove there is only one.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -47,36 +52,16 @@ function sandbox() {
   return box;
 }
 
-/** Every entity array and the fields the host replicates for it.
- *
- * Used as the fixture's own description of the world before the schema module
- * exists (so the pre-refactor byte baseline can be captured), and afterwards
- * the fixture reads the same list out of SnapshotSchema instead. */
-const FALLBACK_ARRAYS = Object.freeze([
-  { name: 'enemies', fields: ['x', 'y', 'vx', 'vy', 'hp', 'maxHp', 'radius', 'color',
-    'type', 'isBoss', 'isElite', 'hasShield', 'arming', 'aimTimer', 'coopCapture', 'coopExposed'] },
-  { name: 'bullets', fields: ['x', 'y', 'vx', 'vy', 'radius', 'color', 'type', 'isLevel5'] },
-  { name: 'enemyBullets', fields: ['x', 'y', 'radius', 'color', 'damage'] },
-  { name: 'gems', fields: ['x', 'y', 'radius', 'type', 'color', 'value'] },
-  { name: 'shockwaves', fields: ['x', 'y', 'radius', 'color', 'alpha'] },
-  { name: 'particles', fields: ['type', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'radius',
-    'color', 'life', 'maxLife'] },
-  { name: 'lightningTethers', fields: ['x1', 'y1', 'x2', 'y2'] },
-  { name: 'blackHoles', fields: ['x', 'y', 'radius', 'rotAngle'] },
-  { name: 'mines', fields: ['x', 'y', 'radius'] },
-  { name: 'laserBeams', fields: ['x', 'y', 'angle', 'width', 'length'] },
-  { name: 'companionDrones', fields: ['x', 'y', 'angle'] },
-  { name: 'orbiters', fields: ['angle', 'distance', 'radius', 'color'] },
-  { name: 'dashTrails', fields: ['x1', 'y1', 'x2', 'y2', 'color', 'life', 'maxLife'] },
-  { name: 'texts', fields: ['x', 'y', 'text', 'color', 'size', 'life', 'maxLife'] }
-]);
+/** The contract, which is the only place the field lists are declared. */
+function schemaOf(box) {
+  const schema = box.window.NeonLanSchema;
+  if (!schema) throw new Error('NeonLanSchema must load before the fixture is built');
+  return schema;
+}
 
-/** The contract when it exists, otherwise the fixture's own copy of it. */
+/** The entity layers, read out of the contract. */
 function arraySpec(box) {
-  const schema = box.window.NeonLanSchema || (() => {
-    try { return vm.runInContext('SnapshotSchema', box); } catch { return null; }
-  })();
-  return schema?.arrays || FALLBACK_ARRAYS;
+  return schemaOf(box).ENTITY_ARRAYS;
 }
 
 const pilot = (id, shipId, over = {}) => ({
@@ -89,9 +74,8 @@ const pilot = (id, shipId, over = {}) => ({
   dashCharges: 2, maxDashCharges: 3, dashRechargeTimer: 0.4, dashRechargeTime: 1.9,
   dashSlashDmg: 210, dashSlashWidth: 22, dashCombo: 2,
   cdrMultiplier: 0.9, dmgMultiplier: 1.4, areaMultiplier: 1.1,
-  regen: 2.6, crystals: 12, invulnTimer: 0.2, isDashing: false, dashTimeLeft: 0,
-  dash: 0, invuln: 0.1, recharge: 0.4, charges: 2, lastSeq: 12,
-  pendingUpgrades: 0, upgradeRound: 1, upgradeCapacity: 3, upgradeFinished: true,
+  regen: 2.6, crystals: 12, isDashing: false,
+  lastSeq: 12, pendingUpgrades: 0, upgradeRound: 1, upgradeCapacity: 3, upgradeFinished: true,
   downed: false, reviveIn: 0,
   hasAegis: true, aegisDuration: 0.3, aegisRadius: 88, aegisTimer: 0.25,
   hasDashBlast: true, hasFireTrail: true, hasDashCryo: false,
@@ -102,28 +86,37 @@ const pilot = (id, shipId, over = {}) => ({
   ...over
 });
 
-/** Field names whose real values are booleans, not numbers. Getting this wrong
- *  makes the trimmer treat every enemy as a boss and refuse to drop any. */
-const BOOLEAN_FIELDS = new Set(['isBoss', 'isElite', 'hasShield', 'arming',
-  'isLevel5', 'docked', 'shiftActive', 'downed']);
-const STRING_FIELDS = new Set(['type', 'color', 'text']);
+const COLOR_WORDS = ['#ff3300', '#00f3ff', '#ffea00', '#9d00ff'];
+const TYPE_WORDS = ['spitter', 'swarmer', 'sniper', 'boss_carrier'];
+const TEXT_WORDS = ['命中 42', '+1', '暴击!', '⚠️ 虫潮蜂拥突袭 (SWARM RUSH)!'];
 
-const entity = (index, fields) => {
-  const base = { id: 1000 + index };
-  for (const field of fields) {
-    if (BOOLEAN_FIELDS.has(field)) base[field] = false;
-    else if (STRING_FIELDS.has(field)) base[field] = field === 'text' ? `命中 ${index}` : '#00f3ff';
-    else base[field] = index % 2 ? 3.5 : 7;
+/** A value of the field's declared kind. `kind` comes from the contract. */
+function valueOf(kind, field, index) {
+  if (kind === 'string') {
+    if (field === 'text') return TEXT_WORDS[index % TEXT_WORDS.length];
+    if (field === 'color') return COLOR_WORDS[index % COLOR_WORDS.length];
+    return TYPE_WORDS[index % TYPE_WORDS.length];
   }
-  if (fields.includes('type')) base.type = index % 3 === 0 ? 'swarmer' : 'spitter';
-  return base;
-};
+  if (kind === 'boolean') return index % 4 === 0;
+  if (/^(x|y|x1|y1|x2|y2)$/.test(field)) return ((index * 137) % 6000) - 3000 + 0.5;
+  if (/^(vx|vy)$/.test(field)) return ((index % 17) - 8) * 12.5;
+  return (index % 97) / 4 + 1;
+}
+
+function entity(index, spec, kinds) {
+  const row = { id: 1000 + index };
+  for (const field of spec.fields) {
+    row[field] = valueOf(kinds[field] || 'number', field, index);
+  }
+  return row;
+}
 
 /** Build the world. `count` scales every array past its cap. */
 function world(count = 400) {
   const box = sandbox();
-  const spec = arraySpec(box);
-  const arrays = spec.map(entry => entry.name);
+  const schema = schemaOf(box);
+  const spec = schema.ENTITY_ARRAYS;
+  const kinds = schema.ENTITY_KINDS;
   const game = {
     state: 'playing', survivalTime: 321.5, kills: 88, difficulty: 3,
     endlessMode: true, width: 800, height: 600, ctx: {},
@@ -133,7 +126,7 @@ function world(count = 400) {
     laserBeams: [], companionDrones: [], orbiters: [], dashTrails: [], texts: []
   };
   for (const entry of spec) {
-    game[entry.name] = Array.from({ length: count }, (_, i) => entity(i, entry.fields));
+    game[entry.name] = Array.from({ length: count }, (_, i) => entity(i, entry, kinds));
   }
   game.enemies[0].isBoss = true;
   game.enemies[0].type = 'boss_carrier';
@@ -149,25 +142,26 @@ function world(count = 400) {
     resonance: { link: { tier: 2, distance: 40, damageBonus: 0.1, shieldSource: true },
       pulseCooldown: 1, shieldTimer: 2, threatFactor: 1.1 } };
   game.lanCoop = coop;
-  return { box, game, ally, coop, spec };
+  return { box, game, ally, coop, spec, schema };
 }
 
-/** The frame the host actually puts on the wire for one guest. */
+/** The wire frame the host actually puts on a guest's channel. */
 function frame(count = 400) {
-  const { box, game, ally, coop } = world(count);
-  const snapshots = box.window.NeonLanSnapshots;
-  if (snapshots) {
+  const world0 = world(count);
+  const { box, game, ally, coop } = world0;
+  if (box.window.NeonLanSnapshots) {
     // players[] is produced by snapshots.js; give it a registry-shaped view.
     game.players = { list: () => [{ id: 'host', state: game.player },
       { id: 'guest', state: ally }] };
   }
-  const bounded = box.window.NeonLanCoop.boundedSnapshot(game, ally, 7, coop.resonance, 'guest');
-  return { box, game, ally, spec: arraySpec(box), frame: bounded };
+  const wire = box.window.NeonLanCoop.boundedSnapshot(game, ally, 7, coop.resonance, 'guest');
+  return { ...world0, wire, frame: wire };
 }
 
-/** Stable serialisation used by the byte-identity check. */
-function serialize(count = 400) {
-  return JSON.stringify(frame(count).frame);
+/** What a guest reads after decoding the frame it received. */
+function delivered(count = 400) {
+  const built = frame(count);
+  return built.schema.decodeFrame(built.wire);
 }
 
-module.exports = { ROOT, read, sandbox, pilot, world, frame, serialize };
+module.exports = { ROOT, read, sandbox, schemaOf, pilot, world, frame, delivered };

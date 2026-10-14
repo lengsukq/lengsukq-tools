@@ -289,9 +289,30 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 
 **上限只声明一次**：每个实体数组同时声明 `cap`（生产者）、`safeCap`（校验器）、`floor`（超预算时的裁剪下限）和 `trim`（牺牲顺序，`null` 表示受保护、只走保 Boss 的敌人裁剪）。这正是 `gems` 曾经 `cap 90 / safeCap 90` 零余量的来源——生产者上限加一就会让校验器**拒收每一帧**，表现和「卡在正在同步房主战场」一模一样。
 
-`protocolVersion` 从死字段变成真护栏：高于当前 `VERSION`（3）的帧被拒绝，而不是被静默误读。
+`protocolVersion` 从死字段变成真护栏：高于当前 `VERSION`（**4**）的帧被拒绝，而不是被静默误读。
 
-`tests/neon-survivor-snapshot-schema.smoke.cjs` 是这套保证的守卫：上限一致性（1000 实体世界仍须通过校验）、有序键形状、双向闭合（线上无未声明字段、声明字段必被应用）、每个 kind 的往返、必需字段最小集、以及协议版本护栏。把 `gems` 的 `cap` 调到 `safeCap` 之上，测试立刻报出 `gems: producer cap 130 must not exceed its safe cap 120`。
+### 线上是列式编码，不是「每实体一个对象」
+
+实体层曾经是「一个实体一个 JSON 对象」，于是每个字段名都要被每个实体付一次费——`"radius":13,` 是 12 字节，乘以 105 个敌人。现在改成**列式（结构数组）**：
+
+```json
+"enemies": { "id": [...], "x": [...], "radius": [...], "color": [...] }
+```
+
+字段名每层只出现一次。字符串（`color` / `type` / `text`）再经**帧级字符串表**换成下标，105 份 `"#ff3300"` 变成 105 份 `0`——单这一项就省 7.9 KB。
+
+| 世界 | 改前 | 改后 | |
+| --- | --- | --- | --- |
+| 现实（每层到上限） | 60.5 KB | **16.6 KB** | −73% |
+| 最坏（每实体全字段、每层到上限） | 80.6 KB | **24.8 KB** | −70% |
+
+列式之后**不需要缩写字段名**：列名每层只出现一次，缩写只值约 1 字节/实体，却会让线上不可读。所以线上仍然是规范的字段名。
+
+坐标、速度、计时器以**整数十分位**过网（`1234.5` → `12345`）——与行编码本来就会做的 `round(v*10)/10` 精度相同，只是少了小数点。非有限值变成 `0`，而不是 JSON 对 `Infinity` 写出的 `null`。
+
+`js/network/coop.js` 决定**发什么**（行形状、裁剪），`schema.js` 决定**怎么过网**（`encodeFrame` / `decodeFrame`）。房客在**收包那一刻解码一次**，因此插值、视图、Boss 查找、救援浮层全都继续读行实体，编码对它们不可见。
+
+`tests/neon-survivor-snapshot-schema.smoke.cjs` 是这套保证的守卫：上限一致性、**每个上限都必须有安全余量**、有序键形状、双向闭合（线上无未声明列、每层必须带齐声明的列）、每个 kind 的往返、必需字段最小集、协议版本护栏，以及**「每层都到上限的世界必须完整送达」**。`tests/neon-survivor-wire-codec.smoke.cjs` 单独钉住编解码本身：逐 kind 无损、实体 id 跨帧稳定、字符串表永不丢信息、`encodeFrame` 不改动行帧、畸形层被拒、以及预算按 **UTF-8 字节**而不是 UTF-16 码元计量（`texts` 层全是中文与 emoji，`String.length` 会少算 2–3 倍）。
 
 ## 房主与房客的一致性（co-op parity）
 
@@ -317,7 +338,38 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 - **相位光环**同理，`renderAegisAura` 现在遍历所有飞行员。
 - **房客自己的折跃数值**原本在 `world-view.js` 里写死（斩击伤害 95、连击 0、无光环/火墙/冰霜），所以房客的 HUD 和技能坞在描述它自己驾驶的这艘船时和房主说的不一样。现在 `recalculateDashStats(pilot)` 可为队友复用，数值随快照下发。
 
-**特效保真度**：快照的装饰层上限原本远低于房主自己能产生的量（粒子 38 vs 60、冲击波 20 vs 40、飘字 18 vs 40），而 `boundedSnapshot` 的裁剪顺序又把粒子排在第一个**整个清空**——密集战斗里房客一个粒子都看不到，这就是「特效很垃圾」的来源。现在上限对齐房主的产生上限，裁剪改为**两趟**：先把每层削到各自的 floor，仍然超预算才连 floor 一起放弃。这样超预算时损失是摊到所有特效上，而不是先杀掉粒子。预算 `SNAPSHOT_LIMIT` 从 15000 提到 18000 并导出，供测试引用。
+### 预算曾经击穿，房客因此看不到敌弹
+
+上一轮把装饰层的上限对齐了房主的产生上限，并把裁剪改成两趟——但**没有量过总量**。真实情况是：房主声明的十四个层加起来要求 **80.6 KB**，而预算是 **18000 字节**，超订 4.4 倍；而裁剪顺序（旧代码就有）把 `gems → bullets → enemyBullets` 排在**前面**、`enemies` 排在**最后**。于是每一局后期都必然触发裁剪，同一局同一个世界下房客拿到的是：
+
+| 层 | 房主产生 | 房客收到（改前） | 房客收到（改后） |
+| --- | --- | --- | --- |
+| enemies | 105 | 105 | 105 |
+| bullets | 120 | **0** | 120 |
+| enemyBullets | 130 | **53** | 130 |
+| gems | 90 | **0** | 90 |
+| 帧字节 | — | 17935 | **16475** |
+
+**改后的帧更小而且完整。** 看不见敌弹不是观感问题——房客无法躲弹幕，这是公平性问题。
+
+现在：
+
+- `SNAPSHOT_LIMIT` 从 18000 提到 **34000**，依据是实测（每层到上限、每实体全字段：24.8 KB 层数据 + 4–5 KB 信封/飞行员/花名册 = 两玩家 28.9 KB、四玩家 29.8 KB）。预算仍由裁剪强制，所以帧永远到不了 `rtc.js` 的 40000 硬线。
+- 裁剪顺序**倒置为公平性决策**：装饰（粒子、飘字、冲击波、拖尾、闪电、光束、地雷、黑洞、环绕体、无人机）→ 奖励反馈（晶体）→ 枪口反馈（子弹）→ 威胁（敌人，走保 Boss 通道）→ **`enemyBullets` 永不裁剪**。
+- 字节计量改成 **UTF-8**（`schema.byteLength`），`rtc.js` 的发送守卫与两处接收守卫一并改掉：`texts` 层是中文和 emoji，`String.length` 会少算 2–3 倍，等于让 40k 的线被超发 3 倍。
+- 删除 `enemyBullets.damage`：房客不做碰撞判定，`renderEnemyBullets` 只读 `x/y/radius/color`，每帧白付约 1.3 KB。
+
+### 房客自己的无人机与环绕体
+
+`syncOrbiters()` / `syncDrones()` / `updateCompanionDrones()` 原本全部写死 `this.player` 与 `this.orbiters`，而**远端队友没有任何客户端在跑这 27 个阶段**。于是房客选了无人机或环绕体武器后：不产生伤害、不发射子弹、**在谁的屏幕上都画不出来**——房主只模拟自己的。房主曾经试着把房客的无人机合成进 `frame.guest.companionDrones`，但全仓没有任何代码读那个字段，所以那是一份纯粹的死负载。
+
+现在所有权落在飞行员身上（`pilot.companionDrones` / `pilot.orbiters`），房主对**每个**飞行员跑这两段，`game.companionDrones` / `game.orbiters` 退化为「所有飞行员的聚合视图」，供渲染与快照共用（`refreshPilotEntities()`，每次 sync 之后也刷新，因此永远不会过期一帧）。无人机找目标时改为**从无人机自己出发**（`findNearestEnemy(range, origin)`，默认参数保证既有调用点不变）。
+
+`tests/neon-survivor-coop-drones.smoke.cjs` 钉住：房主为每个飞行员建并推进这两类武器、房客的环绕体真的造成切割伤害、无人机真的开火且**打自己附近的敌人**、线上带着每个飞行员的条目与复制过来的轨道中心、以及不再发送那份无人读取的死负载。改前跑同一段脚本得到：`ally.orbiters = undefined`、`ally.companionDrones = undefined`、`bullets fired = 0`。
+
+`tests/neon-survivor-coop-delivery.smoke.cjs` 是这次的直接回归测试：每层到上限的世界必须**整层送达**（改前会红），超预算时只有装饰受损，极端超预算时 `enemyBullets` 仍完整且 Boss 仍在。`tests/neon-survivor-shared-render.smoke.cjs` 增加了**渲染对等**断言：同一个世界分别以「房主行实体」和「过网往返后的实体」喂进真实 `render()`，要求两次画布操作序列**逐条相同**——这是「完全一样」在无浏览器环境下能给出的最强证明，也是「缺席字段解码为 `0`/`''`」这一决定的依据。
+
+这条测试立刻抓出一个真 bug：**环绕体的轨道中心从来不在契约里**。`renderOrbiters` 用 `orb.centerX ?? this.player.x`，而 `centerX` 既没被 `syncOrbiters` 写入、也不在线上字段里，所以房客把房主的环绕体画在**自己的船**周围。现在环绕体在模拟时就带上 `centerX`/`centerY`，随契约复制。
 
 `tests/neon-survivor-coop-parity.smoke.cjs` 钉住以上每一条，并且验证过还原旧实现后确实变红（把队友折跃速度改回写死的 780，测试报出「模拟折跃只走了 143.0，应为 ~228.1」）。
 
@@ -377,8 +429,13 @@ node tests/neon-survivor-ui-labels.smoke.cjs
 node tests/neon-survivor-pause-loadout.smoke.cjs
 node tests/neon-survivor-coop-parity.smoke.cjs
 node tests/neon-survivor-snapshot-schema.smoke.cjs
+node tests/neon-survivor-wire-codec.smoke.cjs
+node tests/neon-survivor-coop-delivery.smoke.cjs
+node tests/neon-survivor-coop-drones.smoke.cjs
 node tools/neon-survivor/profile-phases.cjs
 git diff --check
 ```
 
 真实浏览器/手机/手柄仍需验证首领奖励弹窗、切换战区后继续移动、升级确认的手柄按键隔离、任务提示、小屏幕菜单和无尽模式至少30分钟的性能。Node 测试不等价于真机验收；自适应画质与批处理的**设备端**填充率收益必须在真机上用 `?perf=1` 复核。
+
+**协议版本 4 需要房客刷新页面。** 线上格式从行式改为列式，旧房客会被 `safeSnapshot` 的版本护栏拒绝（表现为停在「正在同步房主战场…」）。方向性是不对称的：新房主仍接受旧房客的输入包（输入没有版本校验），但旧房客读不懂新快照。这一条必须在真机上验收：房客刷新后能进入战场、折跃距离与房主一致、两侧同屏实体数量一致。

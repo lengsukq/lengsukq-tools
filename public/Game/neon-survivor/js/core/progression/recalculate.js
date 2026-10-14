@@ -128,35 +128,46 @@
         }
       }
 
-      syncOrbiters() {
-        const lvl = this.player.weapons.orbit || 0;
-        if (lvl <= 0) return;
-        const count = 2 + (lvl >= 3 ? 1 : 0) + (lvl >= 5 ? 2 : 0) + Math.min(2, this.player.extraProjectiles || 0);
-        this.orbiters = [];
+      /** Build one pilot's orbiters. Takes the pilot so the host can build an
+       *  ally's too -- a remote pilot has no client running this. */
+      syncOrbiters(pilot = this.player) {
+        const lvl = pilot.weapons?.orbit || 0;
+        const list = pilot.orbiters || (pilot.orbiters = []);
+        list.length = 0;
+        const count = lvl <= 0 ? 0
+          : 2 + (lvl >= 3 ? 1 : 0) + (lvl >= 5 ? 2 : 0) + Math.min(2, pilot.extraProjectiles || 0);
         for (let i = 0; i < count; i++) {
-          this.orbiters.push({
+          list.push({
             angle: (i / count) * Math.PI * 2,
-            distance: (85 + (lvl >= 3 ? 20 : 0)) * this.player.areaMultiplier,
-            radius: 9 * this.player.areaMultiplier,
-            damage: 28 * this.player.dmgMultiplier * (1 + (lvl - 1) * 0.35),
-            color: '#00ffaa'
+            distance: (85 + (lvl >= 3 ? 20 : 0)) * pilot.areaMultiplier,
+            radius: 9 * pilot.areaMultiplier,
+            damage: 28 * pilot.dmgMultiplier * (1 + (lvl - 1) * 0.35),
+            color: '#00ffaa',
+            // Replicated, so a guest draws them around the right ship.
+            centerX: pilot.x,
+            centerY: pilot.y
           });
         }
+        // Keep the aggregate the renderer and the wire read consistent with the
+        // pilots, so it is never stale for even one frame.
+        this.refreshPilotEntities();
       }
 
-      syncDrones() {
-        const lvl = this.player.weapons.drones || 0;
-        if (lvl <= 0) return;
-        const count = Math.min(5, 1 + lvl);
-        this.companionDrones = [];
+      /** Build one pilot's companion drones. See syncOrbiters. */
+      syncDrones(pilot = this.player) {
+        const lvl = pilot.weapons?.drones || 0;
+        const list = pilot.companionDrones || (pilot.companionDrones = []);
+        list.length = 0;
+        const count = lvl <= 0 ? 0 : Math.min(5, 1 + lvl);
         for (let i = 0; i < count; i++) {
-          this.companionDrones.push({
+          list.push({
             angle: (i / count) * Math.PI * 2,
-            orbitDist: 52 * this.player.areaMultiplier,
+            orbitDist: 52 * pilot.areaMultiplier,
             shootTimer: i * 0.1,
             shootInterval: Math.max(0.24, 0.58 - lvl * 0.07),
-            damage: 22 * this.player.dmgMultiplier * (1 + (lvl - 1) * 0.3)
+            damage: 22 * pilot.dmgMultiplier * (1 + (lvl - 1) * 0.3)
           });
         }
+        this.refreshPilotEntities();
       }
     });

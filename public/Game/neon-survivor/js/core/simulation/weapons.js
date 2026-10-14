@@ -37,12 +37,46 @@
         window.NeonWeaponSystem?.update(this, this.player, dt);
 
         // 5. Orbiters Update
-        if (!this.player.downed && this.orbiters.length > 0) {
-          const rotSpeed = 3.2 + (weapons.orbit || 1) * 0.5;
-          this.orbiters.forEach((orb) => {
+        this.updateOrbiters(dt);
+      }
+
+      /** Every pilot the host simulates: itself plus each registered ally.
+       *
+       *  A remote pilot has no client running the world, so anything that is
+       *  simulated "per pilot" has to be driven from here or it simply never
+       *  happens -- which is why a guest's drone and orbiter weapons used to be
+       *  invisible and harmless to everyone.
+       */
+      combatPilots() {
+        const entries = this.players?.list?.();
+        if (!Array.isArray(entries) || entries.length === 0) return [this.player];
+        const pilots = [];
+        for (const entry of entries) {
+          if (entry?.state) pilots.push(entry.state);
+        }
+        return pilots.length > 0 ? pilots : [this.player];
+      }
+
+      updateOrbiters(dt) {
+        for (const pilot of this.combatPilots()) {
+          // Built lazily, for every pilot: the host has to build an ally's
+          // orbiters too, because the ally's own client never runs this.
+          if (pilot.weapons?.orbit && (pilot.orbiters?.length || 0) === 0) {
+            this.syncOrbiters(pilot);
+          }
+          const list = pilot.orbiters;
+          if (pilot.downed || !Array.isArray(list) || list.length === 0) continue;
+          const rotSpeed = 3.2 + (pilot.weapons?.orbit || 1) * 0.5;
+          for (const orb of list) {
             orb.angle += rotSpeed * dt;
-            const ox = this.player.x + Math.cos(orb.angle) * orb.distance;
-            const oy = this.player.y + Math.sin(orb.angle) * orb.distance;
+            // The orbit centre is part of the entity, not something a renderer
+            // may infer from "the ship I happen to be drawing". A guest drawing
+            // the host's orbiters around its OWN ship was exactly the bug the
+            // render-parity test caught.
+            orb.centerX = pilot.x;
+            orb.centerY = pilot.y;
+            const ox = orb.centerX + Math.cos(orb.angle) * orb.distance;
+            const oy = orb.centerY + Math.sin(orb.angle) * orb.distance;
 
             // Orbiter collision check
             for (const e of this.enemies) {
@@ -51,29 +85,32 @@
                 this.dealDamage(e, orb.damage * dt * 4, 'orbit'); // Continuous cutting damage
               }
             }
-          });
-        }
-
-        // 7. Companion Drones
-        if (weapons.drones && this.companionDrones.length === 0) {
-          this.syncDrones();
+          }
         }
       }
 
       updateCompanionDrones(dt) {
         // --- Update Companion Drones ---
-        if (!this.player.downed && this.companionDrones.length > 0) {
-          this.companionDrones.forEach((dr) => {
+        for (const pilot of this.combatPilots()) {
+          // Same laziness as the orbiters, and the same reason.
+          if (pilot.weapons?.drones && (pilot.companionDrones?.length || 0) === 0) {
+            this.syncDrones(pilot);
+          }
+          const list = pilot.companionDrones;
+          if (pilot.downed || !Array.isArray(list) || list.length === 0) continue;
+          list.forEach((dr) => {
             dr.angle += 2.4 * dt;
             dr.shootTimer += dt;
-            const dx = this.player.x + Math.cos(dr.angle) * dr.orbitDist;
-            const dy = this.player.y + Math.sin(dr.angle) * dr.orbitDist;
+            const dx = pilot.x + Math.cos(dr.angle) * dr.orbitDist;
+            const dy = pilot.y + Math.sin(dr.angle) * dr.orbitDist;
             dr.x = dx;
             dr.y = dy;
 
             if (dr.shootTimer >= dr.shootInterval) {
               dr.shootTimer = 0;
-              const target = this.findNearestEnemy(550);
+              // Search from the DRONE, not from the local player: an ally's
+              // drone must shoot at what is near the ally.
+              const target = this.findNearestEnemy(550, { x: dx, y: dy });
               if (target) {
                 const a = Math.atan2(target.y - dy, target.x - dx);
                 this.sound.playLaser(920, 'triangle');
@@ -91,5 +128,21 @@
             }
           });
         }
+        this.refreshPilotEntities();
+      }
+
+      /** game.orbiters / game.companionDrones are the AGGREGATE of every pilot's
+       *  own list, by reference. The renderer and the snapshot both read them, so
+       *  neither has to know whose weapon it is drawing. Called once per tick,
+       *  after the per-pilot weapon phases have run. */
+      refreshPilotEntities() {
+        const drones = [];
+        const orbiters = [];
+        for (const pilot of this.combatPilots()) {
+          if (Array.isArray(pilot.companionDrones)) drones.push(...pilot.companionDrones);
+          if (Array.isArray(pilot.orbiters)) orbiters.push(...pilot.orbiters);
+        }
+        this.companionDrones = drones;
+        this.orbiters = orbiters;
       }
     });

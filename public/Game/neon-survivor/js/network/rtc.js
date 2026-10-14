@@ -160,7 +160,8 @@
         if (link) link.realtime = channel;
         if (!link || remoteId === 'guest') this.realtimeChannel = channel;
         channel.onmessage = event => {
-          if (typeof event.data !== 'string' || event.data.length > 40000) return;
+          if (typeof event.data !== 'string' ||
+            window.NeonLanSchema?.byteLength?.(event.data) > 40000) return;
           if (this.peers) this.peers.receive(remoteId, event.data, this.onData);
           else try { this.onData(JSON.parse(event.data)); } catch { /* malformed frame */ }
         };
@@ -190,7 +191,8 @@
         this.onConnection?.(false, this.role === 'host' ? remoteId : this.localPlayerId);
       };
       channel.onmessage = event => {
-        if (typeof event.data !== 'string' || event.data.length > 40000) return;
+        if (typeof event.data !== 'string' ||
+          window.NeonLanSchema?.byteLength?.(event.data) > 40000) return;
         if (this.peers) this.peers.receive(remoteId, event.data, this.onData);
         else try { this.onData(JSON.parse(event.data)); } catch { /* ignore malformed frames */ }
       };
@@ -247,7 +249,11 @@
         ? this.realtimeChannel : this.channel;
       if (!candidate || candidate.readyState !== 'open') return false;
       const data = JSON.stringify(payload);
-      if (data.length > 40000 || candidate.bufferedAmount > 100000) return false;
+      // Bytes, not UTF-16 code units: a Chinese glyph or emoji in the `texts`
+      // layer is 3-4 bytes, so String.length let a frame through at up to 3x the
+      // 40k the channel actually tolerates.
+      const bytes = window.NeonLanSchema?.byteLength?.(data) ?? data.length;
+      if (bytes > 40000 || candidate.bufferedAmount > 100000) return false;
       candidate.send(data);
       return true;
     }

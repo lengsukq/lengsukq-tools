@@ -1,6 +1,9 @@
-/* Protocol v2 pilot serialization. Legacy host/guest fields are preserved by
+/* Protocol v4 pilot serialization. Legacy host/guest fields are preserved by
  * the current dual-player sender until all clients migrate to players[].
  * Only explicit primitive fields cross the network, never live state objects.
+ *
+ * The entity LAYERS are not built here: coop.js decides their row shape and
+ * schema.js encodes them into columns with a frame-level string table.
  */
 (() => {
   'use strict';

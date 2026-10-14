@@ -72,6 +72,10 @@
     return window.NeonLanSchema.readPilot(pilot, { scope, identity });
   }
 
+  /** The canonical, row-shaped world. This is what the host decides to send and
+   *  what a guest reads after decoding; the wire form is produced from it by
+   *  NeonLanSchema.encodeFrame. Keeping the decision here means the trim, the
+   *  boss-preserving pass and every consumer keep working on plain rows. */
   function snapshot(game, ally, seq, resonance = null, receiverId = 'guest') {
     const schema = window.NeonLanSchema;
     const nearbyEnemies = [...(game.enemies || [])].filter(enemy => !enemy.dead)
@@ -82,11 +86,6 @@
           Math.hypot(enemy.x - p.x, enemy.y - p.y)));
         return dist(a) - dist(b);
       });
-    const drones = schema.readEntities(game.companionDrones,
-      schema.ENTITY_ARRAYS.find(entry => entry.name === 'companionDrones'));
-    const orbiters = schema.readEntities(game.orbiters,
-      schema.ENTITY_ARRAYS.find(entry => entry.name === 'orbiters'))
-      .map(orb => ({ ...orb, centerX: round(game.player.x), centerY: round(game.player.y) }));
     const frame = {
       type: 'snapshot', seq, round: game.lanCoop?.roundId || 0,
       time: round(game.survivalTime),
@@ -113,76 +112,76 @@
         threatFactor: round(resonance.threatFactor || 1)
       } : { tier: 0, distance: 0, damageBonus: 0, pulseCooldown: 0 },
       host: pilotBlock(game.player, 'local', ownProfile('host')),
-      guest: {
-        ...pilotBlock(ally, 'remote', ally.profile || normalizeProfile(null, 'guest')),
-        // Companion drones and orbiters for the guest's own weapons are
-        // synthesised from its loadout, because the host only simulates the
-        // host's own ones. They are appended AFTER the cap, as before.
-        companionDrones: [
-          ...drones,
-          ...Array.from({
-            length: ally.hp > 0 && ally.weapons?.drones ? Math.min(5, 1 + ally.weapons.drones) : 0
-          }, (_, i) => {
-            const angle = (ally.dronePhase || 0) + i * Math.PI * 2 /
-              Math.min(5, 1 + ally.weapons.drones);
-            return {
-              id: 900000 + i, angle: round(angle),
-              x: round(ally.x + Math.cos(angle) * 52),
-              y: round(ally.y + Math.sin(angle) * 52)
-            };
-          })
-        ],
-        orbiters: [
-          ...orbiters,
-          ...Array.from({ length: ally.weapons?.orbit ? Math.min(5, 1 + ally.weapons.orbit) : 0 },
-            (_, i) => ({
-              id: 800000 + i, angle: round((ally.orbitPhase || 0) + i * Math.PI * 2 /
-                Math.min(5, 1 + ally.weapons.orbit)), distance: round(85 * ally.areaMultiplier),
-              radius: round(9 * ally.areaMultiplier), color: '#00ffaa',
-              centerX: round(ally.x), centerY: round(ally.y)
-            }))
-        ]
-      },
-      enemies: schema.readEntities(nearbyEnemies,
-        schema.ENTITY_ARRAYS.find(entry => entry.name === 'enemies'))
+      guest: pilotBlock(ally, 'remote', ally.profile || normalizeProfile(null, 'guest')),
+      enemies: nearbyEnemies.slice(0, schema.capOf('enemies'))
     };
-    // Every remaining entity array comes straight from the contract.
+    // Every remaining layer comes straight from the contract. These are shallow
+    // copies of the live arrays, so trimming a frame never touches game state.
     for (const spec of schema.ENTITY_ARRAYS) {
       if (frame[spec.name]) continue;
-      frame[spec.name] = schema.readEntities(game[spec.name], spec);
+      frame[spec.name] = (game[spec.name] || []).slice(0, spec.cap);
     }
     return window.NeonLanSnapshots?.decorate(frame, game, receiverId) || frame;
   }
 
   // Keep within the RTCDataChannel's 40k frame limit, so crowded boss fights
-  // do not silently stop synchronizing. Critical players and boss entities are
-  // never removed. The budget, the trim order and the per-layer floors are all
-  // declared in schema.js, next to the caps they have to agree with.
-  const SNAPSHOT_LIMIT = 18000;
+  // do not silently stop synchronizing. Critical players, the layer a guest has
+  // to react to, and boss entities are never removed. The budget, the trim order
+  // and the per-layer floors are all declared in schema.js, next to the caps
+  // they have to agree with.
+  //
+  // 34000 is measured, not guessed. A world with every layer at its declared cap
+  // and every declared field present encodes to 24.8 KB of layers plus ~4-5 KB of
+  // envelope, pilot blocks and roster: 28.9 KB for two players, 29.8 KB for four.
+  // The old 18000 was less than a quarter of the 80.6 KB the declared caps asked
+  // for, so the trim fired in EVERY crowded late game and silently deleted whole
+  // layers -- which is how a guest ended up unable to see the enemy bullets it
+  // had to dodge. The budget is still enforced by the trim, so a frame can never
+  // reach the channel's own 40000 guard.
+  const SNAPSHOT_LIMIT = 34000;
   function boundedSnapshot(game, ally, seq, resonance = null, receiverId = 'guest') {
     const schema = window.NeonLanSchema;
     const frame = snapshot(game, ally, seq, resonance, receiverId);
     const LIMIT = SNAPSHOT_LIMIT;
-    let size = JSON.stringify(frame).length;
-    if (size <= LIMIT) return frame;
-    const trim = (items, floor) => {
-      while (items?.length > floor && size > LIMIT) {
-        // JSON-stringifying the whole snapshot for every removed effect caused
-        // quadratic CPU spikes in dense fights.
-        const last = items[items.length - 1];
-        size -= JSON.stringify(last).length + (items.length > 1 ? 1 : 0);
-        items.pop();
-      }
+    let size = 0;
+    // Measure the bytes that actually go on the wire, as UTF-8: String.length
+    // under-counts every Chinese glyph in the `texts` layer by 2-3x.
+    const encode = () => {
+      const wire = schema.encodeFrame(frame);
+      size = schema.byteLength(JSON.stringify(wire));
+      return wire;
     };
-    // Pass 1: shave every decorative layer down to its floor, so the loss is
-    // spread across the effects instead of emptying whichever layer is first.
-    for (const spec of schema.TRIM_ORDER) trim(frame[spec.name], spec.floor);
-    if (size <= LIMIT) return frame;
+    let wire = encode();
+    if (size <= LIMIT) return wire;
+    // The shave step is measured per LAYER, not per entity. Per-entity
+    // accounting used to JSON-stringify the whole snapshot for every removed
+    // effect, which caused quadratic CPU spikes in dense fights; and now that
+    // the wire is columnar, the cost of one row is not the cost of one entity
+    // anyway. Twelve re-encodes in the worst case, each O(entities).
+    const shave = (spec, floor) => {
+      const items = frame[spec.name];
+      if (Array.isArray(items) && items.length > floor) items.length = floor;
+    };
+    // Pass 1: take every trimmable layer down to its floor, in sacrifice order,
+    // so the loss is spread across the layers instead of emptying whichever one
+    // is first. Decoration pays before feedback, and enemy fire never pays.
+    for (const spec of schema.TRIM_ORDER) {
+      if (size <= LIMIT) break;
+      shave(spec, spec.floor);
+      wire = encode();
+    }
+    if (size <= LIMIT) return wire;
     // Pass 2: still oversized, so the floors have to go too.
-    for (const spec of schema.TRIM_ORDER) trim(frame[spec.name], 0);
-    if (size <= LIMIT) return frame;
-    // Bosses survive priority culling; trim only regular enemies. There is no
-    // floor here: the budget wins, and only bosses are guaranteed to remain.
+    for (const spec of schema.TRIM_ORDER) {
+      if (size <= LIMIT) break;
+      shave(spec, 0);
+      wire = encode();
+    }
+    if (size <= LIMIT) return wire;
+    // Bosses survive priority culling; trim only regular enemies. The array
+    // arrives sorted by distance, so dropping from the tail drops the FARTHEST
+    // first. There is no floor here: the budget wins, and only bosses are
+    // guaranteed to remain.
     while (frame.enemies.length && size > LIMIT) {
       // Avoid Array.findLastIndex: missing in some older tablet WebViews.
       let index = -1;
@@ -190,11 +189,10 @@
         if (!frame.enemies[i].isBoss) { index = i; break; }
       }
       if (index < 0) break;
-      size -= JSON.stringify(frame.enemies[index]).length +
-        (frame.enemies.length > 1 ? 1 : 0);
       frame.enemies.splice(index, 1);
+      wire = encode();
     }
-    return frame;
+    return wire;
   }
   /** Validate a frame against the SAME declarations the producer uses, so the
    *  producer's caps and the validator's caps cannot disagree. They used to be
@@ -211,15 +209,37 @@
     for (const name of schema.requiredPilotFields()) {
       if (!Number.isFinite(data.host[name]) || !Number.isFinite(data.guest[name])) return false;
     }
+    // The enemy layer is mandatory; every other layer already reads as empty.
+    if (data.enemies === undefined) return false;
     for (const spec of schema.ENTITY_ARRAYS) {
-      const list = data[spec.name];
-      // Absent arrays already read as empty, so they are not an error; a
-      // PRESENT array must respect the same cap the producer declares.
-      if (list === undefined) continue;
-      if (!Array.isArray(list) || list.length > spec.safeCap) return false;
+      if (!validLayer(data[spec.name], spec)) return false;
     }
-    return Array.isArray(data.enemies);
-
+    return validStrings(data.strings, schema);
+  }
+  /** A layer travels as columns, so the cap applies to the columns' length and
+   *  every column has to agree on it -- a ragged layer would decode into
+   *  entities with silently missing fields. A plain array is still accepted so a
+   *  hand-built frame (tests, an older adapter) is not rejected. */
+  function validLayer(layer, spec) {
+    if (layer === undefined) return true;
+    if (Array.isArray(layer)) return layer.length <= spec.safeCap;
+    if (!layer || typeof layer !== 'object') return false;
+    const ids = layer.id;
+    if (!Array.isArray(ids) || ids.length > spec.safeCap) return false;
+    for (const name of Object.keys(layer)) {
+      if (name !== 'id' && !spec.fields.includes(name)) return false;
+      const column = layer[name];
+      if (!Array.isArray(column) || column.length !== ids.length) return false;
+    }
+    return true;
+  }
+  /** The frame-level string table is the only place a peer can make the decoder
+   *  allocate or index arbitrarily, so it is bounded on both axes. */
+  function validStrings(strings, schema) {
+    if (strings === undefined) return true;
+    if (!Array.isArray(strings) || strings.length > schema.STRING_TABLE_CAP) return false;
+    return strings.every(entry =>
+      typeof entry === 'string' && entry.length <= schema.STRING_MAX);
   }
   function guestChoosingUpgrade(frame) {
     return (frame?.phase === 'levelup' || frame?.phase === 'coop-guest-upgrade') &&
@@ -851,11 +871,14 @@
         this.lastSnapshotSeq = message.seq;
         this.previous = this.latest;
         this.receivedAt = performance.now();
-        this.latest = message;
+        // Decode the wire form ONCE, here. Everything downstream -- the
+        // interpolator, the view, the boss lookup, the revive overlay -- keeps
+        // reading plain row entities, so the encoding is invisible to them.
+        this.latest = window.NeonLanSchema?.decodeFrame?.(message) || message;
         this.perf?.packet(this.receivedAt);
         // Entity correspondence is calculated when a snapshot ARRIVES,
         // never rebuilt by every animation frame.
-        this.frameSampler = window.NeonLanWorldView?.createSampler(message, this.previous) || null;
+        this.frameSampler = window.NeonLanWorldView?.createSampler(this.latest, this.previous) || null;
         // Host is authoritative; locally predicted position is corrected
         // gradually for small differences and snapped on large drift.
         const guest = message.guest;

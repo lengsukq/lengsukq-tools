@@ -134,8 +134,63 @@ const hostGame = {
 };
 const ally = newAlly(hostGame);
 const pack = boundedSnapshot(hostGame, ally, 1);
-assert.ok(JSON.stringify(pack).length < 40000, 'Crowded world must fit RTC frame budget');
+const schema = sandbox.window.NeonLanSchema;
+assert.ok(schema.byteLength(JSON.stringify(pack)) < 40000,
+  'Crowded world must fit RTC frame budget');
 assert.equal(pack.guest.hp, 100);
-assert.ok(pack.enemies.length > 0);
+// The wire carries columns; the guest reads rows. Both ends go through the
+// contract, so the assertion has to as well.
+const delivered = schema.decodeFrame(pack);
+assert.equal(delivered.enemies.length, schema.capOf('enemies'),
+  'a crowded world must arrive whole, up to the declared cap');
+assert.equal(delivered.bullets.length, schema.capOf('bullets'), 'and so must every bullet');
+assert.equal(delivered.enemies[0].hp, 100);
 assert.equal(sandbox.window.NeonLanCoop.safeSnapshot(pack), true);
-console.log('Shared renderer passed: guest draws original engine, own HUD, camera, weapons, stable-ID interpolation and RTC packet budgeting.');
+
+// ---------------------------------------------------------------------------
+// Render parity: the wire encoding must be INVISIBLE to the painter.
+//
+// This is the strongest statement of "the guest sees the same world" that can be
+// made without a browser: paint the same world twice, once straight from the
+// host's rows and once after a full encode/decode round trip, and require the
+// two canvas operation logs to be identical. It is what justifies decoding an
+// entity field that was absent as 0/'' instead of undefined.
+// ---------------------------------------------------------------------------
+{
+  // The engine flame is deliberately random per frame (`flameLen = 10 +
+  // Math.random() * 8`), so the two paints have to share one random sequence for
+  // the comparison to be about the WIRE rather than about the flame.
+  vm.runInContext(`globalThis.__seed = 1;
+    Math.random = () => { __seed = (__seed * 1103515245 + 12345) % 2147483648;
+      return __seed / 2147483648; };
+    globalThis.__resetRandom = () => { __seed = 1; };`, sandbox);
+  const rowFrame = {
+    ...guest.latest,
+    // Every layer, so no kind of column is left untested.
+    enemyBullets: [{ id: 40, x: 150, y: 30, radius: 5, color: '#ff3366' }],
+    dashTrails: [{ id: 41, x1: 1, y1: 2, x2: 3, y2: 4, color: '#00f3ff', life: .3, maxLife: .4 }],
+    companionDrones: [{ id: 42, x: 20, y: 20, angle: 1.2 }],
+    texts: [{ id: 43, x: 40, y: 30, text: '命中 42', color: '#00f3ff', size: 15,
+      life: .8, maxLife: .8 }]
+  };
+  const paintFrom = state => {
+    const coop = new Coop(game, { role: 'guest', connected: true, send: () => true });
+    coop.guestMode = true;
+    coop.latest = state;
+    coop.receivedAt = guest.receivedAt;
+    game.lanCoop = coop;
+    vm.runInContext('__resetRandom()', sandbox);
+    const mark = paint.length;
+    coop.renderGuest();
+    return paint.slice(mark);
+  };
+  const direct = paintFrom(rowFrame);
+  const throughTheWire = paintFrom(schema.decodeFrame(schema.encodeFrame(rowFrame)));
+  game.lanCoop = guest;
+  assert.ok(direct.length > 100,
+    `the reference render must actually draw something (got ${direct.length} operations)`);
+  assert.deepEqual(throughTheWire, direct,
+    'a frame that made a round trip through the wire must paint identically');
+}
+console.log('Shared renderer passed: guest draws original engine, own HUD, camera, weapons, '
+  + 'stable-ID interpolation, RTC packet budgeting and byte-identical paint after a wire round trip.');

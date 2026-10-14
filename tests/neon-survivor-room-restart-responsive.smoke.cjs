@@ -138,7 +138,7 @@ for (const snippet of [
   'line-clamp: unset','overflow-y: auto','upgrade-card-info','upgrade-stat-text'
 ]) assert.ok(latest.includes(snippet),'responsive upgrade rules must contain '+snippet);
 const html = fs.readFileSync(root+'index.html','utf8');
-assert.match(html, /css\/game\.css\?v=state-contract-20261019/,
+assert.match(html, /css\/game\.css\?v=wire-columnar-20261020/,
   'CSS must be cache-busted so users receive the updated layout');
 const cssToken = (html.match(/css\/game\.css\?v=([^"']+)/) || [])[1];
 assert.ok(cssToken, 'CSS must be cache-busted so users receive the updated layout');

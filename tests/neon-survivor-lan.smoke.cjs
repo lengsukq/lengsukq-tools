@@ -138,7 +138,9 @@ assert.equal(normalizeInput({ type: 'input', seq: -1, dx: 0, dy: 0, aim: 0 }), n
   assert.equal(h.ally.dashCharges, 2, 'One dash charge consumed by remote input');
   assert.ok(hostSent.length > 0);
   assert.equal(safeSnapshot(hostSent[0]), true);
-  assert.equal(hostSent[0].enemies[0].hp, game.enemies[0].hp);
+  // The wire carries columns; assert through the contract, not on the raw shape.
+  const delivered = sandbox.window.NeonLanSchema.decodeFrame(hostSent[0]);
+  assert.equal(delivered.enemies[0].hp, game.enemies[0].hp);
   const x = h.ally.x;
   h.onMessage({ ...input, dx: -1 });
   assert.equal(h.ally.input.dx, 1, 'Duplicate sequence ignored');

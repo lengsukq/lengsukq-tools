@@ -1,12 +1,12 @@
     /* Weapon firing: targeting and the seven legacy weapons. */
     NeonCore.define(NeonSurvivorGame, class {
-      findNearestEnemy(range = 700) {
+      findNearestEnemy(range = 700, origin = this.player) {
         if (!Array.isArray(this.enemies) || !this.enemies.length) return null;
         let nearest = null;
         let minDistSq = range * range;
         for (const e of this.enemies) {
-          const dx = e.x - this.player.x;
-          const dy = e.y - this.player.y;
+          const dx = e.x - origin.x;
+          const dy = e.y - origin.y;
           const dSq = dx * dx + dy * dy;
           if (dSq < minDistSq) {
             minDistSq = dSq;

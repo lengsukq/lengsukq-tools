@@ -40,6 +40,10 @@
       cdrMultiplier: 1, critRate: .08, critDmg: 1.5,
       shotTime: 0, lastSeq: -1, lastInputAt: 0,
       input: { dx: 0, dy: 0, aim: 0, dash: false },
+      // Owned by the pilot, not by the game: the host simulates an ally's drone
+      // and orbiter weapons into these, and the snapshot aggregates them with
+      // the host's own for the renderer and for the wire.
+      orbiters: [], companionDrones: [],
       profile: window.NeonLanTeammates?.normalizeProfile(null, 'guest') || {
         name: id === 'guest' ? '队友' : `队友${id.split('-')[1]}`,
         color: '#ffbb55', colorId: 'auto'

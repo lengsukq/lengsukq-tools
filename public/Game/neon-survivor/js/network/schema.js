@@ -218,10 +218,22 @@
   // made the validator reject EVERY snapshot, which looks exactly like the
   // "stuck on 正在同步房主战场" freeze.
   // ---------------------------------------------------------------------------
-  // `trim` is the order decorative layers are sacrificed in when a frame is
-  // over budget (lower first); null means the layer is PROTECTED and is only
-  // ever reduced by the boss-preserving enemy pass. This order used to live in
-  // boundedSnapshot while the caps lived in snapshot(), which is how they drifted.
+  // `trim` is the order layers are sacrificed in when a frame is over budget
+  // (lower first); null means the layer is PROTECTED. This order used to live in
+  // boundedSnapshot while the caps lived in snapshot(), which is how they
+  // drifted.
+  //
+  // The ORDER IS A FAIRNESS DECISION, not a size one. It used to sacrifice
+  // `gems`, then `bullets`, then `enemyBullets` before touching `enemies`, so a
+  // crowded late game left a guest unable to see the enemy fire it has to dodge
+  // -- it could not play, not merely watch a plainer screen. Decoration now goes
+  // first, feedback next, threat after that, and the layer that decides whether
+  // the guest survives is never sacrificed at all.
+  // Enemies are deliberately NOT in this table: they are reduced by the
+  // boss-preserving pass in boundedSnapshot, which drops the FARTHEST first
+  // because the array arrives sorted by distance.
+  const TRIM_DECORATION = 1; // particles, texts, shockwaves, trails, beams, mines...
+  const TRIM_FEEDBACK = 11;  // gems, bullets: reward and muzzle feedback
   const array = (name, cap, safeCap, floor, trim, fields) => Object.freeze({
     name, cap, safeCap, floor, trim, fields: Object.freeze(fields)
   });
@@ -229,23 +241,39 @@
   const ENTITY_ARRAYS = Object.freeze([
     array('enemies', 105, 130, 0, null, ['x', 'y', 'vx', 'vy', 'hp', 'maxHp', 'radius', 'color',
       'type', 'isBoss', 'isElite', 'hasShield', 'arming', 'aimTimer', 'coopCapture', 'coopExposed']),
-    array('bullets', 120, 140, 60, 12, ['x', 'y', 'vx', 'vy', 'radius', 'color', 'type', 'isLevel5']),
-    array('enemyBullets', 130, 150, 60, 13, ['x', 'y', 'radius', 'color', 'damage']),
-    array('gems', 90, 120, 45, 11, ['x', 'y', 'radius', 'type', 'color', 'value']),
-    array('shockwaves', 40, 60, 16, 3, ['x', 'y', 'radius', 'color', 'alpha']),
-    array('particles', 60, 90, 24, 1, ['type', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'radius',
-      'color', 'life', 'maxLife']),
-    array('lightningTethers', 24, 40, 10, 9, ['x1', 'y1', 'x2', 'y2']),
-    array('blackHoles', 16, 24, 8, 8, ['x', 'y', 'radius', 'rotAngle']),
-    array('mines', 24, 36, 10, 7, ['x', 'y', 'radius']),
-    array('laserBeams', 24, 36, 10, 6, ['x', 'y', 'angle', 'width', 'length']),
-    // Drones and orbiters carry up to 5 synthesised entries for the guest's own
-    // weapons, appended after the cap, so their safe cap is cap + 5.
-    array('companionDrones', 12, 20, 6, 5, ['x', 'y', 'angle']),
-    array('orbiters', 12, 20, 6, 10, ['angle', 'distance', 'radius', 'color']),
-    array('dashTrails', 24, 36, 10, 4, ['x1', 'y1', 'x2', 'y2', 'color', 'life', 'maxLife']),
-    array('texts', 40, 60, 12, 2, ['x', 'y', 'text', 'color', 'size', 'life', 'maxLife'])
+    array('bullets', 120, 140, 60, TRIM_FEEDBACK + 1, ['x', 'y', 'vx', 'vy', 'radius', 'color',
+      'type', 'isLevel5']),
+    // No `damage`: the guest never resolves collisions, and the only consumer of
+    // an enemy bullet on this side is renderEnemyBullets, which reads x/y/radius
+    // /color. Carrying it cost ~1.3 KB on every frame of a late game.
+    array('enemyBullets', 130, 150, 60, null, ['x', 'y', 'radius', 'color']),
+    array('gems', 90, 120, 45, TRIM_FEEDBACK, ['x', 'y', 'radius', 'type', 'color', 'value']),
+    array('shockwaves', 40, 60, 16, TRIM_DECORATION + 2, ['x', 'y', 'radius', 'color', 'alpha']),
+    array('particles', 60, 90, 24, TRIM_DECORATION, ['type', 'x', 'y', 'x1', 'y1', 'x2', 'y2',
+      'radius', 'color', 'life', 'maxLife']),
+    array('lightningTethers', 24, 40, 10, TRIM_DECORATION + 4, ['x1', 'y1', 'x2', 'y2']),
+    array('blackHoles', 16, 24, 8, TRIM_DECORATION + 7, ['x', 'y', 'radius', 'rotAngle']),
+    array('mines', 24, 36, 10, TRIM_DECORATION + 6, ['x', 'y', 'radius']),
+    array('laserBeams', 24, 36, 10, TRIM_DECORATION + 5, ['x', 'y', 'angle', 'width', 'length']),
+    array('companionDrones', 12, 20, 6, TRIM_DECORATION + 9, ['x', 'y', 'angle']),
+    array('orbiters', 12, 20, 6, TRIM_DECORATION + 8, ['angle', 'distance', 'radius', 'color',
+      'centerX', 'centerY']),
+    array('dashTrails', 24, 36, 10, TRIM_DECORATION + 3, ['x1', 'y1', 'x2', 'y2', 'color', 'life',
+      'maxLife']),
+    array('texts', 40, 60, 12, TRIM_DECORATION + 1, ['x', 'y', 'text', 'color', 'size', 'life',
+      'maxLife'])
   ]);
+
+  // The fields that are NOT plain numbers. Declared once, by field name, because
+  // `color` means the same thing in every layer. A field missing from this table
+  // is a number, and the codec round-trip test fails loudly if that is ever wrong
+  // for a newly added string field.
+  const ENTITY_KINDS = Object.freeze({
+    color: 'string', type: 'string', text: 'string',
+    isBoss: 'boolean', isElite: 'boolean', hasShield: 'boolean',
+    arming: 'boolean', isLevel5: 'boolean'
+  });
+  const kindOf = name => ENTITY_KINDS[name] || 'number';
 
   /** The arrays a frame carries, in wire order. */
   const ARRAY_NAMES = Object.freeze(ENTITY_ARRAYS.map(entry => entry.name));
@@ -257,7 +285,7 @@
   const FRAME_FIELDS = Object.freeze([
     'type', 'seq', 'round', 'time', 'level', 'kills', 'difficulty', 'mode',
     'teamXP', 'phase', 'rescue', 'resonance', 'host', 'guest', ...ARRAY_NAMES,
-    'protocolVersion', 'players', 'localPlayerId'
+    'protocolVersion', 'players', 'localPlayerId', 'strings'
   ]);
 
   // --- readers ---------------------------------------------------------------
@@ -294,17 +322,136 @@
     return out;
   }
 
-  /** One entity array: capped, field-subset, id-stamped. */
-  function readEntities(list, spec) {
-    return (list || []).slice(0, spec.cap).map(entity => {
-      const out = { id: networkId(entity) };
-      for (const name of spec.fields) {
-        const value = entity?.[name];
-        if (typeof value === 'number') out[name] = round(value);
-        else if (typeof value === 'string' || typeof value === 'boolean') out[name] = value;
+  // --- entity codec ----------------------------------------------------------
+  // WHY COLUMNS
+  // A layer used to travel as one JSON object per entity, so every field name
+  // was paid for by every entity: `"radius":13,` is 12 bytes, 105 times over.
+  // It now travels as a struct of arrays -- the names appear once per layer:
+  //
+  //   enemies: { id: [...], x: [...], radius: [...], color: [...] }
+  //
+  // Measured on a world with every layer at its cap and every declared field
+  // present: 80.6 KB -> 24.8 KB of layers. That is what stops the byte budget
+  // from silently deleting whole layers, which is how a guest ended up unable to
+  // see the enemy bullets it had to dodge.
+  //
+  // Strings are interned once per frame into `strings`, so 105 copies of
+  // "#ff3300" become 105 copies of `0`. Worth 7.9 KB of that 21 KB on its own.
+  // The table is bounded; anything too long or arriving after the table is full
+  // travels verbatim, so interning can never lose information.
+  const STRING_TABLE_CAP = 512;
+  const STRING_MAX = 64;
+
+  /** Intern one string, or return it verbatim when it does not fit. */
+  function internString(value, strings) {
+    if (value.length > STRING_MAX || strings.length >= STRING_TABLE_CAP) return value;
+    const found = strings.indexOf(value);
+    if (found >= 0) return found;
+    strings.push(value);
+    return strings.length - 1;
+  }
+
+  const toWire = (kind, value, strings) => {
+    if (kind === 'string') return typeof value === 'string' ? internString(value, strings) : '';
+    if (kind === 'boolean') return value ? 1 : 0;
+    // Positions, velocities and timers travel as integer tenths -- the same
+    // 0.1 precision the row encoding already rounded to, without the decimal
+    // point. A non-finite value becomes 0 rather than the `null` JSON used to
+    // write for Infinity.
+    return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 10) : 0;
+  };
+
+  const fromWire = (kind, value, strings) => {
+    if (kind === 'string') {
+      if (typeof value === 'number') return strings[value] ?? '';
+      return typeof value === 'string' ? value : '';
+    }
+    if (kind === 'boolean') return value === 1 || value === true;
+    return typeof value === 'number' && Number.isFinite(value) ? value / 10 : 0;
+  };
+
+  /** One entity array as columns: capped, field-subset, id-stamped.
+   *
+   *  A column exists only when some entity carries the field, so a field that is
+   *  absent everywhere still costs nothing. An entity missing a column decodes
+   *  to 0 (or ''), which is indistinguishable from the absent field the row
+   *  encoding used to omit: every consumer tests truthiness or a comparison.
+   */
+  function encodeEntities(rows, spec, strings) {
+    const list = Array.isArray(rows) ? rows.slice(0, spec.cap) : [];
+    const columns = spec.fields.filter(name => list.some(entity => entity?.[name] !== undefined));
+    const layer = { id: [] };
+    for (const name of columns) layer[name] = [];
+    for (const entity of list) {
+      layer.id.push(networkId(entity));
+      for (const name of columns) {
+        layer[name].push(toWire(kindOf(name), entity?.[name], strings));
       }
-      return out;
+    }
+    return layer;
+  }
+
+  /** Columns back into the row shape every consumer already reads. A layer that
+   *  is already an array is passed through, so a hand-built frame still works. */
+  function decodeEntities(layer, spec, strings) {
+    if (Array.isArray(layer)) return layer;
+    if (!layer || typeof layer !== 'object') return [];
+    const ids = Array.isArray(layer.id) ? layer.id : [];
+    const columns = spec.fields.filter(name => Array.isArray(layer[name]));
+    return ids.map((id, index) => {
+      const entity = { id: Number.isFinite(id) ? id : 0 };
+      for (const name of columns) {
+        entity[name] = fromWire(kindOf(name), layer[name][index], strings);
+      }
+      return entity;
     });
+  }
+
+  /** A whole frame: the envelope is copied through and every declared layer is
+   *  transposed. Never mutates its input -- the sender still needs the row frame
+   *  to decide what to trim. */
+  function encodeFrame(rowFrame) {
+    const strings = [];
+    const wire = { ...rowFrame };
+    for (const spec of ENTITY_ARRAYS) {
+      wire[spec.name] = encodeEntities(rowFrame[spec.name], spec, strings);
+    }
+    wire.strings = strings;
+    return wire;
+  }
+
+  /** The inverse. Called once, when a snapshot arrives, so that interpolation,
+   *  the view, the boss lookup and the revive overlay all keep reading rows. */
+  function decodeFrame(wireFrame) {
+    if (!wireFrame || typeof wireFrame !== 'object') return wireFrame;
+    const strings = Array.isArray(wireFrame.strings) ? wireFrame.strings : [];
+    const frame = { ...wireFrame };
+    for (const spec of ENTITY_ARRAYS) {
+      frame[spec.name] = decodeEntities(wireFrame[spec.name], spec, strings);
+    }
+    delete frame.strings;
+    return frame;
+  }
+
+  /** UTF-8 byte length. Written out rather than using TextEncoder/Blob because
+   *  the budget has to mean the same thing in the browser and in the test
+   *  sandboxes, which have no web globals. The old budget used String.length,
+   *  which under-counts every Chinese glyph and emoji by 2-3x -- exactly the
+   *  content of the `texts` layer. */
+  function byteLength(text) {
+    const value = typeof text === 'string' ? text : '';
+    let bytes = 0;
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      if (code < 0x80) bytes += 1;
+      else if (code < 0x800) bytes += 2;
+      else if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length &&
+        value.charCodeAt(i + 1) >= 0xdc00 && value.charCodeAt(i + 1) <= 0xdfff) {
+        bytes += 4;
+        i++;
+      } else bytes += 3;
+    }
+    return bytes;
   }
 
   // --- appliers --------------------------------------------------------------
@@ -335,16 +482,19 @@
     PILOT_FIELDS.filter(descriptor => descriptor.required).map(descriptor => descriptor.name);
 
   /** Bumped whenever a field is renamed or its meaning changes. A peer that
-   *  announces a HIGHER version is refused rather than silently misread. */
-  const VERSION = 3;
-  /** Decorative layers in sacrifice order; protected layers are excluded. */
+   *  announces a HIGHER version is refused rather than silently misread.
+   *  4: entity layers travel as columns with a frame-level string table. */
+  const VERSION = 4;
+  /** Layers in sacrifice order; protected layers are excluded. */
   const TRIM_ORDER = Object.freeze(ENTITY_ARRAYS.filter(entry => entry.trim !== null)
     .sort((a, b) => a.trim - b.trim));
 
   window.NeonLanSchema = Object.freeze({
     VERSION, TRIM_ORDER,
-    PILOT_FIELDS, ENTITY_ARRAYS, ARRAY_NAMES, FRAME_FIELDS,
-    readPilot, readEntities, applyPilot, applyEntities,
+    PILOT_FIELDS, ENTITY_ARRAYS, ARRAY_NAMES, FRAME_FIELDS, ENTITY_KINDS,
+    STRING_TABLE_CAP, STRING_MAX,
+    readPilot, encodeEntities, decodeEntities, encodeFrame, decodeFrame,
+    applyPilot, applyEntities, byteLength,
     capOf, safeCapOf, floorOf, requiredPilotFields, readBag, networkId
   });
 })();

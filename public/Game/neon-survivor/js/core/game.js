@@ -110,6 +110,12 @@
         // same object. Remote pilots are registered by the co-op adapter.
         this.players = window.NeonPlayers ? new window.NeonPlayers.PlayerRegistry() : null;
         this.players?.register('host', this.player);
+        // Drones and orbiters belong to the pilot whose weapon they are, so the
+        // host can simulate an ally's as well. game.orbiters and
+        // game.companionDrones are the AGGREGATE of every pilot, refreshed each
+        // tick for the renderer and for the wire.
+        this.player.orbiters = [];
+        this.player.companionDrones = [];
 
         // Entities
         this.bullets = [];
@@ -331,6 +337,9 @@
         this.mines = [];
         this.lightningTethers = [];
         this.dashTrails = [];
+        // The pilot owns its own, so a restart must clear those too.
+        this.player.orbiters = [];
+        this.player.companionDrones = [];
 
         this.weaponTimers = { blaster: 0, tesla: 0, missiles: 0, nova: 0, laser: 0, drones: 0, blackhole: 0, cryomine: 0 };
         this.player.timers = this.weaponTimers;
