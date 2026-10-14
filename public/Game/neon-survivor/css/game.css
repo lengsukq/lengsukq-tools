@@ -669,6 +669,128 @@
     .stat-row .lbl { color: #8c9cb8; }
     .stat-row .val { color: var(--neon-cyan); font-weight: 700; font-family: monospace; }
 
+    /* Pause screen loadout: what is equipped and what each piece does.
+       This is the tallest dialog in the game, so the card caps its own height
+       and scrolls internally. That keeps it vertically centred on desktop and
+       keeps the action buttons reachable on a phone without touching the
+       shared .modal-overlay rules used by every other dialog. */
+    #modal-pause .modal-card {
+      max-width: min(880px, calc(100vw - 26px));
+      max-height: calc(100vh - 24px);
+      max-height: calc(100dvh - var(--neon-safe-top, 0px) - var(--neon-safe-bottom, 0px) - 24px);
+      overflow-y: auto;
+    }
+    .loadout-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      text-align: left;
+      margin-bottom: 4px;
+    }
+    .loadout-ship {
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #9cb0d0;
+      border-left: 3px solid var(--neon-cyan);
+      padding: 2px 0 2px 10px;
+    }
+    .loadout-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #cfe9ff;
+      margin: 0 0 7px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid rgba(0, 243, 255, 0.18);
+    }
+    .loadout-heading-stats { margin: 16px 0 7px; }
+    .loadout-count {
+      font-family: monospace;
+      font-size: 11px;
+      color: #8c9cb8;
+      border: 1px solid rgba(140, 156, 184, 0.35);
+      border-radius: 6px;
+      padding: 1px 6px;
+    }
+    .loadout-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(215px, 100%), 1fr));
+      gap: 9px;
+    }
+    .loadout-card {
+      border: 1px solid rgba(0, 243, 255, 0.2);
+      border-left: 3px solid var(--neon-cyan);
+      border-radius: 11px;
+      background: rgba(8, 16, 30, 0.72);
+      padding: 9px 11px;
+    }
+    .loadout-card.rare { border-left-color: #d37aff; }
+    .loadout-card.legendary { border-left-color: #ffca40; }
+    .loadout-card.is-skill { border-left-color: #00ffaa; }
+    .loadout-card.is-relic { border-left-color: var(--neon-amber); }
+    .loadout-card.is-fusion { border-left-color: var(--neon-magenta); }
+    .loadout-card.is-empty {
+      border-style: dashed;
+      border-left-color: rgba(140, 156, 184, 0.32);
+      opacity: 0.6;
+    }
+    .loadout-card-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .loadout-icon { font-size: 16px; flex: 0 0 auto; }
+    .loadout-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #e8f6ff;
+      overflow-wrap: anywhere;
+    }
+    .loadout-lvl, .loadout-key, .loadout-lb, .loadout-maxed {
+      flex: 0 0 auto;
+      font-family: monospace;
+      font-size: 10.5px;
+      font-weight: 800;
+      border-radius: 6px;
+      padding: 1px 6px;
+    }
+    .loadout-lvl { color: var(--neon-cyan); background: rgba(0, 243, 255, 0.14); }
+    .loadout-key { color: #9dfff3; background: rgba(0, 243, 255, 0.1); }
+    .loadout-lb { color: #ffea00; background: rgba(255, 234, 0, 0.14); }
+    .loadout-maxed { color: #00ffaa; background: rgba(0, 255, 170, 0.12); }
+    .loadout-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 5px;
+    }
+    .loadout-tags:empty { display: none; }
+    .loadout-effect {
+      margin: 6px 0 0;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #b6cddd;
+    }
+    .loadout-next {
+      margin: 5px 0 0;
+      padding-top: 5px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: #7f97b5;
+      border-top: 1px dashed rgba(140, 156, 184, 0.22);
+    }
+    /* Phones: one card per row so effect text stays readable. */
+    @media (orientation: portrait) and (max-width: 900px) {
+      #modal-pause .modal-card { padding: 18px 16px; }
+      .loadout-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+
     /* Touch Controls for Mobile */
     #touch-controls {
       position: absolute;

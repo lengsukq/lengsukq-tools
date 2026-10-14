@@ -375,6 +375,10 @@
           this.lanCoop.ally.lastInputAt = 0;
         }
         this.releaseJoystickTouch();
+        // The loadout panel is the primary content of the pause screen; the
+        // stats table stays below it. Either one failing must not block the
+        // other, and neither may keep the modal from opening.
+        try { this.renderLoadoutPanel('pause-loadout'); } catch (e) { console.error(e); }
         try { this.renderStatsTable('pause-stats'); } catch (e) { console.error(e); }
         if (this.modalPause) this.modalPause.classList.add('active');
       }

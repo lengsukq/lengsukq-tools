@@ -28,6 +28,7 @@ public/Game/
       ui/upgrade-panel.js     # 升级卡渲染与选择状态
       ui/hud.js               # HUD、武器栏、战绩表、技能反馈
       ui/combat-dock.js       # 局内战术技能坞
+      ui/loadout.js           # 暂停页装配面板：装备、当前等级特效、技能与遗物
       combat/firing.js        # 索敌与七种通用武器开火
       combat/damage.js        # 伤害结算、掉落、限频音效、玩家受击
       combat/rewards.js       # 击杀奖励、战利品、晶体压缩
@@ -85,7 +86,7 @@ public/Game/
     MANUAL.md                 # 玩家指南、机制和开发说明
 ```
 
-原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 35 个模块，最大文件 452 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
+原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 36 个模块，最大文件 457 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
 
 **新增核心逻辑时**：不要重新堆进单个文件。把方法写进已有的对应模块，用 `NeonCore.define(NeonSurvivorGame, class { ... })` 挂到原型上；新文件必须加进 `index.html` 的脚本列表（`core/define.js` 最先、`core/game.js` 在定义类之前、`core/boot.js` 最后），否则一致性测试会失败。
 
@@ -274,6 +275,27 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 
 **刻意保留**：首领名与警报里的英文括注（`双生裁决者 · 共振要塞 (DUAL REACTOR)`、`(SWARM RUSH)`）属于既有的双语美术风格，中文名在前、不影响理解；手柄按键图例（`LB` / `RT` / `Menu`）是实体按键丝印，不是内部标识。
 
+## 暂停页：装配与特效面板
+
+暂停页现在以「当前装配」为主体，而不是只有一行 `装配武器 星梭织阵 Lv.1`。面板分五段，全部由 `js/core/ui/loadout.js` 的 `renderLoadoutPanel()` 生成，在 `pauseGame()` 里调用：
+
+| 段落 | 数据来源 | 每张卡显示 |
+| --- | --- | --- |
+| ⚔️ 武器 / 🔷 模组 / ✨ 相位强化（按舰种换名） | `player.weapons` / `passives` / `dashUpgrades` + **当前生效卡表** | 图标、中文名、`Lv.N`、**当前等级**的特效文本、下一级预告、`+N 破限`、`已满级` |
+| 🎮 技能与操作 | 直接读 `#ship-skills-bar` 已渲染的按钮 | 图标、技能名、按键、按钮 `title` 里 `：` 之后的效果句 |
+| ♾️ 遗物与融合 | `endlessState.relics` / `fusions` + 各自的定义表 | 中文名与效果说明（仅无尽模式） |
+
+几个刻意的设计决定：
+
+- **特效文本按等级取，不是卡面总述。** 用 `statText[level-1]` 而不是 `desc`，所以 Lv.3 的星梭织阵显示的是「星梭升级为3发多目标追踪弹」，不是 Lv.1 的描述；满级后不再显示不存在的「下一级」。
+- **技能文案不复制第二份。** 技能名、按键和效果句从技能坞已渲染的按钮上读，因此面板和玩家实际点的按钮不可能对不上。技能坞不存在时该段整段省略，不报错也不显示空壳。
+- **卡表必须走 `getUpgradeCatalog(player)`**，和武器栏、结算表一致。只查 `UPGRADES_DB` 会让星织/幽灵的卡片全部变成 `未知装备`。
+- **空槽位显式画出来**（虚线卡），所以「还能装几个」一眼可见；`N/M` 徽章只出现在真正有槽位上限的段落。
+- 未知卡 id 显示 `未知装备`，**永远不打印内部 id，也不会出现 `undefined`**。
+- 暂停卡是本作最高的对话框，因此 `#modal-pause .modal-card` 自己限制高度并内部滚动（含 `100dvh` 与安全区变量，并保留 `100vh` 回退），这样桌面端仍然居中、手机端按钮仍可滚到，且不改动其它弹窗共用的 `.modal-overlay`。
+
+`tests/neon-survivor-pause-loadout.smoke.cjs` 覆盖以上全部行为，并验证过「把卡表换回 `UPGRADES_DB` 后测试确实变红」。
+
 ## 验证
 
 ```sh
@@ -306,6 +328,7 @@ node tests/neon-survivor-entity-caps.smoke.cjs
 node tests/neon-survivor-render-batching.smoke.cjs
 node tests/neon-survivor-adaptive-quality.smoke.cjs
 node tests/neon-survivor-ui-labels.smoke.cjs
+node tests/neon-survivor-pause-loadout.smoke.cjs
 node tools/neon-survivor/profile-phases.cjs
 git diff --check
 ```
