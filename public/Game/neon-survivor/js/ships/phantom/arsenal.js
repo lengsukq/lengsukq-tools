@@ -27,7 +27,11 @@
     const executeLvl = rank(pilot,'execute_master');
     const executeBonus = executeLvl * ((hpPercent < .35 || marked) ? 0.15 : 0);
     const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
-    const isCrit = Math.random() < Math.min(1, window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0);
+    // Includes the co-op link's crit aura, which used to be computed and
+    // discarded -- see js/network/resonance.js.
+    const isCrit = Math.random() < Math.min(1,
+      (window.NeonPhantom?.critBonus(pilot,game.survivalTime || 0) || 0) +
+      (game.lanCoop?.getLinkCrit?.(pilot) || 0));
     game.dealDamage(enemy,base * (1 + executeBonus) * scale,source,isCrit,pilot);
     const gatherLvl = rank(pilot,'soul_gatherer');
     if (gatherLvl > 0 && marked) {

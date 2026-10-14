@@ -1624,6 +1624,37 @@
       background: #1b3146;
       box-shadow: 0 0 12px color-mix(in srgb, var(--swatch-color) 42%, transparent);
     }
+    /* Co-op link badge: what the proximity bonus is right now. Sits under the
+       HUD's left column, above the dash stats, and never takes pointer events. */
+    .neon-link-badge[hidden] { display: none !important; }
+    .neon-link-badge {
+      position: fixed;
+      left: 10px;
+      top: calc(env(safe-area-inset-top, 0px) + 96px);
+      z-index: 34;
+      max-width: min(230px, 62vw);
+      padding: 4px 9px;
+      pointer-events: none;
+      border: 1px solid rgba(122, 255, 218, .55);
+      border-radius: 100px;
+      color: #d8fff4;
+      background: rgba(5, 16, 34, .82);
+      box-shadow: 0 0 12px rgba(122, 255, 218, .22);
+      backdrop-filter: blur(7px);
+      font: 600 11px system-ui, sans-serif;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .neon-link-badge[data-tier="0"] {
+      border-color: rgba(140, 160, 190, .45);
+      color: #a9b8cc;
+      box-shadow: none;
+    }
+    .neon-link-badge[data-tier="1"] { border-color: rgba(100, 196, 255, .6); }
+    @media (max-height: 560px), (max-width: 420px) {
+      .neon-link-badge { top: calc(env(safe-area-inset-top, 0px) + 82px); font-size: 10px; }
+    }
     .neon-teammate-indicator[hidden] { display: none !important; }
     .neon-teammate-indicator {
       position: fixed;

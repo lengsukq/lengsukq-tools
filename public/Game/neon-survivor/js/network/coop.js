@@ -103,14 +103,22 @@
         tier: resonance.link?.tier || 0,
         distance: round(resonance.link?.distance || 0),
         damageBonus: resonance.link?.damageBonus || 0,
+        // The crit aura is a real contribution now, so it has to travel: it was
+        // computed on the host and shown nowhere.
+        critBonus: resonance.link?.critBonus || 0,
+        critSource: Boolean(resonance.link?.critSource),
         pulseCooldown: round(resonance.pulseCooldown || 0),
         shieldSource: Boolean(resonance.link?.shieldSource),
         shieldNext: round(resonance.link?.shieldSource
-          ? Math.max(0, 12 - (resonance.shieldTimer || 0)) : 0),
+          ? Math.max(0, window.NeonLanResonance.SHIELD_INTERVAL -
+            (resonance.shieldTimer || 0)) : 0),
         shieldHost: window.NeonLanResonance?.remainingShield(game.player, game.survivalTime) || 0,
         shieldGuest: window.NeonLanResonance?.remainingShield(ally, game.survivalTime) || 0,
         threatFactor: round(resonance.threatFactor || 1)
-      } : { tier: 0, distance: 0, damageBonus: 0, pulseCooldown: 0 },
+      } : {
+        tier: 0, distance: 0, damageBonus: 0, critBonus: 0, critSource: false,
+        pulseCooldown: 0, shieldSource: false, shieldNext: 0, shieldHost: 0, shieldGuest: 0
+      },
       host: pilotBlock(game.player, 'local', ownProfile('host')),
       guest: pilotBlock(ally, 'remote', ally.profile || normalizeProfile(null, 'guest')),
       enemies: nearbyEnemies.slice(0, schema.capOf('enemies'))
@@ -591,6 +599,9 @@
         }
         window.NeonLanMultiRules?.tick(game, [...this.allies.values()], dt);
       }
+      // Once per tick, after every resonance state has advanced: the damage and
+      // crit sites read the result from the pilot instead of recomputing it.
+      this.publishLinkBonuses();
       this.sendAccumulator += dt;
       if (this.sendAccumulator >= (game.state === 'playing' ? 1 / hz : .2)) {
         this.sendAccumulator = 0;
@@ -637,6 +648,7 @@
       this.guestShipWaitPanel = null;
       this.refreshReadyView = null;
       window.NeonLanTeammates?.hide();
+      window.NeonLanResonanceHud?.hide();
       for (const id of ['btn-pause']) {
         const node = document.getElementById(id);
         if (node && Object.hasOwn(node.dataset, 'lanPreviousDisplay')) {
@@ -960,25 +972,67 @@
       window.NeonPilotSystem?.resolveRemoteHits(game, ally);
       if (ally.hp <= 0 && !ally.downed) window.NeonLanRevive?.knockDown(game, 'guest');
       window.NeonLanRevive?.tick(game, dt);
+      this.publishLinkBonuses();
       this.sendAccumulator += dt;
       if (this.sendAccumulator >= 1 / hz) {
         this.sendAccumulator = 0;
         this.rtc.send(boundedSnapshot(game, ally, this.seq++, this.resonance));
       }
     }
-    getLinkBonus(attacker = this.game.player) {
-      if (this.allies.size > 1) {
-        const team = [this.game.player, ...this.allies.values()].filter(p =>
-          p && !p.disconnected && p.hp > 0 && !p.downed);
-        if (!team.includes(attacker)) return 0;
-        return Math.max(0, ...team.filter(p => p !== attacker).map(ally =>
-          window.NeonLanResonance?.link(attacker, ally,
-            { threatFactor: this.resonances.get(ally.id)?.threatFactor || 1 }).damageBonus || 0));
+    /** Every OTHER pilot this one can link with: alive, connected, in the team. */
+    partnerPilots(attacker = this.game.player) {
+      const team = [this.game.player, ...this.allies.values()]
+        .filter(pilot => pilot && !pilot.disconnected && pilot.hp > 0 && !pilot.downed);
+      if (!team.includes(attacker)) return [];
+      return team.filter(pilot => pilot !== attacker);
+    }
+    /** The best link this pilot currently has. Each bonus is taken independently,
+     *  because they come from different classes: a Phantom paired with a
+     *  Riftblade gets damage from one side and crit from the other.
+     *
+     *  Recomputed from live positions, so this is only the fallback -- see
+     *  publishLinkBonuses(). */
+    computeLink(attacker = this.game.player) {
+      let damageBonus = 0, critBonus = 0;
+      for (const other of this.partnerPilots(attacker)) {
+        const link = window.NeonLanResonance?.link?.(attacker, other,
+          { threatFactor: this.resonances.get(other.id)?.threatFactor || 1 });
+        if (!link) continue;
+        damageBonus = Math.max(damageBonus, link.damageBonus || 0);
+        critBonus = Math.max(critBonus, link.critBonus || 0);
       }
-      return this.rtc.connected && this.ally && window.NeonLanResonance
-        ? window.NeonLanResonance.link(this.game.player, this.ally, {
-          threatFactor: this.resonance.threatFactor || 1
-        }).damageBonus : 0;
+      return { damageBonus, critBonus };
+    }
+    /** Publish the link onto each pilot, once per tick.
+     *
+     *  The damage site used to call link() itself, and link() allocates an
+     *  object -- while a Phantom's orb damage runs once per enemy per frame.
+     *  Caching here also lets the crit bonus be read in those hot paths for
+     *  free.
+     *
+     *  These two fields are host-only scratch, like pilot.timers: a guest never
+     *  resolves damage, and it reads the numbers it DISPLAYS from the snapshot's
+     *  `resonance` block. */
+    publishLinkBonuses() {
+      for (const pilot of [this.game.player, ...this.allies.values()]) {
+        if (!pilot || pilot.disconnected) continue;
+        const link = this.rtc.connected ? this.computeLink(pilot)
+          : { damageBonus: 0, critBonus: 0 };
+        pilot.linkDamage = link.damageBonus;
+        pilot.linkCrit = link.critBonus;
+      }
+    }
+    getLinkBonus(attacker = this.game.player) {
+      if (Number.isFinite(attacker?.linkDamage)) return attacker.linkDamage;
+      return this.rtc.connected ? this.computeLink(attacker).damageBonus : 0;
+    }
+    /** Added crit chance from the link. A Phantom pair is the only source, and
+     *  before this existed the value was computed and thrown away -- two Phantoms
+     *  standing together received nothing at all, because the damage bonus needs
+     *  a Riftblade and the shield needs an Astra. */
+    getLinkCrit(attacker = this.game.player) {
+      if (Number.isFinite(attacker?.linkCrit)) return attacker.linkCrit;
+      return this.rtc.connected ? this.computeLink(attacker).critBonus : 0;
     }
     onHostDash() {
       if (this.allies.size > 1) {
@@ -1219,30 +1273,15 @@
           window.NeonLanEncounters?.renderBoss(ctx,
             { isGuestWorldView: true, lanCoop: this }, boss);
         }
+        // The link is painted by ONE shared function, so the host's screen and
+        // the guest's cannot drift apart. The guest works from the replicated
+        // blocks, which carry the positions and the orbit-centre-like radius the
+        // aura needs.
         if (snapshot.resonance?.tier) {
-          ctx.save();
-          ctx.lineWidth = snapshot.resonance.tier === 2 ? 3 : 2;
-          ctx.strokeStyle = snapshot.resonance.tier === 2 ? '#80ffca' : '#60caff';
-          ctx.setLineDash([11, 8]);
-          ctx.beginPath();
-          ctx.moveTo(host.x, host.y);
-          ctx.lineTo(snapshot.guest.x, snapshot.guest.y);
-          ctx.stroke();
-          ctx.restore();
-          ctx.save();
-          ctx.fillStyle = '#bdf8ff';
-          ctx.textAlign = 'center';
-          ctx.font = 'bold 12px system-ui';
-          const r = snapshot.resonance;
-          const info = [r.damageBonus
-            ? `+${Math.round(r.damageBonus * 100)}%攻击` : '',
-            r.shieldSource
-              ? `星织护盾 ${Math.ceil(r.shieldNext || 0)}s · ${Math.round(r.shieldHost || 0)}/${Math.round(r.shieldGuest || 0)}`
-              : ''].filter(Boolean).join(' · ');
-          if (info) ctx.fillText(info, (host.x + snapshot.guest.x) / 2,
-            Math.min(host.y, snapshot.guest.y) - 48);
-          ctx.restore();
+          window.NeonLanResonance?.drawLink(ctx, snapshot.guest, host,
+            { active: true, tier: snapshot.resonance.tier }, snapshot.time || 0);
         }
+        window.NeonLanResonanceHud?.update(snapshot.resonance, 'guest');
         window.NeonLanTeammates?.update(
           this.game, { x: snapshot.guest.x, y: snapshot.guest.y },
           host, snapshot.guest,
@@ -1252,6 +1291,7 @@
       }
       if (!this.ally || !this.rtc.connected) {
         window.NeonLanTeammates?.hide();
+        window.NeonLanResonanceHud?.hide();
         return;
       }
       const boss = this.game.currentBoss;
@@ -1270,33 +1310,25 @@
       }
       const link = window.NeonLanResonance?.link(this.game.player, this.ally);
       if (link?.active) {
-        ctx.save();
-        ctx.strokeStyle = link.tier === 2 ? 'rgba(122,255,218,.7)' : 'rgba(100,196,255,.45)';
-        ctx.setLineDash([11, 8]);
-        ctx.lineWidth = link.tier === 2 ? 3 : 2;
-        ctx.beginPath();
-        ctx.moveTo(this.game.player.x, this.game.player.y);
-        ctx.lineTo(this.ally.x, this.ally.y);
-        ctx.stroke();
-        ctx.restore();
+        window.NeonLanResonance.drawLink(ctx, this.game.player, this.ally, link,
+          this.game.survivalTime || 0);
       }
+      // The host's own badge. It reads the same numbers the damage site uses.
+      window.NeonLanResonanceHud?.update(link ? {
+        tier: link.tier, damageBonus: link.damageBonus, critBonus: link.critBonus,
+        shieldSource: link.shieldSource,
+        shieldNext: link.shieldSource
+          ? Math.max(0, window.NeonLanResonance.SHIELD_INTERVAL -
+            (this.resonance.shieldTimer || 0)) : 0,
+        shieldHost: window.NeonLanResonance.remainingShield(this.game.player,
+          this.game.survivalTime || 0),
+        shieldGuest: window.NeonLanResonance.remainingShield(this.ally,
+          this.game.survivalTime || 0)
+      } : null, 'host');
       this.perf?.frame(perfStart, performance.now());
       const teammate = this.ally.profile || normalizeProfile(null, 'guest');
       window.NeonShips?.drawPilotEffects?.(ctx, this.ally, this.game);
       this.game.renderFighter(ctx, this.ally, teammate, true);
-      if (link) {
-        ctx.save();
-        ctx.fillStyle = link.active ? '#9fffe3' : '#a0afc4';
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 13px system-ui';
-        const shield = this.resonance.link?.shieldSource
-          ? ` | 星织护盾 ${Math.max(0, Math.ceil(12 - (this.resonance.shieldTimer || 0)))}s` : '';
-        ctx.fillText(link.active
-          ? `战机联动 +${Math.round((this.resonance.link?.damageBonus || 0) * 100)}%攻击${shield}`
-          : '联动中断 · 请靠近队友',
-          (this.game.player.x + this.ally.x) / 2, Math.min(this.game.player.y, this.ally.y) - 48);
-        ctx.restore();
-      }
     }
     sampleInput(consume = true) {
       const game = this.game, keys = game.keys || {};
@@ -1472,6 +1504,7 @@
       const perfStart = this.perf ? performance.now() : 0;
       if (!state) {
         window.NeonLanTeammates?.hide();
+        window.NeonLanResonanceHud?.hide();
         game.ctx.clearRect(0, 0, game.width, game.height);
         game.ctx.fillStyle = '#050a18';
         game.ctx.fillRect(0, 0, game.width, game.height);

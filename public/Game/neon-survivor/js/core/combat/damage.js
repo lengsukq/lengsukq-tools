@@ -8,7 +8,13 @@
           rawDamage = window.NeonRogueRelics?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
           rawDamage = window.NeonRogueFusions?.modifyDamage(this, target, rawDamage, source) ?? rawDamage;
         }
-        const isCrit = forceCrit || Math.random() < (attacker.critRate || 0);
+        // The co-op link adds crit chance when a Phantom is on either side of it.
+        // That contribution was computed and then read by nobody, so two Phantoms
+        // standing together received no bonus at all -- the damage bonus needs a
+        // Riftblade and the shield needs an Astra.
+        const critChance = (attacker.critRate || 0) +
+          (this.lanCoop?.getLinkCrit?.(attacker) || 0);
+        const isCrit = forceCrit || Math.random() < critChance;
         // Shared +3% per character level: exactly one multiplication per hit.
         let finalDamage = (isCrit ? rawDamage * (attacker.critDmg || 1.5) : rawDamage) *
           (1 + Math.max(0, (attacker.level || 1) - 1) * 0.03);

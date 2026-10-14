@@ -87,8 +87,12 @@
     const marked = window.NeonPhantom?.isMarked ? window.NeonPhantom.isMarked(pilot, enemy, game.survivalTime || 0) : false;
     const executeLvl = pilot.passives?.execute_master || 0;
     const executeBonus = executeLvl * ((hpPercent < 0.35 || marked) ? 0.15 : 0);
+    // The class crit and the co-op link crit are rolled together: a Phantom
+    // pair's resonance contribution arrives here, not through the base roll.
+    const linkCrit = game.lanCoop?.getLinkCrit?.(pilot) || 0;
     const isCrit = (pilot.phantom && window.NeonPhantom) ?
-      (Math.random() < window.NeonPhantom.critBonus(pilot, game.survivalTime || 0)) : false;
+      (Math.random() < window.NeonPhantom.critBonus(pilot, game.survivalTime || 0) + linkCrit)
+      : (linkCrit > 0 && Math.random() < linkCrit);
     const scale = window.NeonPhantom?.attackScale?.(pilot) || (pilot.dmgMultiplier || 1);
     game.dealDamage(enemy, damage * (1 + executeBonus) * scale, source, isCrit, pilot);
 

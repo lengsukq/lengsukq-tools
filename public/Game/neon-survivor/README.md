@@ -359,6 +359,36 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 - 字节计量改成 **UTF-8**（`schema.byteLength`），`rtc.js` 的发送守卫与两处接收守卫一并改掉：`texts` 层是中文和 emoji，`String.length` 会少算 2–3 倍，等于让 40k 的线被超发 3 倍。
 - 删除 `enemyBullets.damage`：房客不做碰撞判定，`renderEnemyBullets` 只读 `x/y/radius/color`，每帧白付约 1.3 KB。
 
+### 联机靠近加成：三个职业贡献，其中一个从来没生效过
+
+`resonance.js` 承诺三个职业贡献：裂锋给伤害、星织周期性给护盾、幽灵给暴击。其中**幽灵那一条是死代码**——`link()` 算出 `critBonus`（贴身 +12% / 近距 +6%），返回它，然后**没有任何代码读**，也不在线上。后果最严重的是**两个幽灵靠近**：
+
+| 组合 | 伤害加成 | 暴击加成 | 护盾 | 结果 |
+| --- | --- | --- | --- | --- |
+| 裂锋 + 裂锋 | +8% | — | — | 正常 |
+| 裂锋 + 幽灵 | +8% | +12% | — | 正常 |
+| 星织 + 幽灵 | — | +12% | ✓ | 正常 |
+| **幽灵 + 幽灵** | — | **+12% 被丢弃** | — | **什么都没有** |
+| **星织 + 星织** | — | — | ✓ | 只有护盾 |
+
+`damageBonus` 要求任一方是裂锋，`shieldSource` 要求任一方是星织，所以两个幽灵**确实什么都拿不到**——而那时 HUD 那行字拼出来是**空字符串**（`info` 为空时 `if (info)` 为假），只剩一条虚线。改前实测：`link.critBonus = 0.12`，而**实测暴击率 0.00%**；改后同一脚本 **12.13%**。
+
+现在：
+
+- `getLinkCrit(attacker)` 与 `getLinkBonus` 对称，暴击加成接进**三个**真正掷骰的地方：`core/combat/damage.js` 的基础骰，以及幽灵两处职业武器自己的骰（`ships/phantom/weapons.js`、`arsenal.js`——它们把结果当 `forceCrit` 传下去，所以漏掉那里等于没修）。
+- 两者都在**每帧发布一次**到飞行员身上（`publishLinkBonuses()`），伤害点直接读缓存。旧写法在每个伤害点重新调 `link()`，而 `link()` 会分配对象，幽灵的环绕体伤害又是**每帧每个敌人**一次。
+- `critBonus`/`critSource` 随快照下发，所以房客能看到自己实际拿到的数字。
+
+**星织护盾原本几乎拿不到**：需要连续 12 秒不间断处于 340 单位内，任意一帧脱离就把计时器清零。实测 11.9 秒后一帧出界 → 归零。现在改为**衰减**（`SHIELD_DRAIN_RATE = 2`，两倍充能速度），实测 11.5 秒的充能在分开 1 秒后剩 9.5 秒，重连后 3.5 秒就能拿到，而不是从零重来。
+
+**可见效果**（此前 `js/core/render/` 与 `js/core/ui/` 里零共振代码，全部表现就是 `coop.js` 里两段手写绘制）：
+
+- **脚下光环 + 连线**由 `resonance.js` 的 `drawLink()` 一处绘制，房主浮层与房客渲染都调它，两侧不可能画得不一样。贴身时是双环 + 4 颗流动光点，近距时单环 + 2 颗；连线虚线会流动。
+- **HUD 徽章**（`js/network/resonance-hud.js` + `#neon-link-badge`）常驻显示当前实际生效的数字，例如 `🔗 联动 Ⅱ · +8% 攻击 · +12% 暴击`；脱离范围显示 `🔗 联动中断 · 靠近队友`，单人模式整块隐藏。只在文案变化时才写 DOM。
+- **tier 变化反馈**：进入联动或升到贴身档会飘字（`⚡ 双机联动 Ⅰ/Ⅱ`）并在贴身档放一圈冲击波。**只在升档时**提示——边界会被反复穿越，每次都提示就是噪音。
+
+`tests/neon-survivor-resonance-bonus.smoke.cjs` 钉住以上每一条：九种组合都必须拿到非空加成且来源正确、暴击确实进入伤害骰（用固定随机数做**确定性**断言而不是统计）、护盾充能衰减而非清零、升档才提示、`coop.js` 里不再有 `setLineDash`（绘制只有一处）、徽章对任何组合都不为空、以及 `critBonus` 在线上。改前跑同一段脚本：两个幽灵实测暴击 **0.00%**。
+
 ### 房客自己的无人机与环绕体
 
 `syncOrbiters()` / `syncDrones()` / `updateCompanionDrones()` 原本全部写死 `this.player` 与 `this.orbiters`，而**远端队友没有任何客户端在跑这 27 个阶段**。于是：
@@ -435,6 +465,7 @@ node tests/neon-survivor-snapshot-schema.smoke.cjs
 node tests/neon-survivor-wire-codec.smoke.cjs
 node tests/neon-survivor-coop-delivery.smoke.cjs
 node tests/neon-survivor-coop-drones.smoke.cjs
+node tests/neon-survivor-resonance-bonus.smoke.cjs
 node tools/neon-survivor/profile-phases.cjs
 git diff --check
 ```
