@@ -2,41 +2,60 @@
     NeonCore.define(NeonSurvivorGame, class {
       renderGems(ctx, visible) {
         // 2. Draw XP Gems & Items
-        this.gems.forEach((g) => {
-          if (!visible(g.x, g.y, (g.radius || 8) + 12)) return;
-          ctx.save();
-          if (g.type === 'heal') {
-            ctx.fillStyle = '#00ff66';
+        // Run-length batching: consecutive pickups that share a style are
+        // emitted as one path and filled/stroked once. Gems arrive in bursts
+        // of the same kind and colour, so a screen full of them collapses to a
+        // handful of fills. No per-entity allocation and no lookup table: a
+        // run is closed only when the style actually changes, so the worst
+        // case is the old one-state-change-per-gem behaviour.
+        const KIND_GEM = 0, KIND_HEAL = 1, KIND_MAGNET = 2, KIND_NUKE = 3;
+        let kind = -1, color = null, open = false;
+        const closeRun = () => {
+          if (!open) return;
+          if (kind === KIND_MAGNET) ctx.stroke();
+          else { ctx.fill(); if (kind === KIND_NUKE) ctx.stroke(); }
+          open = false;
+        };
+        ctx.globalAlpha = 1;
+        for (const g of this.gems) {
+          if (!visible(g.x, g.y, (g.radius || 8) + 12)) continue;
+          const next = g.type === 'heal' ? KIND_HEAL
+            : g.type === 'magnet' ? KIND_MAGNET
+            : g.type === 'nuke' ? KIND_NUKE : KIND_GEM;
+          if (next !== kind || (next === KIND_GEM && g.color !== color)) {
+            closeRun();
+            kind = next;
+            color = g.color;
+            if (kind === KIND_HEAL) ctx.fillStyle = '#00ff66';
+            else if (kind === KIND_MAGNET) { ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 3.5; }
+            else if (kind === KIND_NUKE) { ctx.fillStyle = '#ffaa00'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; }
+            else ctx.fillStyle = color;
+          }
+          if (!open) { ctx.beginPath(); open = true; }
+          if (kind === KIND_HEAL) {
             const s = g.radius;
-            ctx.fillRect(g.x - s * 0.35, g.y - s, s * 0.7, s * 2);
-            ctx.fillRect(g.x - s, g.y - s * 0.35, s * 2, s * 0.7);
-          } else if (g.type === 'magnet') {
-            ctx.strokeStyle = '#00f3ff';
-            ctx.lineWidth = 3.5;
-            ctx.beginPath();
+            ctx.rect(g.x - s * 0.35, g.y - s, s * 0.7, s * 2);
+            ctx.rect(g.x - s, g.y - s * 0.35, s * 2, s * 0.7);
+          } else if (kind === KIND_MAGNET) {
+            // moveTo first: an arc would otherwise be joined to the previous
+            // subpath by a straight line.
+            ctx.moveTo(g.x - g.radius, g.y);
             ctx.arc(g.x, g.y, g.radius, Math.PI, 0, false);
-            ctx.stroke();
-          } else if (g.type === 'nuke') {
-            ctx.fillStyle = '#ffaa00';
-            ctx.beginPath();
-            ctx.arc(g.x, g.y, g.radius * 0.9, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+          } else if (kind === KIND_NUKE) {
+            const r = g.radius * 0.9;
+            ctx.moveTo(g.x + r, g.y);
+            ctx.arc(g.x, g.y, r, 0, Math.PI * 2);
           } else {
             // Standard XP Diamond (crisp and high performance)
-            ctx.fillStyle = g.color;
-            ctx.beginPath();
-            ctx.moveTo(g.x, g.y - g.radius * 1.3);
-            ctx.lineTo(g.x + g.radius, g.y);
-            ctx.lineTo(g.x, g.y + g.radius * 1.3);
-            ctx.lineTo(g.x - g.radius, g.y);
+            const r = g.radius;
+            ctx.moveTo(g.x, g.y - r * 1.3);
+            ctx.lineTo(g.x + r, g.y);
+            ctx.lineTo(g.x, g.y + r * 1.3);
+            ctx.lineTo(g.x - r, g.y);
             ctx.closePath();
-            ctx.fill();
           }
-          ctx.restore();
-        });
+        }
+        closeRun();
       }
 
       renderShockwaves(ctx, visible) {

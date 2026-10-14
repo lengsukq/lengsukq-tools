@@ -120,49 +120,47 @@
 
       renderEnemyBullets(ctx, visible) {
         // 11. Draw Enemy Bullets
-        this.enemyBullets.forEach((eb) => {
-          if (!visible(eb.x, eb.y, (eb.radius || 4) + 6)) return;
-          ctx.fillStyle = eb.color;
-          ctx.beginPath();
-          ctx.arc(eb.x, eb.y, eb.radius, 0, Math.PI * 2);
-          ctx.fill();
-        });
+        // Run-length batching by colour: boss barrages put hundreds of these
+        // on screen, and a volley is normally a single colour. Consecutive
+        // same-colour bullets share one path and one fill; the run is closed
+        // only when the colour changes, so there is no per-bullet allocation.
+        let color = null, open = false;
+        ctx.globalAlpha = 1;
+        for (const eb of this.enemyBullets) {
+          if (!visible(eb.x, eb.y, (eb.radius || 4) + 6)) continue;
+          if (eb.color !== color) {
+            if (open) { ctx.fill(); open = false; }
+            color = eb.color;
+            ctx.fillStyle = color;
+          }
+          if (!open) { ctx.beginPath(); open = true; }
+          const r = eb.radius;
+          // moveTo first so consecutive arcs stay separate subpaths.
+          ctx.moveTo(eb.x + r, eb.y);
+          ctx.arc(eb.x, eb.y, r, 0, Math.PI * 2);
+        }
+        if (open) ctx.fill();
       }
 
       renderBullets(ctx, visible) {
         // 12. Draw Player Bullets
-        this.bullets.forEach((b) => {
-          if (!visible(b.x, b.y, (b.radius || 4) + 20)) return;
+        // Plain bullets (the overwhelming majority) are batched by colour with
+        // the same run-length scheme. Cluster bomblets need two fills each and
+        // missiles need their own rotated art, so both keep the individual
+        // path; a run is closed before either is drawn.
+        let color = null, open = false;
+        ctx.globalAlpha = 1;
+        for (const b of this.bullets) {
+          if (!visible(b.x, b.y, (b.radius || 4) + 20)) continue;
           if (b.type === 'missile') {
-            ctx.save();
-            ctx.translate(b.x, b.y);
-            const ang = Math.atan2(b.vy, b.vx);
-            ctx.rotate(ang);
-            // Sleek missile fuselage
-            ctx.fillStyle = b.isLevel5 ? '#ff00aa' : '#ff007f';
-            ctx.beginPath();
-            if (ctx.roundRect) {
-              ctx.roundRect(-b.radius * 2.2, -b.radius, b.radius * 3.6, b.radius * 2, b.radius);
-            } else {
-              ctx.rect(-b.radius * 2.2, -b.radius, b.radius * 3.6, b.radius * 2);
-            }
-            ctx.fill();
-            // Glowing warhead tip
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(b.radius * 1.4, 0, b.radius * 0.85, 0, Math.PI * 2);
-            ctx.fill();
-            // Jet exhaust flare
-            ctx.fillStyle = b.isLevel5 ? '#00f3ff' : '#ffcc00';
-            ctx.beginPath();
-            ctx.moveTo(-b.radius * 2.2, -b.radius * 0.7);
-            ctx.lineTo(-b.radius * 3.4, 0);
-            ctx.lineTo(-b.radius * 2.2, b.radius * 0.7);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-          } else if (b.type === 'cluster_missile') {
-            ctx.save();
+            if (open) { ctx.fill(); open = false; }
+            color = null;
+            this.drawMissileBullet(ctx, b);
+            continue;
+          }
+          if (b.type === 'cluster_missile') {
+            if (open) { ctx.fill(); open = false; }
+            color = null;
             ctx.fillStyle = b.color;
             ctx.beginPath();
             ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -171,14 +169,49 @@
             ctx.beginPath();
             ctx.arc(b.x, b.y, b.radius * 0.5, 0, Math.PI * 2);
             ctx.fill();
-            ctx.restore();
-          } else {
-            ctx.fillStyle = b.color;
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-            ctx.fill();
+            continue;
           }
-        });
+          if (b.color !== color) {
+            if (open) { ctx.fill(); open = false; }
+            color = b.color;
+            ctx.fillStyle = color;
+          }
+          if (!open) { ctx.beginPath(); open = true; }
+          const r = b.radius;
+          ctx.moveTo(b.x + r, b.y);
+          ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+        }
+        if (open) ctx.fill();
+      }
+
+      drawMissileBullet(ctx, b) {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        const ang = Math.atan2(b.vy, b.vx);
+        ctx.rotate(ang);
+        // Sleek missile fuselage
+        ctx.fillStyle = b.isLevel5 ? '#ff00aa' : '#ff007f';
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(-b.radius * 2.2, -b.radius, b.radius * 3.6, b.radius * 2, b.radius);
+        } else {
+          ctx.rect(-b.radius * 2.2, -b.radius, b.radius * 3.6, b.radius * 2);
+        }
+        ctx.fill();
+        // Glowing warhead tip
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(b.radius * 1.4, 0, b.radius * 0.85, 0, Math.PI * 2);
+        ctx.fill();
+        // Jet exhaust flare
+        ctx.fillStyle = b.isLevel5 ? '#00f3ff' : '#ffcc00';
+        ctx.beginPath();
+        ctx.moveTo(-b.radius * 2.2, -b.radius * 0.7);
+        ctx.lineTo(-b.radius * 3.4, 0);
+        ctx.lineTo(-b.radius * 2.2, b.radius * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
 
       renderOrbiters(ctx, visible) {
