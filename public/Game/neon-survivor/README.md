@@ -41,7 +41,8 @@ public/Game/
       simulation/bullets.js   # 玩家子弹与敌方弹幕
       simulation/enemies.js   # 敌人推进、碰撞、控制与死亡
       simulation/gems.js      # 经验晶体、掉落与拾取
-      render/index.js         # render()：相机准备与有序绘制
+      render/index.js         # render()：相机准备与有序绘制、自适应画质阶梯
+      render/quality.js       # QualityLadder：帧耗驱动的画质档位（DPR/阴影）
       render/fighter.js       # 战机绘制与赛博网格背景
       render/world.js         # 世界层：晶体、冲击波、粒子、敌人
       render/effects.js       # 特效层：电链、黑洞、地雷、光束、僚机、子弹、战机特效、飘字
@@ -84,7 +85,7 @@ public/Game/
     MANUAL.md                 # 玩家指南、机制和开发说明
 ```
 
-原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 34 个模块，最大文件 455 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
+原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 35 个模块，最大文件 452 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
 
 **新增核心逻辑时**：不要重新堆进单个文件。把方法写进已有的对应模块，用 `NeonCore.define(NeonSurvivorGame, class { ... })` 挂到原型上；新文件必须加进 `index.html` 的脚本列表（`core/define.js` 最先、`core/game.js` 在定义类之前、`core/boot.js` 最后），否则一致性测试会失败。
 
@@ -221,6 +222,36 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 
 调试时在游戏 HTML URL 后追加 `?perf=1`（如果已有查询参数则追加 `&perf=1`），房客会显示 **实际 FPS、渲染 CPU 平均/峰值毫秒、快照 Hz、最近网络包间隔、画布 DPR**。只有显式启用时才创建调试浮层；它用于识别绘制瓶颈或网络抖动，不等于对所有设备保证60FPS。需要降低图形开销时可使用设置中的「低特效」，画布分辨率和粒子预算会一起降低。
 
+## 性能剖析与已做的优化
+
+**先量后改**：`node tools/neon-survivor/profile-phases.cjs` 会在 Node 的 DOM mock 里启动真实游戏，构造一个后期密帧（100 敌人、220 玩家子弹、200 敌方弹幕、300 晶体），输出每个 `update()` 阶段、每个渲染层以及 `render()` 整体的主线程耗时。它刻意使用**具体的空 2D context 而不是 Proxy**：Proxy 会给每次属性访问加一次 trap，曾把渲染占比夸大近一个数量级，从而把优化方向带偏。
+
+该帧上的实测结论（决定了后续所有取舍）：
+
+| 位置 | 占比 |
+|---|---|
+| `render()` | ~60%（其中 renderEnemies / renderEnemyBullets / renderGems / renderBullets 合计 ~78%） |
+| `updateBullets` | ~17–21% |
+| `updateEnemies` | ~7–10% |
+| 其余各阶段 | 均 <1% |
+
+**已做**：
+
+- `Vec.dist` 不再用 `Math.hypot`（移动端比 `sqrt` 慢数倍），新增 `Vec.distSq` 供纯半径比较跳过开方；`js/core` 内其余 `Math.hypot` 调用点也一并改写。碰撞、分离、AOE、拾取、环绕刃、折跃扫掠与索敌都走这条路径。
+- HUD 的 DOM 写入（`getElementById` 风暴、`innerHTML` 重建、`classList`/`style` 写入与战斗技能坞）从每帧一次降到约 **15Hz**；120Hz 设备不再翻倍。冲刺/闪现充能属于玩法状态，由 `syncShipHudState()` 每帧同步；`updateHUD()` 本身仍是同步的，直接调用立即生效。
+- Canvas 阴影模糊由 `shadowEnabled()` 统一门控；移动端 Canvas2D 每个带阴影的图元都要多一趟模糊。
+- 敌方弹幕统一经 `spawnEnemyBullet()` 限流（上限 240 发）；特斯拉电链与激光火花的粒子生成改为与伤害路径相同的预算。
+- 爆炸与 hi-hat 的噪声缓冲改为**生成一次复用**；此前每次大爆炸要现场填 ~2.6 万个随机采样。
+- **海量图元批处理**：晶体、敌方弹幕、普通玩家子弹改为**连续同样式合并**（run-length），同色一批共用一个路径与一次 `fill`。300 个同色晶体从 300 次 `fill` 降到 **1 次**；最坏情况（颜色交替）退化为与旧实现完全相同，不会更差。同机 A/B（各取 7 次最小值）：`render()` 0.107 → 0.097ms，整帧 0.175 → 0.150ms（**-14%**）。
+- **自适应画质阶梯**：帧耗持续超预算时逐级下调画布像素倍率与阴影，有持续余量时逐级回升。`high(2.0) → medium(1.5) → low(1.25) → minimal(1.0)`；2.0→1.25 就是**少填 2.56 倍像素**，这是手机上最强的杠杆。降级需 1 个窗口（30 帧）超 12ms 预算，回升需连续 4 个窗口明显低于预算，中间带保持不动以避免来回抖动。玩家选择的「低特效」既是起始档也是回升上限，永不被越过，但设备扛不住时仍可继续下探。只有权威世界会调整，房客视图共用房主画布，不得改动它。
+
+**评估后放弃**（均因缺少可测收益，理由写在代码注释里以免被重复尝试）：
+
+- **空间网格**：微基准显示 100 敌人时小半径查询仅快 1.4x，大半径 AOE 反而慢到 0.39x；且它要优化的 `updateBullets` 每帧只占约 0.2%。已放弃。
+- **对象池 / `dealDamage` 微优化**：`updateBullets` + `updateEnemies` 合计仅约 0.05ms/帧，收益不足。
+- **精灵缓存 `drawImage`**：已实现并实测为**倒退**（`renderEnemyBullets` 0.019 → 0.026ms，整帧 0.150 → 0.200ms）。它把"一次批处理 `fill`"拆成 N 次 `drawImage`，而现代 Canvas2D 会把单个批处理路径合并为一次 GPU 绘制，N 次 blit 仍是 N 次绘制；再加上每实体的缓存查找（字符串 key 还会每帧分配）。已回退。
+- **完整 WebGL2 后端**：收益上限最高，但画面正确性无法在无浏览器的环境里验证，属于必须真机验收的独立工作，未纳入本次改动。
+
 ## 验证
 
 ```sh
@@ -247,7 +278,13 @@ node tests/neon-survivor-guest-upgrade.smoke.cjs
 node tests/neon-survivor-parallel-upgrade.smoke.cjs
 node tests/neon-survivor-rarity.smoke.cjs
 node tests/neon-survivor-revive.smoke.cjs
+node tests/neon-survivor-vec-perf.smoke.cjs
+node tests/neon-survivor-hud-throttle.smoke.cjs
+node tests/neon-survivor-entity-caps.smoke.cjs
+node tests/neon-survivor-render-batching.smoke.cjs
+node tests/neon-survivor-adaptive-quality.smoke.cjs
+node tools/neon-survivor/profile-phases.cjs
 git diff --check
 ```
 
-真实浏览器/手机/手柄仍需验证首领奖励弹窗、切换战区后继续移动、升级确认的手柄按键隔离、任务提示、小屏幕菜单和无尽模式至少30分钟的性能。Node 测试不等价于真机验收。
+真实浏览器/手机/手柄仍需验证首领奖励弹窗、切换战区后继续移动、升级确认的手柄按键隔离、任务提示、小屏幕菜单和无尽模式至少30分钟的性能。Node 测试不等价于真机验收；自适应画质与批处理的**设备端**填充率收益必须在真机上用 `?perf=1` 复核。
