@@ -2251,6 +2251,12 @@
               try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
               return;
             }
+            if (ghost && !ghost.shiftActive &&
+                (ghost.shiftLockUntil || 0) > (this.survivalTime || 0)) {
+              this.notifySkillFeedback('🌫️ 显形冷却中，稍后才能再次潜行', '#a855f7');
+              try { this.sound?.playLaser?.(200, 'sawtooth'); } catch (_) {}
+              return;
+            }
             const wasShiftActive = isPhantom ? Boolean(ghost?.shiftActive) : false;
             if (window.NeonShips?.runAbility?.(this.player,'onAction',this,
                 {kind:'warp',direction:this.getWarpDirection()}) === true) {
@@ -3296,11 +3302,16 @@
             const ghost = this.player.phantom;
             const shiftActive = Boolean(ghost?.shiftActive);
             const gaugePct = Math.max(0, Math.min(100, Math.round(((ghost?.stealthEnergy ?? 4.8) / Math.max(0.1, ghost?.stealthMax || 4.8)) * 100)));
-            if (dashLabel) dashLabel.textContent = shiftActive ? '引爆' : '潜行';
+            // A finished shift always leaves a short materialise lockout, so the
+            // button must read as unavailable even when the gauge is already full.
+            const shiftLocked = !shiftActive && (ghost?.shiftLockUntil || 0) > (this.survivalTime || 0);
+            if (dashLabel) dashLabel.textContent = shiftActive ? '引爆' : (shiftLocked ? '显形' : '潜行');
             if (dashCount) dashCount.textContent = `${gaugePct}%`;
             touchDashBtn.style.setProperty('--dash-fill', `${gaugePct}%`);
-            touchDashBtn.classList.toggle('dash-empty', (ghost?.stealthEnergy || 0) < 0.35 && !shiftActive);
-            touchDashBtn.setAttribute('aria-label', shiftActive ? '退出潜行引爆死印' : `持续潜行：${gaugePct}%能流可用`);
+            touchDashBtn.classList.toggle('dash-empty', !shiftActive && (shiftLocked || (ghost?.stealthEnergy || 0) < 0.35));
+            touchDashBtn.setAttribute('aria-label', shiftActive ? '退出潜行引爆死印'
+              : shiftLocked ? '显形冷却中，暂时无法再次潜行'
+              : `持续潜行：${gaugePct}%能流可用`);
           } else {
             if (dashLabel && dashLabel.textContent !== '折跃') dashLabel.textContent = '折跃';
             if (dashCount) {
@@ -3325,7 +3336,10 @@
             const detonBonus = (ghost?.warpUpgrades?.soul_detonation || this.player.dashUpgrades?.soul_detonation || 0) * 0.40;
             const reapDmg = Math.round((52 + (lvl - 1) * 5.5) * (1 + detonBonus) * (1 + coreBonus) * scale);
             const curEnergy = ghost?.stealthEnergy || 0;
-            statTextEl.innerHTML = `👻 持续潜行 ${gaugePct}% | 💥 死印 ~${reapDmg} | ⏱️ 持续${curEnergy.toFixed(1)}s`;
+            const lockLeft = (ghost?.shiftLockUntil || 0) - (this.survivalTime || 0);
+            const lockBadge = !ghost?.shiftActive && lockLeft > 0
+              ? ` | 🌫️ 显形 ${lockLeft.toFixed(1)}s` : '';
+            statTextEl.innerHTML = `👻 持续潜行 ${gaugePct}% | 💥 死印 ~${reapDmg} | ⏱️ 持续${curEnergy.toFixed(1)}s${lockBadge}`;
           } else {
             // HUD shows the current uncritical hit value (including global level scaling).
             const slashD = Math.round((this.player.dashSlashDmg || 95) * this.getLevelDmgMult());

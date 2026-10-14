@@ -61,6 +61,7 @@ for(let frame=0;frame<315;frame++){
 }
 assert.equal(phantom.phantom.shiftActive,false,'Shift expires exactly once');
 assert.ok(phantom.phantom.reapFlash>=0);
+game.survivalTime+=2; // clear the post-shift re-entry lockout
 phantom.phantom.stealthEnergy=4.8;
 assert.equal(ships.runAbility(phantom,'onAction',game,'shift'),true);
 assert.equal(ships.runAbility(phantom,'onAction',game,'reap'),true);

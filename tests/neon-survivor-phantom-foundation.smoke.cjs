@@ -123,10 +123,15 @@ assert.equal(carrier.hasDockedGunner, false);
 assert.ok(p.critBonus(ghost, 5.5) >= 1.0, 'Slingshot grants 100% crit bonus');
 assert.equal(p.canDock(ghost, carrier), false, 'Dock cooldown active after undocking');
 
-// 5. Finishing shift grants 0.35s invulnerability
+// 5. Finishing shift grants 0.35s invulnerability, then a mandatory
+//    materialise lockout: the ghost form can never be chained back on.
+game.survivalTime = 30; // clear the lockout left by the reap assertions above
 s.stealthEnergy = 3.0;
 assert.equal(p.enterShift(ghost, game), true);
 assert.equal(p.finishShift(ghost, game, true), true);
 assert.ok(ghost.invulnTimer >= 0.35, '0.35s un-targetable window on exiting shift');
+assert.equal(p.enterShift(ghost, game), false, 'Shift cannot be re-entered during the lockout');
+game.survivalTime += p.BASE.shiftReentryLockout;
+assert.equal(p.enterShift(ghost, game), true, 'Shift is available again after the lockout');
 
 console.log('Phantom foundation passed: 24-card catalog, continuous stealth, sprint/vortex & co-op docking.');

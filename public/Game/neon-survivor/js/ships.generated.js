@@ -2268,6 +2268,11 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     stealthRechargeSeconds: 5.2,    // 5.2s to fully recharge from 0 to 100%
     shiftSpeedMultiplier: 1.40,     // Base +40% speed during stealth
     shiftCooldown: 0,
+    // Mandatory materialised gap after any shift ends. It is intentionally
+    // longer than the 0.35s exit grace: without it a player could chain
+    // slivers of stealth with the free grace windows and stay untargetable
+    // forever (see addStealthEnergy / shiftEnergyCeiling).
+    shiftReentryLockout: 0.9,
     baseDashCharges: 2,
     maxDashCharges: 4,
     dashRecharge: 5.2,
@@ -2387,6 +2392,9 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       maxEctoplasm: 100,
       shiftActive: false,
       shiftRemaining: 0,
+      shiftLockUntil: 0,
+      shiftEnergyCeiling: 0,
+      pendingStealthRefill: false,
       stealthMax: BASE.stealthBaseMax,
       stealthEnergy: BASE.stealthBaseMax,
       dashCharges: 2,
@@ -2446,6 +2454,30 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     return (BASE.dashRecharge / flowBonus) * cdr;
   }
 
+  function syncDashPool(s) {
+    if (!s) return;
+    s.dashCharges = s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0;
+    s.dashRecharge = s.stealthEnergy;
+  }
+
+  /* The stealth gauge is a budget, not a battery: a running ghost form only
+   * ever drains it. Every refund (soul_gatherer hits on marked enemies, the
+   * reap kill refund, charge_overflow) is therefore rejected while the pilot
+   * is shifted and lands as recharge once the phantom is materialised again.
+   * Without this gate, a permanently marked boss — or simply standing inside
+   * the boss while the scythe keeps hitting it — refunded far more than the
+   * 1/s drain, so stealth (and its full damage immunity) never ended.
+   */
+  function addStealthEnergy(pilot, amount) {
+    const s = state(pilot);
+    if (!s || !Number.isFinite(amount) || amount <= 0) return 0;
+    if (s.shiftActive) return 0;
+    const before = Math.max(0, s.stealthEnergy || 0);
+    s.stealthEnergy = Math.min(s.stealthMax, before + amount);
+    syncDashPool(s);
+    return s.stealthEnergy - before;
+  }
+
   function addEctoplasm(pilot, amount) {
     const s = state(pilot);
     if (!validPilot(pilot) || !s || !Number.isFinite(amount) || amount <= 0) return 0;
@@ -2483,10 +2515,18 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
       return finishShift(pilot, game, true);
     }
 
+    // A finished shift always leaves a short materialised window during which
+    // the phantom cannot phase again, even if a refund already refilled the
+    // gauge. This is what stops grace-window chaining from being permanent
+    // invulnerability.
+    const now = game.survivalTime || 0;
+    if (now < (s.shiftLockUntil || 0)) return false;
+
     if ((s.stealthEnergy || 0) < 0.35) return false;
 
     if (s.dashCharges > 0) s.dashCharges--;
     s.shiftActive = true;
+    s.shiftEnergyCeiling = s.stealthEnergy || 0;
     const extendTier = s.warpUpgrades.spectral_extend || pilot.dashUpgrades?.spectral_extend || 0;
     s.shiftRemaining = s.stealthEnergy + extendTier * 1.0;
     s.shiftTrail.length = 0;
@@ -2581,9 +2621,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     // Continuous stealth energy refund on kill (+20% of max capacity per kill, max 60%)
     if (kills > 0) {
       const refundFraction = Math.min(BASE.reapMaxKillRefund, kills * BASE.reapKillRefundFraction);
-      s.stealthEnergy = Math.min(s.stealthMax, (s.stealthEnergy || 0) + s.stealthMax * refundFraction);
-      s.dashCharges = s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0;
-      s.dashRecharge = s.stealthEnergy;
+      addStealthEnergy(pilot, s.stealthMax * refundFraction);
     }
 
     // Terror shriek crowd control
@@ -2615,6 +2653,8 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     if (!validPilot(pilot) || !s?.shiftActive || game?.state !== 'playing') return false;
     s.shiftActive = false;
     s.shiftRemaining = 0;
+    s.shiftEnergyCeiling = 0;
+    s.shiftLockUntil = (game.survivalTime || 0) + BASE.shiftReentryLockout;
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0.35);
     if (Number.isFinite(pilot.invuln)) pilot.invuln = Math.max(pilot.invuln, 0.35);
     s.reapFlash = 0.28;
@@ -2941,17 +2981,30 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
     // Continuous stealth energy loop
     if (s.shiftActive) {
-      s.stealthEnergy = Math.max(0, (s.stealthEnergy || 0) - dt);
+      // Ghost form strictly drains. Anything a hook wrote after the previous
+      // frame (a refund that bypassed addStealthEnergy) is clipped back to the
+      // monotonic ceiling, so no amount of on-hit refund can extend a shift.
+      const ceiling = Number.isFinite(s.shiftEnergyCeiling)
+        ? s.shiftEnergyCeiling : (s.stealthEnergy || 0);
+      s.stealthEnergy = Math.max(0, Math.min(s.stealthEnergy || 0, ceiling) - dt);
+      s.shiftEnergyCeiling = s.stealthEnergy;
       s.shiftRemaining = s.stealthEnergy;
       if (s.stealthEnergy <= 0) {
         finishShift(pilot, game, false);
       }
     } else {
       // Smooth continuous recovery when not in stealth
+      s.shiftEnergyCeiling = 0;
       const flowLvl = s.passiveUpgrades.spiritual_flow || pilot.passives?.spiritual_flow || 0;
       const flowBonus = 1 + flowLvl * 0.14;
       const rechargeRate = (s.stealthMax / BASE.stealthRechargeSeconds) * flowBonus / (pilot.cdrMultiplier || 1);
       s.stealthEnergy = Math.min(s.stealthMax, (s.stealthEnergy || 0) + dt * rechargeRate);
+      if (s.pendingStealthRefill) {
+        // charge_overflow picked mid-shift: honour the refill once the ghost
+        // has materialised instead of extending the running shift.
+        s.pendingStealthRefill = false;
+        s.stealthEnergy = s.stealthMax;
+      }
       s.shiftRemaining = 0;
       s.dashCharges = s.stealthEnergy >= 0.35 ? (s.stealthEnergy > 2.0 ? 2 : 1) : 0;
       s.dashRecharge = s.stealthEnergy;
@@ -3092,7 +3145,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
               s.warpUpgrades[def.id] = bag[def.id];
               if (def.id === 'charge_overflow') {
                 s.stealthMax = BASE.stealthBaseMax + (s.warpUpgrades.spectral_extend || 0) * 0.8 + bag[def.id] * 0.8;
-                s.stealthEnergy = s.stealthMax; // refill immediately!
+                // Refill immediately, but never extend a running shift: the
+                // card is honoured the moment the ghost materialises again.
+                if (s.shiftActive) s.pendingStealthRefill = true;
+                else s.stealthEnergy = s.stealthMax;
               }
             } else if (def.type === 'passive') {
               s.passiveUpgrades[def.id] = bag[def.id];
@@ -3106,7 +3162,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
   window.NeonPhantom = Object.freeze({
     BASE, UNIQUE, catalog, state, attackScale, validPilot, getDashRechargeTime,
-    addEctoplasm, critBonus, enterShift, finishShift, markEnemy, isMarked, markDamageBonus, reap,
+    addEctoplasm, addStealthEnergy, critBonus, enterShift, finishShift, markEnemy, isMarked, markDamageBonus, reap,
     canDock, dock, undock, carrierDamageReduction, tick, renderMarks, ghostStrike, sprint, vortexPull
   });
 })();
@@ -3212,10 +3268,10 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
 
     const gatherLvl = pilot.passives?.soul_gatherer || 0;
     if (gatherLvl > 0 && marked) {
-      const pState = window.NeonPhantom?.state(pilot);
-      if (pState) {
-        pState.stealthEnergy = Math.min(pState.stealthMax, (pState.stealthEnergy || 0) + 0.08 * gatherLvl);
-      }
+      // Recharge-only refund: addStealthEnergy rejects it while the ghost form
+      // is running, otherwise hovering on a permanently marked boss refunds
+      // far more than the 1/s drain and stealth never ends.
+      window.NeonPhantom?.addStealthEnergy?.(pilot, 0.08 * gatherLvl);
     }
     if (window.NeonPhantom) {
       window.NeonPhantom.addEctoplasm(pilot, 2);
@@ -4120,6 +4176,7 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
     recharge: clamp(s.dashRecharge, 0, 8),
     stealthEnergy: clamp(s.stealthEnergy, 0, 10),
     stealthMax: clamp(s.stealthMax, 1, 10),
+    shiftLockUntil: clamp(s.shiftLockUntil, 0, 1e6),
     docked: Boolean(s.docked),
     dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),

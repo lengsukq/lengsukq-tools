@@ -101,6 +101,11 @@
       maxEctoplasm: player.spectral.maxEctoplasm,
       shiftActive: player.spectral.shiftActive,
       shiftRemaining: player.spectral.shiftRemaining,
+      // The continuous stealth gauge and its re-entry lockout drive the local
+      // dash button/HUD; without them the guest always painted a full 100% bar.
+      stealthEnergy: player.spectral.stealthEnergy,
+      stealthMax: player.spectral.stealthMax,
+      shiftLockUntil: player.spectral.shiftLockUntil,
       dashCharges: player.spectral.charges,
       dashRecharge: player.spectral.recharge,
       docked: player.spectral.docked,

@@ -12,6 +12,7 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
     recharge: clamp(s.dashRecharge, 0, 8),
     stealthEnergy: clamp(s.stealthEnergy, 0, 10),
     stealthMax: clamp(s.stealthMax, 1, 10),
+    shiftLockUntil: clamp(s.shiftLockUntil, 0, 1e6),
     docked: Boolean(s.docked),
     dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),

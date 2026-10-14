@@ -98,10 +98,10 @@
 
     const gatherLvl = pilot.passives?.soul_gatherer || 0;
     if (gatherLvl > 0 && marked) {
-      const pState = window.NeonPhantom?.state(pilot);
-      if (pState) {
-        pState.stealthEnergy = Math.min(pState.stealthMax, (pState.stealthEnergy || 0) + 0.08 * gatherLvl);
-      }
+      // Recharge-only refund: addStealthEnergy rejects it while the ghost form
+      // is running, otherwise hovering on a permanently marked boss refunds
+      // far more than the 1/s drain and stealth never ends.
+      window.NeonPhantom?.addStealthEnergy?.(pilot, 0.08 * gatherLvl);
     }
     if (window.NeonPhantom) {
       window.NeonPhantom.addEctoplasm(pilot, 2);
