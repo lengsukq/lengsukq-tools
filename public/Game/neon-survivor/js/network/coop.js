@@ -55,29 +55,25 @@
       dash: Boolean(data.dash)
     };
   }
+  /** A remote pilot. The registry owns its shape; there is deliberately no
+   *  inline fallback, because a second copy of the pilot shape is exactly how
+   *  the ally ended up with two names for every dash value. */
   function newAlly(game, shipId = 'riftblade', playerId = 'guest') {
-    if (window.NeonPlayers?.createRemotePilot)
-      return window.NeonPlayers.createRemotePilot(game, playerId, shipId);
-    return {
-      id: playerId, shipId: window.NeonShips?.DEFAULT_SHIP_ID || 'riftblade',
-      x: game.player.x + 60, y: game.player.y,
-      vx: 0, vy: 0, hp: 100, maxHp: 100, level: 1, radius: 16,
-      xp: 0, xpNeeded: game.player.xpNeeded || 1,
-      aimAngle: 0, invuln: 0, dash: 0, charges: 3, recharge: 0,
-      maxCharges: 3, pendingUpgrades: 0, choices: [], legendaryPityId: null,
-      pickedUpgradeIds: [], upgradeCapacity: 0, upgradeFinished: true,
-      upgradeRound: 0,
-      weapons: { blaster: 1 }, passives: {}, dashUpgrades: {}, limitBreaks: {},
-      timers: {}, dmgMultiplier: 1, areaMultiplier: 1, extraProjectiles: 0,
-      cdrMultiplier: 1, critRate: 0.08, critDmg: 1.5,
-      shotTime: 0, lastSeq: -1, lastInputAt: 0,
-      input: { dx: 0, dy: 0, aim: 0, dash: false },
-      profile: normalizeProfile(null, 'guest')
-    };
+    if (!window.NeonPlayers?.createRemotePilot) {
+      throw new Error('NeonPlayers must load before the co-op transport');
+    }
+    return window.NeonPlayers.createRemotePilot(game, playerId, shipId);
   }
+
+  /** One pilot block. The host block and the guest block are the SAME shape:
+   *  one declaration in schema.js, scoped only where the protocol genuinely
+   *  differs (upgrade negotiation belongs to a remote pilot). */
+  function pilotBlock(pilot, scope, identity) {
+    return window.NeonLanSchema.readPilot(pilot, { scope, identity });
+  }
+
   function snapshot(game, ally, seq, resonance = null, receiverId = 'guest') {
-    const limit = (array, max, fields) => (array || []).slice(0, max)
-      .map(entity => ({ id: networkId(entity), ...sample(entity, fields) }));
+    const schema = window.NeonLanSchema;
     const nearbyEnemies = [...(game.enemies || [])].filter(enemy => !enemy.dead)
       .sort((a, b) => {
         if (Boolean(a.isBoss) !== Boolean(b.isBoss)) return a.isBoss ? -1 : 1;
@@ -86,6 +82,11 @@
           Math.hypot(enemy.x - p.x, enemy.y - p.y)));
         return dist(a) - dist(b);
       });
+    const drones = schema.readEntities(game.companionDrones,
+      schema.ENTITY_ARRAYS.find(entry => entry.name === 'companionDrones'));
+    const orbiters = schema.readEntities(game.orbiters,
+      schema.ENTITY_ARRAYS.find(entry => entry.name === 'orbiters'))
+      .map(orb => ({ ...orb, centerX: round(game.player.x), centerY: round(game.player.y) }));
     const frame = {
       type: 'snapshot', seq, round: game.lanCoop?.roundId || 0,
       time: round(game.survivalTime),
@@ -111,116 +112,77 @@
         shieldGuest: window.NeonLanResonance?.remainingShield(ally, game.survivalTime) || 0,
         threatFactor: round(resonance.threatFactor || 1)
       } : { tier: 0, distance: 0, damageBonus: 0, pulseCooldown: 0 },
-      host: { ...sample(game.player, ['x','y','hp','maxHp','aimAngle','level','radius',
-        'shipId',
-        'isDashing','dashTimeLeft',
-        'regen','crystals','invulnTimer','aegisTimer','aegisRadius','maxDashCharges',
-        'dashCharges','dashRechargeTimer','dashSlashDmg','dashCombo','aegisDuration',
-        'downed','reviveIn']),
-        weapons: bag(game.player.weapons, 4), passives: bag(game.player.passives, 4),
-        ...(window.NeonShips?.projectForNetwork?.(game.player) || {}),
-        limitBreaks: bag(game.player.limitBreaks, 16),
-        name: ownProfile('host').name, color: ownProfile('host').color },
-      guest: { ...sample(ally, ['x','y','hp','maxHp','aimAngle','level','charges','radius',
-        'shipId',
-        'dash','invuln','recharge','lastSeq','maxCharges','pendingUpgrades',
-        'cdrMultiplier','dmgMultiplier','areaMultiplier','upgradeRound',
-        'upgradeCapacity','upgradeFinished',
-        'downed','reviveIn',
-        // Guest-side parity: without these the guest predicted movement with
-        // its own formula, showed a hardcoded slash damage and never drew its
-        // own aegis aura, fire trail or cryo tint.
-        'baseSpeed','dashSlashDmg','dashCombo','dashSlashWidth','dashRechargeTime',
-        'hasAegis','aegisDuration','aegisRadius','aegisTimer',
-        'hasDashBlast','hasFireTrail','hasDashCryo',
-        'dashBlastRadius','fireTrailDuration','dashCryoDuration']),
-        limitBreaks: bag(ally.limitBreaks, 16),
-        weapons: bag(ally.weapons, 4), passives: bag(ally.passives, 4),
-        ...(window.NeonShips?.projectForNetwork?.(ally) || {}),
-        dashUpgrades: bag(ally.dashUpgrades, 10),
-        choices: Array.isArray(ally.choices) ? ally.choices.slice(0, 5) : [],
-        pickedUpgradeIds: ally.pickedUpgradeIds?.slice(0, 3) || [],
-        legendaryPityId: ally.legendaryPityId || null,
-        name: ally.profile?.name || '队友', color: ally.profile?.color || '#ffbb55' },
-      enemies: limit(nearbyEnemies, 105,
-        ['x','y','vx','vy','hp','maxHp','radius','color','type','isBoss','isElite',
-          'hasShield','arming','aimTimer','coopCapture','coopExposed']),
-      bullets: limit(game.bullets, 120, ['x','y','vx','vy','radius','color','type','isLevel5']),
-      enemyBullets: limit(game.enemyBullets, 130, ['x','y','radius','color','damage']),
-      gems: limit(game.gems, 90, ['x','y','radius','type','color','value']),
-      shockwaves: limit(game.shockwaves, 40, ['x','y','radius','color','alpha']),
-      particles: limit(game.particles, 60, ['type','x','y','x1','y1','x2','y2',
-        'radius','color','life','maxLife']),
-      lightningTethers: limit(game.lightningTethers, 24, ['x1','y1','x2','y2']),
-      blackHoles: limit(game.blackHoles, 16, ['x','y','radius','rotAngle']),
-      mines: limit(game.mines, 24, ['x','y','radius']),
-      laserBeams: limit(game.laserBeams, 24, ['x','y','angle','width','length']),
-      companionDrones: [
-        ...limit(game.companionDrones, 12, ['x','y','angle']),
-        ...Array.from({
-          length: ally.hp > 0 && ally.weapons?.drones ? Math.min(5, 1 + ally.weapons.drones) : 0
-        }, (_, i) => {
-          const angle = (ally.dronePhase || 0) + i * Math.PI * 2 /
-            Math.min(5, 1 + ally.weapons.drones);
-          return {
-            id: 900000 + i, angle: round(angle),
-            x: round(ally.x + Math.cos(angle) * 52),
-            y: round(ally.y + Math.sin(angle) * 52)
-          };
-        })
-      ],
-      orbiters: [
-        ...limit(game.orbiters, 12, ['angle','distance','radius','color'])
-          .map(orb => ({ ...orb, centerX: round(game.player.x), centerY: round(game.player.y) })),
-        ...Array.from({ length: ally.weapons?.orbit ? Math.min(5, 1 + ally.weapons.orbit) : 0 }, (_, i) => ({
-          id: 800000 + i, angle: round((ally.orbitPhase || 0) + i * Math.PI * 2 /
-            Math.min(5, 1 + ally.weapons.orbit)), distance: round(85 * ally.areaMultiplier),
-          radius: round(9 * ally.areaMultiplier), color: '#00ffaa',
-          centerX: round(ally.x), centerY: round(ally.y)
-        }))
-      ],
-      dashTrails: limit(game.dashTrails, 24, ['x1','y1','x2','y2','color','life','maxLife']),
-      texts: limit(game.texts, 40, ['x','y','text','color','size','life','maxLife'])
+      host: pilotBlock(game.player, 'local', ownProfile('host')),
+      guest: {
+        ...pilotBlock(ally, 'remote', ally.profile || normalizeProfile(null, 'guest')),
+        // Companion drones and orbiters for the guest's own weapons are
+        // synthesised from its loadout, because the host only simulates the
+        // host's own ones. They are appended AFTER the cap, as before.
+        companionDrones: [
+          ...drones,
+          ...Array.from({
+            length: ally.hp > 0 && ally.weapons?.drones ? Math.min(5, 1 + ally.weapons.drones) : 0
+          }, (_, i) => {
+            const angle = (ally.dronePhase || 0) + i * Math.PI * 2 /
+              Math.min(5, 1 + ally.weapons.drones);
+            return {
+              id: 900000 + i, angle: round(angle),
+              x: round(ally.x + Math.cos(angle) * 52),
+              y: round(ally.y + Math.sin(angle) * 52)
+            };
+          })
+        ],
+        orbiters: [
+          ...orbiters,
+          ...Array.from({ length: ally.weapons?.orbit ? Math.min(5, 1 + ally.weapons.orbit) : 0 },
+            (_, i) => ({
+              id: 800000 + i, angle: round((ally.orbitPhase || 0) + i * Math.PI * 2 /
+                Math.min(5, 1 + ally.weapons.orbit)), distance: round(85 * ally.areaMultiplier),
+              radius: round(9 * ally.areaMultiplier), color: '#00ffaa',
+              centerX: round(ally.x), centerY: round(ally.y)
+            }))
+        ]
+      },
+      enemies: schema.readEntities(nearbyEnemies,
+        schema.ENTITY_ARRAYS.find(entry => entry.name === 'enemies'))
     };
+    // Every remaining entity array comes straight from the contract.
+    for (const spec of schema.ENTITY_ARRAYS) {
+      if (frame[spec.name]) continue;
+      frame[spec.name] = schema.readEntities(game[spec.name], spec);
+    }
     return window.NeonLanSnapshots?.decorate(frame, game, receiverId) || frame;
   }
+
   // Keep within the RTCDataChannel's 40k frame limit, so crowded boss fights
-  // do not silently stop synchronizing. Critical players and boss entities
-  // are never removed. Decorative effects are trimmed first.
+  // do not silently stop synchronizing. Critical players and boss entities are
+  // never removed. The budget, the trim order and the per-layer floors are all
+  // declared in schema.js, next to the caps they have to agree with.
   const SNAPSHOT_LIMIT = 18000;
-  // Cosmetic layers, in trim order. The FLOOR is what each layer keeps during
-  // the first pass: a single dense layer used to be emptied completely (a
-  // guest lost every particle in a crowded fight, which is why co-op "effects
-  // looked worse" than the host's). Shaving each layer down to a floor first
-  // spreads the loss instead of zeroing whichever layer happens to be first.
-  const TRIMMABLE = Object.freeze([
-    ['particles', 24], ['texts', 12], ['shockwaves', 16], ['dashTrails', 10],
-    ['companionDrones', 6], ['laserBeams', 10], ['mines', 10], ['blackHoles', 8],
-    ['lightningTethers', 10], ['orbiters', 6], ['gems', 45], ['bullets', 60],
-    ['enemyBullets', 60]
-  ]);
   function boundedSnapshot(game, ally, seq, resonance = null, receiverId = 'guest') {
+    const schema = window.NeonLanSchema;
     const frame = snapshot(game, ally, seq, resonance, receiverId);
-    // Stay below conservative mobile SCTP message budgets and minimize latency.
     const LIMIT = SNAPSHOT_LIMIT;
     let size = JSON.stringify(frame).length;
     if (size <= LIMIT) return frame;
     const trim = (items, floor) => {
       while (items?.length > floor && size > LIMIT) {
-        // JSON-stringifying the whole snapshot for every removed effect
-        // caused quadratic CPU spikes in dense fights.
+        // JSON-stringifying the whole snapshot for every removed effect caused
+        // quadratic CPU spikes in dense fights.
         const last = items[items.length - 1];
         size -= JSON.stringify(last).length + (items.length > 1 ? 1 : 0);
         items.pop();
       }
     };
-    // Pass 1: shave every cosmetic layer down to its floor.
-    for (const [field, floor] of TRIMMABLE) trim(frame[field], floor);
+    // Pass 1: shave every decorative layer down to its floor, so the loss is
+    // spread across the effects instead of emptying whichever layer is first.
+    for (const spec of schema.TRIM_ORDER) trim(frame[spec.name], spec.floor);
     if (size <= LIMIT) return frame;
     // Pass 2: still oversized, so the floors have to go too.
-    for (const [field] of TRIMMABLE) trim(frame[field], 0);
+    for (const spec of schema.TRIM_ORDER) trim(frame[spec.name], 0);
     if (size <= LIMIT) return frame;
-    // Bosses survive priority culling; trim only regular enemies.
+    // Bosses survive priority culling; trim only regular enemies. There is no
+    // floor here: the budget wins, and only bosses are guaranteed to remain.
     while (frame.enemies.length && size > LIMIT) {
       // Avoid Array.findLastIndex: missing in some older tablet WebViews.
       let index = -1;
@@ -234,16 +196,30 @@
     }
     return frame;
   }
+  /** Validate a frame against the SAME declarations the producer uses, so the
+   *  producer's caps and the validator's caps cannot disagree. They used to be
+   *  written twice, with gems at 90 in both and therefore zero margin: raising
+   *  the producer cap by one would have made this reject EVERY frame, which
+   *  looks exactly like the "stuck on 正在同步房主战场" freeze. */
   function safeSnapshot(data) {
-    return data && data.type === 'snapshot' &&
-      Number.isSafeInteger(data.seq) && data.seq >= 0 &&
-      data.host && data.guest &&
-      ['x','y'].every(k => typeof data.host[k] === 'number' && Number.isFinite(data.host[k]) &&
-        typeof data.guest[k] === 'number' && Number.isFinite(data.guest[k])) &&
-      Array.isArray(data.enemies) && data.enemies.length <= 130 &&
-      Array.isArray(data.bullets) && data.bullets.length <= 140 &&
-      Array.isArray(data.enemyBullets) && data.enemyBullets.length <= 150 &&
-      Array.isArray(data.gems) && data.gems.length <= 90;
+    const schema = window.NeonLanSchema;
+    if (!data || data.type !== 'snapshot' || !data.host || !data.guest) return false;
+    if (!Number.isSafeInteger(data.seq) || data.seq < 0) return false;
+    // A peer announcing a newer contract would be misread silently; refuse it.
+    if (Number.isSafeInteger(data.protocolVersion) &&
+        data.protocolVersion > schema.VERSION) return false;
+    for (const name of schema.requiredPilotFields()) {
+      if (!Number.isFinite(data.host[name]) || !Number.isFinite(data.guest[name])) return false;
+    }
+    for (const spec of schema.ENTITY_ARRAYS) {
+      const list = data[spec.name];
+      // Absent arrays already read as empty, so they are not an error; a
+      // PRESENT array must respect the same cap the producer declares.
+      if (list === undefined) continue;
+      if (!Array.isArray(list) || list.length > spec.safeCap) return false;
+    }
+    return Array.isArray(data.enemies);
+
   }
   function guestChoosingUpgrade(frame) {
     return (frame?.phase === 'levelup' || frame?.phase === 'coop-guest-upgrade') &&
@@ -1594,5 +1570,5 @@
     }
   }
   window.NeonLanCoop = Object.freeze({ Coop, newAlly, normalizeInput,
-    snapshot, boundedSnapshot, safeSnapshot, SNAPSHOT_LIMIT, TRIMMABLE });
+    snapshot, boundedSnapshot, safeSnapshot, SNAPSHOT_LIMIT });
 })();

@@ -3,18 +3,20 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
   const s = pilot.phantom || {};
   const clamp = (value, min, max) => Number.isFinite(value)
     ? Math.min(max, Math.max(min, value)) : min;
-  return { spectral: {
+  // Emitted under the RUNTIME name (`phantom`), so no consumer-side renaming
+  // exists: one name per value on the live pilot, on the wire and in the view.
+  return { phantom: {
     ectoplasm: clamp(s.ectoplasm, 0, s.maxEctoplasm || 100),
     maxEctoplasm: clamp(s.maxEctoplasm || 100, 1, 200),
     shiftActive: Boolean(s.shiftActive),
     shiftRemaining: clamp(s.shiftRemaining, 0, 10),
-    charges: clamp(s.dashCharges, 0, 4),
-    recharge: clamp(s.dashRecharge, 0, 8),
+    dashCharges: clamp(s.dashCharges, 0, 4),
+    dashRecharge: clamp(s.dashRecharge, 0, 8),
     stealthEnergy: clamp(s.stealthEnergy, 0, 10),
     stealthMax: clamp(s.stealthMax, 1, 10),
     shiftLockUntil: clamp(s.shiftLockUntil, 0, 1e6),
     docked: Boolean(s.docked),
-    dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
+    dockCooldownRemaining: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),
     shiftFlash: clamp(s.shiftFlash,0,.28),
     reapFlash: clamp(s.reapFlash,0,.28),

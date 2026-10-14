@@ -86,115 +86,44 @@
   }
   // Populate the same guest view in place rather than creating Object.create()
   // and a new player/camera object for every paint operation.
+  /** Populate the guest view in place.
+   *
+   *  Every replicated field is written by the SHARED contract, so a field the
+   *  host sends can no longer be silently ignored here: this function used to
+   *  be 60 hand-written assignments, which is how the warp ribbon, the aegis
+   *  flags and the real slash damage never reached a guest.
+   */
   function updateView(view, state, game, coop) {
+    const schema = window.NeonLanSchema;
     const xp = state.teamXP || { xp: 0, xpNeeded: 1, level: state.level || 1 };
     view.isGuestWorldView = true;
     const focus = state.guest.downed && state.host.hp > 0 ? state.host : state.guest;
     view.camera ||= { x: 0, y: 0 };
     view.camera.x = focus.x;
     view.camera.y = focus.y;
+
     const player = view.player ||= {};
-    player.shipId = state.guest.shipId || 'riftblade';
-    player.spectral = state.guest.spectral || null;
-    player.phantom = player.shipId === 'phantom' && player.spectral ? {
-      ectoplasm: player.spectral.ectoplasm,
-      maxEctoplasm: player.spectral.maxEctoplasm,
-      shiftActive: player.spectral.shiftActive,
-      shiftRemaining: player.spectral.shiftRemaining,
-      // The continuous stealth gauge and its re-entry lockout drive the local
-      // dash button/HUD; without them the guest always painted a full 100% bar.
-      stealthEnergy: player.spectral.stealthEnergy,
-      stealthMax: player.spectral.stealthMax,
-      shiftLockUntil: player.spectral.shiftLockUntil,
-      dashCharges: player.spectral.charges,
-      dashRecharge: player.spectral.recharge,
-      docked: player.spectral.docked,
-      dockCooldownRemaining: player.spectral.dockCooldown,
-      shiftTrail: player.spectral.shiftTrail || [],
-      shiftFlash: player.spectral.shiftFlash || 0,
-      reapFlash: player.spectral.reapFlash || 0
-    } : null;
-    if (player.shipId === 'astra' && state.guest.arcane) {
-      const aura = state.guest.arcane;
-      player.astra = {
-        mana: aura.mana,
-        maxMana: aura.maxMana,
-        wardActive: Boolean(aura.wardActive),
-        blinkCharges: aura.blinkCharges,
-        blinkRecharge: aura.blinkRecharge,
-        cooldowns: {
-          meteor: aura.meteorCooldown,
-          ward: aura.wardCooldown
-        },
-        wardRemaining: aura.wardRemaining,
-        wardX: aura.wardX,
-        wardY: aura.wardY,
-        blinkFx: aura.blinkFx || null,
-        warpUpgrades: state.guest.dashUpgrades || {}
-      };
-      player.starWeave = { anchors: aura.anchors || [] };
-      player.astraVisual = aura.visual || [];
-    } else {
-      player.astra = null;
-      player.starWeave = null;
-      player.astraVisual = [];
-    }
-    player.phantomVisual = state.guest.spectral?.visual || [];
-    player.x = state.guest.x;
-    player.y = state.guest.y;
-    player.hp = state.guest.hp;
-    player.maxHp = state.guest.maxHp;
-    player.aimAngle = state.guest.aimAngle || 0;
-    player.radius = state.guest.radius || 16;
-    player.invulnTimer = state.guest.invuln || 0;
-    player.dash = state.guest.dash || 0;
+    schema.applyPilot(player, state.guest, { scope: 'remote' });
+    // The ship projection travels under its runtime name, so these are verbatim.
+    player.phantomVisual = state.guest.phantom?.visual || [];
+    player.astraVisual = state.guest.astra?.visual || [];
+    player.starWeave = state.guest.astra ? { anchors: state.guest.astra.anchors || [] } : null;
     player.visualDash = state.guest.visualDash || 0;
-    player.downed = Boolean(state.guest.downed);
-    player.level = xp.level;
     player.xp = xp.xp;
     player.xpNeeded = xp.xpNeeded;
-    player.regen = (window.NeonShips?.get(player.shipId)?.baseStats.regen ?? .8) +
-      (state.guest.passives?.armor || 0) * 1.8;
-    player.crystals = state.host.crystals || 0;
-    player.maxDashCharges = state.guest.maxCharges || 3;
-    player.dashCharges = state.guest.charges ?? 3;
-    // The host's real cooldown (reduced by dash_charge and haste), not a constant.
-    player.dashRechargeTime = state.guest.dashRechargeTime || 2.2;
-    player.dashRechargeTimer = state.guest.recharge || 0;
-    player.cdrMultiplier = state.guest.cdrMultiplier || 1;
-    player.dmgMultiplier = state.guest.dmgMultiplier || 1;
-    player.areaMultiplier = state.guest.areaMultiplier || 1;
-    // Host-authoritative dash stats. These used to be hardcoded (95 damage,
-    // 0 combo, no aegis), so the guest's own dock and HUD disagreed with the
-    // host's about the very ship it was flying.
-    player.baseSpeed = state.guest.baseSpeed || player.baseSpeed;
-    player.dashSlashDmg = state.guest.dashSlashDmg || 95;
-    player.dashSlashWidth = state.guest.dashSlashWidth || 18;
-    player.dashCombo = state.guest.dashCombo || 0;
-    player.aegisTimer = state.guest.aegisTimer || 0;
-    player.aegisDuration = state.guest.aegisDuration || 0;
-    player.aegisRadius = state.guest.aegisRadius || 0;
-    player.hasAegis = Boolean(state.guest.hasAegis);
-    player.hasDashBlast = Boolean(state.guest.hasDashBlast);
-    player.hasFireTrail = Boolean(state.guest.hasFireTrail);
-    player.hasDashCryo = Boolean(state.guest.hasDashCryo);
-    player.dashBlastRadius = state.guest.dashBlastRadius || 0;
-    player.fireTrailDuration = state.guest.fireTrailDuration || 0;
-    player.dashCryoDuration = state.guest.dashCryoDuration || 0;
-    player.weapons = state.guest.weapons || { blaster: 1 };
-    player.passives = state.guest.passives || {};
-    player.dashUpgrades = state.guest.dashUpgrades || {};
-    player.limitBreaks = state.guest.limitBreaks || {};
+    player.level = xp.level;
+
+    for (const name of schema.ARRAY_NAMES) schema.applyEntities(view, state, name);
+    view.currentBoss = (state.enemies || []).find(enemy => enemy.isBoss) || null;
     view.survivalTime = state.time || 0;
     view.kills = state.kills || 0;
     view.difficulty = state.difficulty || 0;
-    view.currentBoss = (state.enemies || []).find(enemy => enemy.isBoss) || null;
-    for (const field of arrays) view[field] = state[field] || [];
     view.lanCoop = coop;
     view.screenShake = 0;
     view.screenShakeAngle = 0;
     return view;
   }
+
   function create(game, state, coop) {
     const view = Object.create(game);
     // Force own copies: the authoritative game.player/camera must never be mutated.

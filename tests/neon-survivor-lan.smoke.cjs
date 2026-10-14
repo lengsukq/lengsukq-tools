@@ -61,6 +61,8 @@ vm.createContext(sandbox);
 // The shared PilotSpeed model lives in core (a later classic script in the
 // page); pilots.js calls it at run time.
 vm.runInContext(fs.readFileSync(root + 'js/core/simulation/speed.js', 'utf8'), sandbox);
+vm.runInContext(fs.readFileSync(root + 'js/players.js', 'utf8'), sandbox);
+vm.runInContext(fs.readFileSync(root + 'js/network/schema.js', 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/combat/pilots.js', 'utf8'), sandbox);
 for (const script of ['rtc', 'coop']) {
   vm.runInContext(fs.readFileSync(root + 'js/network/' + script + '.js', 'utf8'), sandbox);
@@ -133,7 +135,7 @@ assert.equal(normalizeInput({ type: 'input', seq: -1, dx: 0, dy: 0, aim: 0 }), n
   h.onMessage(input);
   h.updateHost(0.12);
   assert.ok(h.ally.x > 60, 'Remote ship moves inside host authority');
-  assert.equal(h.ally.charges, 2, 'One dash charge consumed by remote input');
+  assert.equal(h.ally.dashCharges, 2, 'One dash charge consumed by remote input');
   assert.ok(hostSent.length > 0);
   assert.equal(safeSnapshot(hostSent[0]), true);
   assert.equal(hostSent[0].enemies[0].hp, game.enemies[0].hp);

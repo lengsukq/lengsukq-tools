@@ -27,7 +27,7 @@ const document = {
 };
 const context = { window, document, console, performance: { now: () => 1000 } };
 vm.createContext(context);
-for (const name of ['network/ready', 'network/coop']) {
+for (const name of ['network/schema','network/ready', 'network/coop']) {
   vm.runInContext(fs.readFileSync(root + 'js/' + name + '.js', 'utf8'), context);
 }
 const { ReadyRoom, validSnapshot } = window.NeonLanReady;

@@ -25,7 +25,7 @@ const sandbox = {
   performance: { now: () => 2000 }, setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-neonCore.runScripts(sandbox, ['network/world-view', 'network/coop']);
+neonCore.runScripts(sandbox, ['network/schema','network/world-view', 'network/coop']);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const game = Object.create(proto);
 Object.assign(game, {

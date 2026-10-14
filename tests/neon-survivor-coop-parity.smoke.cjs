@@ -41,7 +41,7 @@ const sandbox = {
 vm.createContext(sandbox);
 neonCore.runScripts(sandbox, ['rarity', 'ships', 'ships.generated', 'players', 'combat/pilots']);
 // network modules under test
-for (const part of ['network/ready', 'network/snapshots', 'network/prediction',
+for (const part of ['network/schema','network/ready', 'network/snapshots', 'network/prediction',
   'network/world-view', 'network/coop']) {
   vm.runInContext(read('js/' + part + '.js'), sandbox, { filename: part });
 }
@@ -52,7 +52,7 @@ const Prediction = sandbox.window.NeonLanPrediction;
 const pilot = (shipId, extra = {}) => ({
   id: 'guest', shipId, x: 0, y: 0, hp: 100, maxHp: 100, level: 1,
   weapons: {}, passives: {}, dashUpgrades: {}, limitBreaks: {},
-  charges: 3, maxCharges: 3, recharge: 0, input: { dx: 0, dy: 0, aim: 0, dash: false },
+  dashCharges: 3, maxDashCharges: 3, dashRechargeTimer: 0, input: { dx: 0, dy: 0, aim: 0, dash: false },
   ...extra
 });
 
@@ -124,7 +124,7 @@ for (const shipId of ['riftblade', 'astra', 'phantom']) {
   assert.equal(docked.x, 0, 'a docked phantom must not be steered by the host either');
   const dockState = Prediction.create(0, 0);
   assert.equal(Prediction.moveSpeed(
-    { shipId: 'phantom', downed: false, spectral: { docked: true } }, 0, dockState), 0,
+    { shipId: 'phantom', downed: false, phantom: { docked: true } }, 0, dockState), 0,
     'and the guest must not predict movement for it');
 }
 
@@ -136,10 +136,10 @@ for (const shipId of ['riftblade', 'astra', 'phantom']) {
   const game = { state: 'playing', player: { x: 0, y: 0, level: ally.level }, enemies: [] };
   const start = ally.x;
   PilotSystem.startDash(game, ally);
-  assert.ok(ally.dash > 0, 'the ally dash must start');
+  assert.ok(ally.dashTimeLeft > 0, 'the ally dash must start');
   const dt = 1 / 120;
   let ticks = 0;
-  while (ally.dash > 0 && ticks < 200) { PilotSystem.stepRemote(game, ally, { dx: 1, dy: 0, aim: 0 }, dt); ticks++; }
+  while (ally.dashTimeLeft > 0 && ticks < 200) { PilotSystem.stepRemote(game, ally, { dx: 1, dy: 0, aim: 0 }, dt); ticks++; }
   const travelled = ally.x - start;
   const expected = PilotSpeed.dashDistance(ally);
   assert.ok(Math.abs(travelled - expected) < expected * 0.05,
@@ -152,7 +152,7 @@ for (const shipId of ['riftblade', 'astra', 'phantom']) {
     'the host dash must read the shared model, not a local constant');
   assert.match(read('js/core/simulation/player.js'), /const speed = PilotSpeed\.move\(this\.player\)/,
     'the host walk speed must read the shared model');
-  assert.match(read('js/combat/pilots.js'), /PilotSpeed\.move\(pilot, pilot\.dash > 0\)/,
+  assert.match(read('js/combat/pilots.js'), /PilotSpeed\.move\(pilot, pilot\.dashTimeLeft > 0\)/,
     'the ally step must read the shared model');
   assert.doesNotMatch(read('js/combat/pilots.js'), /\?\s*780\s*:/,
     'the hardcoded 780 ally dash speed must be gone');
@@ -315,17 +315,20 @@ for (const shipId of ['riftblade', 'astra', 'phantom']) {
 {
   const coop = read('js/network/coop.js');
   assert.match(coop, /const SNAPSHOT_LIMIT = 18000/, 'the frame budget must be explicit');
-  assert.match(coop, /TRIMMABLE/, 'trimming must be table-driven with per-layer floors');
-  const { TRIMMABLE } = sandbox.window.NeonLanCoop;
-  const floors = Object.fromEntries(Array.from(TRIMMABLE, ([field, floor]) => [field, floor]));
+  const { TRIM_ORDER, ENTITY_ARRAYS } = sandbox.window.NeonLanSchema;
+  assert.ok(TRIM_ORDER.length > 5, 'trimming must be table-driven');
+  const floors = Object.fromEntries(TRIM_ORDER.map(spec => [spec.name, spec.floor]));
   for (const field of ['particles', 'shockwaves', 'dashTrails', 'texts']) {
     assert.ok(floors[field] > 0, `${field} must keep a floor so it is not zeroed first`);
   }
   // The cosmetic caps must cover what the host itself can produce.
-  assert.match(coop, /particles: limit\(game\.particles, 60/,
+  const capOf = name => ENTITY_ARRAYS.find(spec => spec.name === name).cap;
+  assert.equal(capOf('particles'), 60,
     'the host caps its own particles at 60, so the guest must receive up to 60');
-  assert.match(coop, /shockwaves: limit\(game\.shockwaves, 40/);
-  assert.match(coop, /texts: limit\(game\.texts, 40/);
+  assert.equal(capOf('shockwaves'), 40);
+  assert.equal(capOf('texts'), 40);
+  assert.ok(ENTITY_ARRAYS.every(spec => spec.cap <= spec.safeCap),
+    'no declared cap may exceed the cap its own validator enforces');
 }
 
 console.log('Co-op parity passed: one movement/dash model for host, ally and '

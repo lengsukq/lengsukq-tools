@@ -54,7 +54,8 @@ const window = { NeonGameSettings: { get(key) { return settings.get(key); } } };
 const sandbox = { window, document, console, navigator: { getGamepads: () => [] },
   performance: { now: () => clock } };
 vm.createContext(sandbox);
-for (const file of ['teammates', 'coop']) {
+vm.runInContext(fs.readFileSync(root + 'js/players.js', 'utf8'), sandbox);
+for (const file of ['schema', 'teammates', 'coop']) {
   vm.runInContext(fs.readFileSync(root + 'js/network/' + file + '.js', 'utf8'), sandbox);
 }
 const team = window.NeonLanTeammates;

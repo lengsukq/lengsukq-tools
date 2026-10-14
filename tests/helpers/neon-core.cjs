@@ -76,9 +76,21 @@ function runCore(sandbox) {
   }
 }
 
-/** Evaluate the named game scripts first, then the whole core game. */
+/** Evaluate the named game scripts first, then the whole core game.
+ *
+ * network/schema.js is a declared dependency of every other network module, so
+ * it is loaded automatically whenever one is requested: a test that lists the
+ * modules under test should not also have to remember their contract module.
+ */
 function runScripts(sandbox, relatives) {
-  for (const relative of relatives) {
+  const list = [...relatives];
+  const needsNetwork = list.some(entry => /(^|\/)network\//.test(entry));
+  // js/players.js owns the remote pilot shape and network/schema.js owns the
+  // wire contract; both load before the transport in the page, so a test that
+  // lists network modules gets them automatically.
+  if (needsNetwork && !list.some(entry => /(^|\/)players$/.test(entry))) list.unshift('players');
+  if (needsNetwork && !list.some(entry => /network\/schema$/.test(entry))) list.unshift('network/schema');
+  for (const relative of list) {
     const part = toPath(relative);
     vm.runInContext(read(part), sandbox, { filename: part });
   }

@@ -7,7 +7,8 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
     x: clamp(a.x, -1e7, 1e7), y: clamp(a.y, -1e7, 1e7),
     life: clamp(a.life, 0, 6)
   }));
-  return { arcane: {
+  // Emitted under the RUNTIME name (`astra`), so the view assigns it verbatim.
+  return { astra: {
     mana: clamp(state.mana, 0, 250, 60),
     maxMana: clamp(state.maxMana, 1, 250, 100),
     blinkCharges: clamp(state.blinkCharges, 0, 4, 2),
@@ -27,8 +28,10 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
       radius:clamp(fx.radius,8,280),life:clamp(fx.life,0,3),
       maxLife:clamp(fx.maxLife,.01,3)
     })),
-    meteorCooldown: clamp(state.cooldowns?.meteor, 0, 30),
-    wardCooldown: clamp(state.cooldowns?.ward, 0, 30),
+    cooldowns: {
+      meteor: clamp(state.cooldowns?.meteor, 0, 30),
+      ward: clamp(state.cooldowns?.ward, 0, 30)
+    },
     wardRemaining: clamp(state.wardRemaining, 0, 10),
     wardX: clamp(state.wardX, -1e7, 1e7),
     wardY: clamp(state.wardY, -1e7, 1e7),

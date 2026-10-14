@@ -13,7 +13,7 @@ const sandbox = { window: {}, console, performance: { now: () => 1000 },
   document: { body: { classList: { remove() {} } }, getElementById: () => null },
   setTimeout, clearTimeout, setInterval, clearInterval };
 vm.createContext(sandbox);
-for (const file of ['players', 'network/coop'])
+for (const file of ['network/schema','players', 'network/coop'])
   vm.runInContext(fs.readFileSync(root + 'js/' + file + '.js', 'utf8'), sandbox);
 const { PlayerRegistry, MAX_PLAYERS, validId } = sandbox.window.NeonPlayers;
 assert.equal(MAX_PLAYERS, 4);

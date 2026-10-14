@@ -13,11 +13,16 @@ const document = {
 const ships = {
   get(id){return ['astra','phantom','riftblade'].includes(id) ? {id,playable:true,baseStats:{speed:240}} : null;},
   resolve(id){return this.get(id) || this.get('riftblade');},
+  startingState(id){const s=this.get(id)||this.get('riftblade');
+    return {shipId:s.id,hp:100,maxHp:100,baseSpeed:240,regen:.8,dashCharges:3,
+      weapons:{blaster:1},passives:{}};},
   runAbility(){return true;}
 };
 const window = {NeonShips:ships};
 const ctx = {window,document,console,performance:{now:()=>1000}};
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(root+'js/players.js','utf8'),ctx);
+vm.runInContext(fs.readFileSync(root+'js/network/schema.js','utf8'),ctx);
 vm.runInContext(fs.readFileSync(root+'js/network/ready.js','utf8'),ctx);
 window.NeonLanReady = {...window.NeonLanReady,mount(coop){
   calls.mounted++;
@@ -133,7 +138,7 @@ for (const snippet of [
   'line-clamp: unset','overflow-y: auto','upgrade-card-info','upgrade-stat-text'
 ]) assert.ok(latest.includes(snippet),'responsive upgrade rules must contain '+snippet);
 const html = fs.readFileSync(root+'index.html','utf8');
-assert.match(html, /css\/game\.css\?v=coop-parity-20261018/,
+assert.match(html, /css\/game\.css\?v=state-contract-20261019/,
   'CSS must be cache-busted so users receive the updated layout');
 const cssToken = (html.match(/css\/game\.css\?v=([^"']+)/) || [])[1];
 assert.ok(cssToken, 'CSS must be cache-busted so users receive the updated layout');

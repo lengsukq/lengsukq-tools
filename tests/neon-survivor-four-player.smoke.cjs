@@ -52,7 +52,7 @@ const rtc = {
 const context={window,console,performance:{now:()=>500},
   document:{getElementById(){return null},body:{classList:{remove(){}}}}};
 vm.createContext(context);
-for (const file of ['network/ready','network/snapshots','network/coop']) {
+for (const file of ['network/schema','network/ready','network/snapshots','network/coop']) {
   vm.runInContext(fs.readFileSync(root+file+'.js','utf8'),context);
 }
 window.NeonLanReady={...window.NeonLanReady,mount(coop){

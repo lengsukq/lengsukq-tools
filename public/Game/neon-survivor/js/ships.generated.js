@@ -1997,7 +1997,7 @@ window.NeonShips.registerEffects('astra', {
     window.NeonAstra?.renderShield(ctx, pilot);
   },
   network(ctx, snapshot) {
-    const arcane = snapshot.arcane;
+    const arcane = snapshot.astra;
     if (arcane?.meteorZones?.length) {
       window.NeonAstra?.renderMeteorZones(ctx, {
         shipId: 'astra',
@@ -2046,7 +2046,8 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
     x: clamp(a.x, -1e7, 1e7), y: clamp(a.y, -1e7, 1e7),
     life: clamp(a.life, 0, 6)
   }));
-  return { arcane: {
+  // Emitted under the RUNTIME name (`astra`), so the view assigns it verbatim.
+  return { astra: {
     mana: clamp(state.mana, 0, 250, 60),
     maxMana: clamp(state.maxMana, 1, 250, 100),
     blinkCharges: clamp(state.blinkCharges, 0, 4, 2),
@@ -2066,8 +2067,10 @@ window.NeonShips.registerNetworkProjection('astra', pilot => {
       radius:clamp(fx.radius,8,280),life:clamp(fx.life,0,3),
       maxLife:clamp(fx.maxLife,.01,3)
     })),
-    meteorCooldown: clamp(state.cooldowns?.meteor, 0, 30),
-    wardCooldown: clamp(state.cooldowns?.ward, 0, 30),
+    cooldowns: {
+      meteor: clamp(state.cooldowns?.meteor, 0, 30),
+      ward: clamp(state.cooldowns?.ward, 0, 30)
+    },
     wardRemaining: clamp(state.wardRemaining, 0, 10),
     wardX: clamp(state.wardX, -1e7, 1e7),
     wardY: clamp(state.wardY, -1e7, 1e7),
@@ -2656,7 +2659,7 @@ window.NeonShips.registerRenderer('phantom', (ctx, fighter, profile) => {
     s.shiftEnergyCeiling = 0;
     s.shiftLockUntil = (game.survivalTime || 0) + BASE.shiftReentryLockout;
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0.35);
-    if (Number.isFinite(pilot.invuln)) pilot.invuln = Math.max(pilot.invuln, 0.35);
+    if (Number.isFinite(pilot.invulnTimer)) pilot.invulnTimer = Math.max(pilot.invulnTimer, 0.35);
     s.reapFlash = 0.28;
     reap(pilot, game, forced);
     const power = Math.min(2, s.warpUpgrades.dimension_door || pilot.dashUpgrades?.dimension_door || 0);
@@ -4150,12 +4153,12 @@ window.NeonShips.registerEffects('phantom', {
   },
   network(ctx, snapshot) {
     drawPhantomShift(ctx,{
-      ...snapshot.spectral,x:snapshot.x,y:snapshot.y,aimAngle:snapshot.aimAngle
+      ...snapshot.phantom,x:snapshot.x,y:snapshot.y,aimAngle:snapshot.aimAngle
     });
-    NeonPhantomVisual.draw(ctx,snapshot.spectral?.visual);
-    if (snapshot.spectral?.scythes?.length) {
+    NeonPhantomVisual.draw(ctx,snapshot.phantom?.visual);
+    if (snapshot.phantom?.scythes?.length) {
       window.NeonPhantomScythe?.render(ctx, {
-        phantomScythe: {scythes:snapshot.spectral.scythes}
+        phantomScythe: {scythes:snapshot.phantom.scythes}
       });
     }
   }
@@ -4167,18 +4170,20 @@ window.NeonShips.registerNetworkProjection('phantom', pilot => {
   const s = pilot.phantom || {};
   const clamp = (value, min, max) => Number.isFinite(value)
     ? Math.min(max, Math.max(min, value)) : min;
-  return { spectral: {
+  // Emitted under the RUNTIME name (`phantom`), so no consumer-side renaming
+  // exists: one name per value on the live pilot, on the wire and in the view.
+  return { phantom: {
     ectoplasm: clamp(s.ectoplasm, 0, s.maxEctoplasm || 100),
     maxEctoplasm: clamp(s.maxEctoplasm || 100, 1, 200),
     shiftActive: Boolean(s.shiftActive),
     shiftRemaining: clamp(s.shiftRemaining, 0, 10),
-    charges: clamp(s.dashCharges, 0, 4),
-    recharge: clamp(s.dashRecharge, 0, 8),
+    dashCharges: clamp(s.dashCharges, 0, 4),
+    dashRecharge: clamp(s.dashRecharge, 0, 8),
     stealthEnergy: clamp(s.stealthEnergy, 0, 10),
     stealthMax: clamp(s.stealthMax, 1, 10),
     shiftLockUntil: clamp(s.shiftLockUntil, 0, 1e6),
     docked: Boolean(s.docked),
-    dockCooldown: clamp(s.dockCooldownRemaining, 0, 20),
+    dockCooldownRemaining: clamp(s.dockCooldownRemaining, 0, 20),
     markedTargets: Math.min(64, s.marks?.size || 0),
     shiftFlash: clamp(s.shiftFlash,0,.28),
     reapFlash: clamp(s.reapFlash,0,.28),

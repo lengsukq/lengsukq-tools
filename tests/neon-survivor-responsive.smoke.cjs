@@ -44,6 +44,7 @@ const sandbox = {
   document: { getElementById: () => null }, performance: { now: () => 0 }
 };
 vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync(root + 'js/network/schema.js', 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/network/world-view.js', 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(root + 'js/network/coop.js', 'utf8'), sandbox);
 const coop = new sandbox.window.NeonLanCoop.Coop({

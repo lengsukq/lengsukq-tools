@@ -129,7 +129,7 @@ function environment(url, { failJoin = false } = {}) {
   const navigator = { clipboard: { async writeText(value) { calls.copies.push(value); } } };
   const sandbox = { window: win, document, navigator, URL, console, Promise };
   vm.createContext(sandbox);
-  for (const file of ['network/invite.js', 'network/ui.js']) {
+  for (const file of ['network/schema.js', 'network/invite.js', 'network/ui.js']) {
     vm.runInContext(fs.readFileSync(root + 'js/' + file, 'utf8'), sandbox);
   }
   const game = { state: 'start', lanRTC: null, lanCoop: null,

@@ -7,7 +7,7 @@
         ctx.translate(fighter.x, fighter.y);
         ctx.rotate(fighter.aimAngle || 0);
         const isPhantomShifted = fighter.shipId === 'phantom' &&
-          Boolean(fighter.phantom?.shiftActive || fighter.spectral?.shiftActive);
+          Boolean(fighter.phantom?.shiftActive);
         if (fighter.downed) {
           ctx.globalAlpha = .5;
         } else if (isPhantomShifted) {

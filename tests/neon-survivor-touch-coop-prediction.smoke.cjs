@@ -78,7 +78,7 @@ assert.ok(visual.x>before,'per-frame prediction continues during correction');
 assert.ok(visual.correctionX>0,'authoritative discrepancy is eased on render frames');
 prediction.reconcile(visual,{...guest,x:1200,y:0,lastSeq:2},210);
 assert.ok(visual.x>1000,'large teleports and respawns snap rather than dragging');
-assert.equal(prediction.dash(visual,{...guest,charges:0},300),false);
+assert.equal(prediction.dash(visual,{...guest,dashCharges:0},300),false);
 assert.equal(prediction.dash(visual,guest,300),true);
 assert.equal(visual.dashUntil,480);
 const beforeDash=visual.x;

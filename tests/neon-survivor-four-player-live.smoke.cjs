@@ -28,7 +28,7 @@ const window = {
 const doc={getElementById(){return null},body:{classList:{add(){},remove(){}}}};
 const ctx={window,document:doc,console,performance:{now:()=>1000}};
 vm.createContext(ctx);
-for(const file of ['players','network/ready','network/snapshots','network/coop']) {
+for(const file of ['network/schema','players','network/ready','network/snapshots','network/coop']) {
   vm.runInContext(fs.readFileSync(prefix+file+'.js','utf8'),ctx);
 }
 window.NeonLanReady={...window.NeonLanReady,mount(coop){

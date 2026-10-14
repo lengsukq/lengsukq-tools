@@ -25,7 +25,7 @@
   function moveSpeed(guest, now, state) {
     if (!guest || guest.downed) return 0;
     // A docked phantom rides its carrier; the host pins it there every tick.
-    if (guest.shipId === 'phantom' && guest.spectral?.docked) return 0;
+    if (guest.shipId === 'phantom' && guest.phantom?.docked) return 0;
     // The snapshot carries the host's authoritative baseSpeed. Prefer it, so
     // no formula can drift; fall back to the shared model before the first
     // snapshot arrives.
@@ -110,8 +110,8 @@
   }
 
   function dash(state, guest, now) {
-    if (!state || !guest || guest.downed || guest.charges <= 0) return false;
-    if (guest.shipId === 'astra' && guest.arcane?.wardActive) return false;
+    if (!state || !guest || guest.downed || guest.dashCharges <= 0) return false;
+    if (guest.shipId === 'astra' && guest.astra?.wardActive) return false;
     if (guest.shipId === 'riftblade') {
       state.dashUntil = now + PilotSpeed.DASH_DURATION * 1000;
       // The ribbon is the signature of a riftblade dash. Build it locally so

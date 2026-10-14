@@ -4,13 +4,13 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const root = 'public/Game/neon-survivor/';
 const html = fs.readFileSync(root+'index.html','utf8');
-for (const part of ['js/players.js','js/network/roster.js',
+for (const part of ['network/schema','js/players.js','js/network/roster.js',
   'js/network/peers.js','js/network/snapshots.js']) assert.ok(html.includes(part));
 const sandbox = { window: {}, console, setTimeout, clearTimeout,
   crypto: { getRandomValues(bytes) { bytes.fill(1); return bytes; } },
   performance: { now:()=>1000 } };
 vm.createContext(sandbox);
-for (const file of ['ships','ships.generated','players','network/roster','network/peers','network/snapshots','network/rtc','network/coop'])
+for (const file of ['network/schema','ships','ships.generated','players','network/roster','network/peers','network/snapshots','network/rtc','network/coop'])
   vm.runInContext(fs.readFileSync(root+'js/'+file+'.js','utf8'), sandbox);
 const {PlayerRegistry,createRemotePilot}=sandbox.window.NeonPlayers;
 const {RoomRoster}=sandbox.window.NeonLanRoster;
@@ -34,7 +34,7 @@ const all=projection.players(game);
 assert.equal(all.length,4);
 assert.deepEqual(Array.from(all,p=>p.id),['host','guest','guest-2','guest-3']);
 const framed=projection.decorate({type:'snapshot',seq:99,host:{hp:100},guest:{hp:100}},game,'guest-3');
-assert.equal(framed.protocolVersion,2);
+assert.equal(framed.protocolVersion,3);
 assert.equal(framed.localPlayerId,'guest-3');
 assert.equal(framed.players.length,4);
 assert.equal(framed.host.hp,100,'The legacy snapshot remains intact');
@@ -99,7 +99,7 @@ directory.clear();
 assert.equal(directory.size,0);
 
 const legacyFrame=sandbox.window.NeonLanCoop.snapshot(game,game.players.get('guest'),11,null,'guest-2');
-assert.equal(legacyFrame.protocolVersion,2);
+assert.equal(legacyFrame.protocolVersion,3);
 assert.equal(legacyFrame.localPlayerId,'guest-2');
 assert.equal(legacyFrame.players.length,4);
 assert.ok(legacyFrame.host && legacyFrame.guest);

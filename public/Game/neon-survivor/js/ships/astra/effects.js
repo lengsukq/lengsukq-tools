@@ -166,7 +166,7 @@ window.NeonShips.registerEffects('astra', {
     window.NeonAstra?.renderShield(ctx, pilot);
   },
   network(ctx, snapshot) {
-    const arcane = snapshot.arcane;
+    const arcane = snapshot.astra;
     if (arcane?.meteorZones?.length) {
       window.NeonAstra?.renderMeteorZones(ctx, {
         shipId: 'astra',

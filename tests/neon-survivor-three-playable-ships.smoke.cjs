@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const root='public/Game/neon-survivor/js/';
 const world={window:{},console,performance:{now:()=>1000},setTimeout,clearTimeout};
 vm.createContext(world);
-for(const module of ['ships','ships.generated','players','combat/pilots','combat/weapons','network/coop'])
+for(const module of ['network/schema','ships','ships.generated','players','combat/pilots','combat/weapons','network/coop'])
   vm.runInContext(fs.readFileSync(root+module+'.js','utf8'),world);
 const ships=world.window.NeonShips;
 assert.deepEqual(Array.from(ships.list(),s=>s.id).sort(),['astra','phantom','riftblade']);
@@ -111,8 +111,8 @@ assert.ok(hits.some(hit=>hit.owner===ghost && hit.source==='phantom_reap'));
 // A separate teammate's upgrade/mana/ectoplasm can never be mutated by ours.
 assert.equal(game.player.weapons.blaster,1);
 assert.equal(mage.shipId,'astra');assert.equal(ghost.shipId,'phantom');
-assert.equal(ships.projectForNetwork(mage).arcane.maxMana>=100,true);
-assert.equal(ships.projectForNetwork(ghost).spectral.maxEctoplasm>=100,true);
+assert.equal(ships.projectForNetwork(mage).astra.maxMana>=100,true);
+assert.equal(ships.projectForNetwork(ghost).phantom.maxEctoplasm>=100,true);
 assert.ok(world.window.NeonAstra.attackScale(mage)>2.0,'Astra skills scale with arsenal & level');
 assert.ok(world.window.NeonPhantom.attackScale(ghost)>2.0,'Phantom skills scale with arsenal & level');
 console.log('All three playable ships passed: start loadouts, 24 upgrade cards each, two signatures, 8 Phantom extra weapons, spell/dash, co-op docking, distinct owner damage and network projections.');

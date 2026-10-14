@@ -87,7 +87,7 @@ public/Game/
     MANUAL.md                 # 玩家指南、机制和开发说明
 ```
 
-原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 37 个模块，最大文件 457 行。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
+原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 37 个模块，最大文件 457 行（另有 `js/network/schema.js` 状态契约）。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
 
 **新增核心逻辑时**：不要重新堆进单个文件。把方法写进已有的对应模块，用 `NeonCore.define(NeonSurvivorGame, class { ... })` 挂到原型上；新文件必须加进 `index.html` 的脚本列表（`core/define.js` 最先、`core/game.js` 在定义类之前、`core/boot.js` 最后），否则一致性测试会失败。
 
@@ -276,6 +276,23 @@ Node模拟测试可验证消息协议与基础双人玩法，但不能替代两�
 
 **刻意保留**：首领名与警报里的英文括注（`双生裁决者 · 共振要塞 (DUAL REACTOR)`、`(SWARM RUSH)`）属于既有的双语美术风格，中文名在前、不影响理解；手柄按键图例（`LB` / `RT` / `Menu`）是实体按键丝印，不是内部标识。
 
+## 状态契约：一份声明，三处派生
+
+`js/network/schema.js` 是**唯一的**字段契约：每个复制字段声明一次，生产者（`coop.js` 的 `snapshot()`）、消费者（`world-view.js` 的 `updateView()`）和校验器（`safeSnapshot()`）全部由它派生。分层是：
+
+- `core/simulation/speed.js` 管**规则**：两侧都运行的纯公式。
+- `js/network/schema.js` 管**形状**：有哪些字段、怎么过网。
+
+在此之前同一个字段要手写三遍，于是出现了整类 bug：`lastSlashFx` 与光环标记由房主写入却无人读取；`regen` 在房客端用第二份公式重算；队友对象同时存在 `charges` 与 `dashCharges` 两个名字指向同一个值。现在**一个值只有一个名字**——在活动对象上、在线上、在视图里都是。
+
+描述符带 `kind`（`number`/`string`/`boolean`/`bag`/`ids`/`nullable`/`effect`/`projection`）、`min`/`max`（越界即钳制，非有限值落到 `invalid`）、`fallback`（对端较旧时缺失的回退）、`scope`（`pilot` / `identity` / `remote` 升级协商）、`roster`（是否进入精简的 `players[]`）。
+
+**上限只声明一次**：每个实体数组同时声明 `cap`（生产者）、`safeCap`（校验器）、`floor`（超预算时的裁剪下限）和 `trim`（牺牲顺序，`null` 表示受保护、只走保 Boss 的敌人裁剪）。这正是 `gems` 曾经 `cap 90 / safeCap 90` 零余量的来源——生产者上限加一就会让校验器**拒收每一帧**，表现和「卡在正在同步房主战场」一模一样。
+
+`protocolVersion` 从死字段变成真护栏：高于当前 `VERSION`（3）的帧被拒绝，而不是被静默误读。
+
+`tests/neon-survivor-snapshot-schema.smoke.cjs` 是这套保证的守卫：上限一致性（1000 实体世界仍须通过校验）、有序键形状、双向闭合（线上无未声明字段、声明字段必被应用）、每个 kind 的往返、必需字段最小集、以及协议版本护栏。把 `gems` 的 `cap` 调到 `safeCap` 之上，测试立刻报出 `gems: producer cap 130 must not exceed its safe cap 120`。
+
 ## 房主与房客的一致性（co-op parity）
 
 **不变量：房客的位移、折跃距离、特效和 HUD 数字必须与房主完全一致。**
@@ -359,6 +376,7 @@ node tests/neon-survivor-adaptive-quality.smoke.cjs
 node tests/neon-survivor-ui-labels.smoke.cjs
 node tests/neon-survivor-pause-loadout.smoke.cjs
 node tests/neon-survivor-coop-parity.smoke.cjs
+node tests/neon-survivor-snapshot-schema.smoke.cjs
 node tools/neon-survivor/profile-phases.cjs
 git diff --check
 ```

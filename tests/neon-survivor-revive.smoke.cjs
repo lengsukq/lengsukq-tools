@@ -15,7 +15,7 @@ const context = {
   setInterval, clearInterval, setTimeout, clearTimeout
 };
 vm.createContext(context);
-neonCore.runScripts(context, ['network/revive', 'network/coop']);
+neonCore.runScripts(context, ['players','network/schema','network/revive', 'network/coop']);
 const revive = context.window.NeonLanRevive;
 const Coop = context.window.NeonLanCoop.Coop;
 const Game = vm.runInContext('NeonSurvivorGame.prototype', context);
@@ -59,7 +59,7 @@ assert.equal(context.window.NeonLanCoop.snapshot(game, guest, 1).rescue.deaths, 
 const start = guest.x;
 coop.onMessage({ type: 'input', seq: 1, dx: 1, dy: 0, aim: 0, dash: true });
 assert.equal(guest.x, start);
-assert.equal(guest.charges, 3, 'Downed guest cannot dash');
+assert.equal(guest.dashCharges, 3, 'Downed guest cannot dash');
 assert.equal(guest.input.dx, 0, 'Downed input must be ignored');
 game.state = 'paused';
 advance(game, .1, 5);
@@ -74,7 +74,7 @@ assert.equal(guest.hp, 0);
 advance(game, .1, 4.1);
 assert.equal(guest.downed, false);
 assert.equal(guest.hp, 40);
-assert.equal(guest.invuln, 2);
+assert.equal(guest.invulnTimer, 2);
 assert.equal(guest.x, game.player.x + 60);
 assert.equal(coop.rescue.lastStand, null);
 assert.ok(coop.rescue.totalHoldSeconds >= 7.9);

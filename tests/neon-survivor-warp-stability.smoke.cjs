@@ -39,10 +39,10 @@ assert.equal(astra.astra.blinkFx?.life,.32);
 assert.equal(ships.drawPilotEffects(ctx,astra,game),true);
 assert.ok(calls.some(call=>call[0]==='lineTo'),
   'Astra blink must paint a visible origin-to-destination energy ribbon');
-const astranet=ships.projectForNetwork(astra).arcane;
+const astranet=ships.projectForNetwork(astra).astra;
 assert.equal(astranet.blinkFx.x2,160);
 calls.length=0;
-assert.equal(ships.drawNetworkEffects(ctx,{shipId:'astra',arcane:astranet},game),true);
+assert.equal(ships.drawNetworkEffects(ctx,{shipId:'astra',astra:astranet},game),true);
 assert.ok(calls.some(call=>call[0]==='lineTo'),'Remote Astra has blink effects');
 context.window.NeonAstra.tick(astra,game,.4);
 assert.equal(astra.astra.blinkFx,null,'Astra FX expires without accumulating');
@@ -74,7 +74,7 @@ calls.length=0;
 assert.equal(ships.drawPilotEffects(ctx,phantom,game),true);
 assert.ok(calls.some(call=>call[0]==='arc'),
   'Phantom shift and reap must draw visible effects');
-const phantomNet=ships.projectForNetwork(phantom).spectral;
+const phantomNet=ships.projectForNetwork(phantom).phantom;
 assert.ok(phantomNet.shiftTrail.length<=10);
 assert.ok(JSON.stringify(ships.projectForNetwork(phantom)).length<4096);
 assert.equal(ships.drawNetworkEffects(ctx,

@@ -28,7 +28,7 @@ const sandbox = {
   setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-neonCore.runScripts(sandbox, ['rarity', 'endless', 'network/experience', 'network/coop']);
+neonCore.runScripts(sandbox, ['network/schema','rarity', 'endless', 'network/experience', 'network/coop']);
 // Natural rolls choose common cards; only the pity rule may force legendary.
 vm.runInContext('Math.random = () => 0', sandbox);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);

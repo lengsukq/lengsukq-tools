@@ -29,7 +29,7 @@ const sandbox={window:{addEventListener(){}},console,
   localStorage:{getItem:()=>null,setItem(){}},
   setTimeout,clearTimeout,setInterval,clearInterval};
 vm.createContext(sandbox);
-neonCore.runScripts(sandbox, ['rarity','network/experience','network/coop']);
+neonCore.runScripts(sandbox, ['network/schema','rarity','network/experience','network/coop']);
 const proto=vm.runInContext('NeonSurvivorGame.prototype',sandbox);
 const Coop=sandbox.window.NeonLanCoop.Coop;
 let hostGame=null;

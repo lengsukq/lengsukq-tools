@@ -469,12 +469,12 @@ window.NeonShips.registerEffects('phantom', {
   },
   network(ctx, snapshot) {
     drawPhantomShift(ctx,{
-      ...snapshot.spectral,x:snapshot.x,y:snapshot.y,aimAngle:snapshot.aimAngle
+      ...snapshot.phantom,x:snapshot.x,y:snapshot.y,aimAngle:snapshot.aimAngle
     });
-    NeonPhantomVisual.draw(ctx,snapshot.spectral?.visual);
-    if (snapshot.spectral?.scythes?.length) {
+    NeonPhantomVisual.draw(ctx,snapshot.phantom?.visual);
+    if (snapshot.phantom?.scythes?.length) {
       window.NeonPhantomScythe?.render(ctx, {
-        phantomScythe: {scythes:snapshot.spectral.scythes}
+        phantomScythe: {scythes:snapshot.phantom.scythes}
       });
     }
   }

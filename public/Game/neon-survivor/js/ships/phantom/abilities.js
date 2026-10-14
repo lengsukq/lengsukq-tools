@@ -402,7 +402,7 @@
     s.shiftEnergyCeiling = 0;
     s.shiftLockUntil = (game.survivalTime || 0) + BASE.shiftReentryLockout;
     pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0.35);
-    if (Number.isFinite(pilot.invuln)) pilot.invuln = Math.max(pilot.invuln, 0.35);
+    if (Number.isFinite(pilot.invulnTimer)) pilot.invulnTimer = Math.max(pilot.invulnTimer, 0.35);
     s.reapFlash = 0.28;
     reap(pilot, game, forced);
     const power = Math.min(2, s.warpUpgrades.dimension_door || pilot.dashUpgrades?.dimension_door || 0);

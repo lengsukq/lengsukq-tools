@@ -12,7 +12,7 @@ const sandbox = {
   performance: { now: () => 1000 }, setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-neonCore.runScripts(sandbox, ['network/experience', 'combat/weapons', 'network/coop']);
+neonCore.runScripts(sandbox, ['network/schema','network/experience', 'combat/weapons', 'network/coop']);
 const proto = vm.runInContext('NeonSurvivorGame.prototype', sandbox);
 const { Coop } = sandbox.window.NeonLanCoop;
 const effects = [];

@@ -74,9 +74,9 @@ assert.ok(enemies.some(e=>e.freezeTimer>0),'Spatial distortion changes monster m
 const beforeReflect=damage.length;
 assert.ok(env.window.NeonAstra.incomingDamage(game,mage,50)<50);
 assert.ok(damage.length>beforeReflect,'Shield-refraction passive counterattacks');
-const mageNet=ships.projectForNetwork(mage).arcane;
+const mageNet=ships.projectForNetwork(mage).astra;
 assert.ok(mageNet.visual?.length<=24);
-assert.doesNotThrow(()=>ships.drawNetworkEffects(ctx,{shipId:'astra',arcane:mageNet},game));
+assert.doesNotThrow(()=>ships.drawNetworkEffects(ctx,{shipId:'astra',astra:mageNet},game));
 
 // PHANTOM: all eight supplemental weapons must emit independent, bounded FX.
 const ghost=pilot('phantom');game.player=ghost;
@@ -132,9 +132,9 @@ ships.runAbility(ghost,'onTick',game,.1);
 assert.ok(ghost.phantomVisual.some(e=>e.kind==='heal'),
   'Death-reversal has a visible lifesaving flash');
 assert.ok(ghost.phantomVisual.length<=24);
-const ghostNet=ships.projectForNetwork(ghost).spectral;
+const ghostNet=ships.projectForNetwork(ghost).phantom;
 assert.ok(ghostNet.visual.length<=24);
 assert.doesNotThrow(()=>ships.drawNetworkEffects(ctx,
-  {shipId:'phantom',x:ghost.x,y:ghost.y,spectral:ghostNet},game));
+  {shipId:'phantom',x:ghost.x,y:ghost.y,phantom:ghostNet},game));
 assert.ok(damage.every(hit=>hit.owner===mage||hit.owner===ghost));
 console.log('48-card class audit passed: 8 Astra spell FX, 8 Phantom weapon FX, all active/passive modifiers and warp routes, real fear/stun status, critical/regen fixes, bound visual timelines and local/remote rendering.');

@@ -11,7 +11,7 @@ const sandbox={
 };
 vm.createContext(sandbox);
 const root='public/Game/neon-survivor/js/';
-neonCore.runScripts(sandbox, ['network/coop']);
+neonCore.runScripts(sandbox, ['players','network/schema','network/coop']);
 const proto=vm.runInContext('NeonSurvivorGame.prototype',sandbox);
 const Coop=sandbox.window.NeonLanCoop.Coop;
 const makeGame=()=>Object.assign(Object.create(proto),{
@@ -34,9 +34,9 @@ game.pauseGame();
 assert.equal(game.state,'paused');
 assert.equal(game.touchReleased,true);
 assert.equal(coop.ally.input.dx,0);
-const charges=coop.ally.charges;
+const charges=coop.ally.dashCharges;
 coop.onMessage({type:'input',seq:2,dx:1,dy:0,aim:0,dash:true});
-assert.equal(coop.ally.charges,charges,'Guest cannot dash during host pause');
+assert.equal(coop.ally.dashCharges,charges,'Guest cannot dash during host pause');
 assert.equal(coop.ally.lastSeq,2);
 coop.updateHost(.24);
 assert.equal(coop.ally.x,x);

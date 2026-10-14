@@ -15,7 +15,7 @@ const sandbox = {
   performance: { now: () => 0 }, setTimeout, clearTimeout, setInterval, clearInterval
 };
 vm.createContext(sandbox);
-neonCore.runScripts(sandbox, ['network/resonance', 'network/coop']);
+neonCore.runScripts(sandbox, ['network/schema','network/resonance', 'network/coop']);
 const { link, update, recordDash } = sandbox.window.NeonLanResonance;
 const { Coop } = sandbox.window.NeonLanCoop;
 const host = { x: 0, y: 0, hp: 70, maxHp: 100, dmgMultiplier: 1 };

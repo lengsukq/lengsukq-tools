@@ -41,7 +41,7 @@
     downed.downed = true;
     downed.vx = 0;
     downed.vy = 0;
-    downed.isDashing = false;
+    downed.dashTimeLeft = 0;
     downed.dash = 0;
     downed.invulnTimer = 0;
     downed.invuln = 0;

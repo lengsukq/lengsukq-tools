@@ -45,17 +45,17 @@
       if (warped) {
         // Class plugins own the meaning of warp; the shared pilot only mirrors
         // any resulting short protection and the class's existing charge pool.
-        pilot.invuln=Math.max(pilot.invuln || 0,pilot.invulnTimer || 0);
-        pilot.charges=pilot.astra?.blinkCharges ?? pilot.phantom?.dashCharges ?? pilot.charges;
+        pilot.invulnTimer=Math.max(pilot.invulnTimer || 0,pilot.invulnTimer || 0);
+        pilot.dashCharges=pilot.astra?.blinkCharges ?? pilot.phantom?.dashCharges ?? pilot.dashCharges;
       }
       return warped;
     }
-    if (!pilot || pilot.hp <= 0 || pilot.downed || pilot.charges <= 0 || pilot.dash > 0) return false;
-    pilot.charges--;
-    pilot.dash = PilotSpeed.DASH_DURATION;
-    pilot.invuln = Math.max(pilot.invuln || 0, .28);
+    if (!pilot || pilot.hp <= 0 || pilot.downed || pilot.dashCharges <= 0 || pilot.dashTimeLeft > 0) return false;
+    pilot.dashCharges--;
+    pilot.dashTimeLeft = PilotSpeed.DASH_DURATION;
+    pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, .28);
     const warp = pilot.dashUpgrades || {};
-    if (warp.dash_aegis) pilot.invuln = Math.max(pilot.invuln, .4);
+    if (warp.dash_aegis) pilot.invulnTimer = Math.max(pilot.invulnTimer, .4);
     pilot.dashHitEnemies = new Set();
     pilot.dashStartX = pilot.x;
     pilot.dashStartY = pilot.y;
@@ -81,27 +81,27 @@
     PilotSpeed.recalculate(pilot);
     pilot.xp = game.player.xp;
     pilot.xpNeeded = game.player.xpNeeded;
-    pilot.invuln = Math.max(0,(pilot.invuln || 0)-dt);
+    pilot.invulnTimer = Math.max(0,(pilot.invulnTimer || 0)-dt);
     if (pilot.shipId === 'astra' && pilot.astra) {
       // The mage maintains an independent 2–4-charge phase-blink pool.
       // Never recharge it again through Riftblade's 2.2-second dash timer.
-      pilot.maxCharges = Math.min(4, 2 + (pilot.astra.warpUpgrades?.star_gate || 0));
-      pilot.charges = pilot.astra.blinkCharges;
-      pilot.recharge = pilot.astra.blinkRecharge || 0;
-      pilot.invuln = Math.max(pilot.invuln, pilot.invulnTimer || 0);
+      pilot.maxDashCharges = Math.min(4, 2 + (pilot.astra.warpUpgrades?.star_gate || 0));
+      pilot.dashCharges = pilot.astra.blinkCharges;
+      pilot.dashRechargeTimer = pilot.astra.blinkRecharge || 0;
+      pilot.invulnTimer = Math.max(pilot.invulnTimer || 0, 0);
     } else if (pilot.shipId === 'phantom' && pilot.phantom) {
-      pilot.maxCharges = Math.min(3, 2 + (pilot.phantom.warpUpgrades?.charge_overflow || 0));
-      pilot.charges = pilot.phantom.dashCharges;
-      pilot.recharge = pilot.phantom.dashRecharge;
-    } else if (pilot.charges < pilot.maxCharges) {
-      pilot.recharge += dt;
+      pilot.maxDashCharges = Math.min(3, 2 + (pilot.phantom.warpUpgrades?.charge_overflow || 0));
+      pilot.dashCharges = pilot.phantom.dashCharges;
+      pilot.dashRechargeTimer = pilot.phantom.dashRecharge;
+    } else if (pilot.dashCharges < pilot.maxDashCharges) {
+      pilot.dashRechargeTimer += dt;
       const thruster = pilot.passives?.thruster || 0;
       const recharge = 2.2 * (pilot.cdrMultiplier || 1) * (thruster >= 4 ? .7 : thruster >= 2 ? .85 : 1);
-      if (pilot.recharge >= recharge) { pilot.recharge -= recharge; pilot.charges++; }
-    } else pilot.recharge = 0;
+      if (pilot.dashRechargeTimer >= recharge) { pilot.dashRechargeTimer -= recharge; pilot.dashCharges++; }
+    } else pilot.dashRechargeTimer = 0;
     // Dash burst and class states come from the shared model, so a remote ally
     // moves at exactly the speed the host's own pilot would.
-    const speed = PilotSpeed.move(pilot, pilot.dash > 0);
+    const speed = PilotSpeed.move(pilot, pilot.dashTimeLeft > 0);
     const dx = Number.isFinite(input.dx) ? input.dx : 0;
     const dy = Number.isFinite(input.dy) ? input.dy : 0;
     if (!pilot.phantom?.docked) {
@@ -110,7 +110,7 @@
     }
     // The host draws the ally's warp ribbon too, so a guest's dash is as
     // visible on the host's screen as the host's own dash is.
-    if (pilot.dash > 0 && Number.isFinite(pilot.dashStartX)) {
+    if (pilot.dashTimeLeft > 0 && Number.isFinite(pilot.dashStartX)) {
       const warp = pilot.dashUpgrades || {};
       pilot.lastSlashFx = {
         x1: pilot.dashStartX, y1: pilot.dashStartY, x2: pilot.x, y2: pilot.y,
@@ -137,7 +137,7 @@
         }
       }
     }
-    if (!pilot.downed && pilot.dash > 0 && pilot.dashHitEnemies) {
+    if (!pilot.downed && pilot.dashTimeLeft > 0 && pilot.dashHitEnemies) {
       const warp = pilot.dashUpgrades || {};
       const radius = 42 + (warp.dash_area || 0) * 18;
       for (const enemy of game.enemies || []) {
@@ -154,7 +154,7 @@
         color:'#ff8844',life:.24,maxLife:.24,damage:15*warp.dash_fire*(pilot.dmgMultiplier || 1)
       });
     }
-    pilot.dash = Math.max(0,(pilot.dash || 0)-dt);
+    pilot.dashTimeLeft = Math.max(0,(pilot.dashTimeLeft || 0)-dt);
     return true;
   }
   function resolveRemoteHits(game,pilot) {
@@ -169,25 +169,25 @@
       }
       return window.NeonLanResonance?.absorb(pilot,shielded,game.survivalTime || 0) ?? shielded;
     };
-    if (pilot.invuln <= 0) {
+    if (pilot.invulnTimer <= 0) {
       for (let i=(game.enemyBullets?.length || 0)-1;i>=0;i--) {
         const b=game.enemyBullets[i];
         if (dist(b,pilot) < (b.radius || 4) + (pilot.radius || 16)) {
           const suffered=protect((b.damage || 12)*multiplier);
           pilot.hp=Math.max(0,pilot.hp - suffered);
-          pilot.invuln=Math.max(pilot.invuln || 0, suffered > 0 ? .6 : .28);
+          pilot.invulnTimer=Math.max(pilot.invulnTimer || 0, suffered > 0 ? .6 : .28);
           game.enemyBullets.splice(i,1);
           break;
         }
       }
     }
-    if (pilot.invuln <= 0) {
+    if (pilot.invulnTimer <= 0) {
       for (const e of game.enemies || []) {
         if (e.dead) continue;
         if (dist(e,pilot) < (e.radius || 12) + (pilot.radius || 16)) {
           const suffered=protect(Math.max(4,e.damage || 10)*multiplier);
           pilot.hp=Math.max(0,pilot.hp - suffered);
-          pilot.invuln=Math.max(pilot.invuln || 0, suffered > 0 ? .6 : .28);
+          pilot.invulnTimer=Math.max(pilot.invulnTimer || 0, suffered > 0 ? .6 : .28);
           break;
         }
       }
@@ -196,7 +196,7 @@
         (pilot.shipId === 'phantom' && (pilot.passives?.death_reversal || 0) > 0)) &&
         !pilot.cheatDeathUsed) {
       pilot.hp=Math.min(pilot.maxHp,35);
-      pilot.invuln=1.2;
+      pilot.invulnTimer=1.2;
       pilot.cheatDeathUsed=true;
     }
     return pilot.hp <= 0;
