@@ -91,10 +91,12 @@
                 : 1;
               const hitX = previousDashX + projection * segmentX;
               const hitY = previousDashY + projection * segmentY;
-              const d = Vec.dist(hitX, hitY, e.x, e.y);
-              if (d < e.radius + slashWidth) {
+              const dSq = Vec.distSq(hitX, hitY, e.x, e.y);
+              const reach = e.radius + slashWidth;
+              if (dSq < reach * reach) {
                 this.player.dashHitEnemies.add(e);
-                const precise = d < e.radius + Math.max(7, slashWidth * 0.40);
+                const preciseReach = e.radius + Math.max(7, slashWidth * 0.40);
+                const precise = dSq < preciseReach * preciseReach;
                 if (precise && !this.player.dashPreciseHit) {
                   this.player.dashPreciseHit = true;
                   this.player.dashCombo = Math.min(5, (this.player.dashCombo || 0) + 1);
@@ -231,7 +233,7 @@
           if (this.touch.active) {
             const dx = this.touch.currentX - this.touch.startX;
             const dy = this.touch.currentY - this.touch.startY;
-            const dist = Math.hypot(dx, dy);
+            const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist > (window.NeonGameSettings?.get('joystickDeadzone') || 10)) {
               moveX = dx / dist;
               moveY = dy / dist;
@@ -243,7 +245,7 @@
             moveY = this.gamepadMove.y;
           }
 
-          const moveLen = Math.hypot(moveX, moveY);
+          const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
           if (moveLen > 0.05) {
             const normX = moveX / moveLen;
             const normY = moveY / moveLen;

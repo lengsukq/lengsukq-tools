@@ -124,7 +124,8 @@
               const segT = Math.max(0, Math.min(1, (dx * tdx + dy * tdy) / lenSq));
               const px = dtTrail.x1 + segT * tdx;
               const py = dtTrail.y1 + segT * tdy;
-              if (Vec.dist(e.x, e.y, px, py) < 22 + e.radius) {
+              const burn = 22 + e.radius;
+              if (Vec.distSq(e.x, e.y, px, py) < burn * burn) {
                 this.dealDamage(e, dtTrail.damage * dt * 4, 'fire'); // Continuous plasma burning tick
               }
             }
@@ -147,7 +148,8 @@
               const segT = Math.max(0, Math.min(1, ((this.player.x - lt.x1) * ldx + (this.player.y - lt.y1) * ldy) / lenSq));
               const projX = lt.x1 + segT * ldx;
               const projY = lt.y1 + segT * ldy;
-              if (Vec.dist(this.player.x, this.player.y, projX, projY) < 16 + this.player.radius) {
+              const shock = 16 + this.player.radius;
+              if (Vec.distSq(this.player.x, this.player.y, projX, projY) < shock * shock) {
                 this.hitPlayer(25 * dt * 4); // Continuous electric shock
                 break;
               }

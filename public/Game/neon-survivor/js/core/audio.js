@@ -10,6 +10,25 @@
         this.bgmTimer = null;
         this.bgmStep = 0;
         this.scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00]; // Pentatonic
+        // Noise buffers are generated once and reused. Filling a fresh buffer
+        // per explosion cost ~26k Math.random() calls each time, which is pure
+        // main-thread work on the frame that a big explosion happens.
+        this.noiseBuffers = Object.create(null);
+      }
+
+      /** Cached decaying-noise buffer, keyed by length and decay rate. */
+      cachedNoise(duration, decay) {
+        const key = duration + ':' + decay;
+        const cached = this.noiseBuffers[key];
+        if (cached) return cached;
+        const bufferSize = Math.max(1, Math.floor(this.ctx.sampleRate * duration));
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-decay * i / bufferSize);
+        }
+        this.noiseBuffers[key] = buffer;
+        return buffer;
       }
 
       init() {
@@ -53,13 +72,8 @@
         const t = this.ctx.currentTime;
         const dur = size === 'large' ? 0.6 : 0.25;
 
-        // White noise node for crisp explosion crunch
-        const bufferSize = this.ctx.sampleRate * dur;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          data[i] = (Math.random() * 2 - 1) * Math.exp(-3 * i / bufferSize);
-        }
+        // White noise node for crisp explosion crunch (buffer is cached)
+        const buffer = this.cachedNoise(dur, 3);
 
         const noise = this.ctx.createBufferSource();
         noise.buffer = buffer;
@@ -338,12 +352,9 @@
 
           // Hi-hat on every odd step
           if (step % 2 === 1) {
-            const bufSize = this.ctx.sampleRate * 0.04;
-            const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
-            const d = buf.getChannelData(0);
-            for (let i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-15 * i / bufSize);
+            // Cached: this used to refill ~1.7k samples eight times per bar.
             const hat = this.ctx.createBufferSource();
-            hat.buffer = buf;
+            hat.buffer = this.cachedNoise(0.04, 15);
             const hatFilter = this.ctx.createBiquadFilter();
             hatFilter.type = 'highpass';
             hatFilter.frequency.value = 6500;

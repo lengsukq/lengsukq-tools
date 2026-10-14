@@ -94,16 +94,20 @@
               color: '#00f3ff'
             });
           }
-          this.particles.push({
-            type: 'lightning',
-            x1: prevX,
-            y1: prevY,
-            x2: tg.x,
-            y2: tg.y,
-            color: '#00f3ff',
-            life: 0.14,
-            maxLife: 0.14
-          });
+          // Tesla chains can jump many times per volley; keep the same particle
+          // budget the damage path uses instead of allocating unbounded.
+          if (this.particles.length < (this.fxLow ? 15 : 45)) {
+            this.particles.push({
+              type: 'lightning',
+              x1: prevX,
+              y1: prevY,
+              x2: tg.x,
+              y2: tg.y,
+              color: '#00f3ff',
+              life: 0.14,
+              maxLife: 0.14
+            });
+          }
           prevX = tg.x;
           prevY = tg.y;
         });
@@ -247,17 +251,21 @@
               const perpDist = Math.abs(-dx * Math.sin(angle) + dy * Math.cos(angle));
               if (perpDist < width / 2 + e.radius) {
                 this.dealDamage(e, damage, 'laser');
-                this.particles.push({
-                  type: 'spark',
-                  x: e.x,
-                  y: e.y,
-                  vx: Math.cos(angle) * 140 + (Math.random() - 0.5) * 60,
-                  vy: Math.sin(angle) * 140 + (Math.random() - 0.5) * 60,
-                  radius: Math.random() * 2 + 1.2,
-                  color: '#00f3ff',
-                  life: 0.18,
-                  maxLife: 0.18
-                });
+                // A piercing beam can hit every enemy in a line; budget the
+                // sparks like every other damage path does.
+                if (this.particles.length < (this.fxLow ? 15 : 45)) {
+                  this.particles.push({
+                    type: 'spark',
+                    x: e.x,
+                    y: e.y,
+                    vx: Math.cos(angle) * 140 + (Math.random() - 0.5) * 60,
+                    vy: Math.sin(angle) * 140 + (Math.random() - 0.5) * 60,
+                    radius: Math.random() * 2 + 1.2,
+                    color: '#00f3ff',
+                    life: 0.18,
+                    maxLife: 0.18
+                  });
+                }
               }
             }
           }

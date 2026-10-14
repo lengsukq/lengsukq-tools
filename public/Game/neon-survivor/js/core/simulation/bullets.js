@@ -1,5 +1,21 @@
     /* Projectiles: player bullets and enemy projectiles. */
     NeonCore.define(NeonSurvivorGame, class {
+      /** Hard ceiling on live enemy projectiles.
+       *
+       * Boss barrages (devourer spiral, carrier spread, nightmare volley) all
+       * push in bursts; without a ceiling a long endless run can accumulate
+       * hundreds of live bullets, and every one of them is walked again by the
+       * collision pass, the render pass and the snapshot projection. Dropping
+       * the newest bullet past the cap is invisible in play and bounds the
+       * worst case.
+       */
+      spawnEnemyBullet(bullet) {
+        if (!Array.isArray(this.enemyBullets)) this.enemyBullets = [];
+        if (this.enemyBullets.length >= (this.maxEnemyBullets || 240)) return null;
+        this.enemyBullets.push(bullet);
+        return bullet;
+      }
+
       updateBullets(dt) {
         // --- Update Bullets ---
         for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -71,7 +87,8 @@
           // Check bullet collision with enemies
           let hit = false;
           for (const e of this.enemies) {
-            if (Vec.dist(b.x, b.y, e.x, e.y) < b.radius + e.radius) {
+            const touch = b.radius + e.radius;
+            if (Vec.distSq(b.x, b.y, e.x, e.y) < touch * touch) {
               if (b.type === 'missile') {
                 // Missile AOE explosion
                 this.sound.playExplosion(b.isLevel5 ? 'large' : 'small');
@@ -228,7 +245,8 @@
             continue;
           }
 
-          if (this.player.invulnTimer <= 0 && Vec.dist(eb.x, eb.y, this.player.x, this.player.y) < eb.radius + this.player.radius) {
+          if (this.player.invulnTimer <= 0 && Vec.distSq(eb.x, eb.y, this.player.x, this.player.y) <
+              (eb.radius + this.player.radius) * (eb.radius + this.player.radius)) {
             this.hitPlayer(eb.damage);
             this.enemyBullets.splice(i, 1);
           }

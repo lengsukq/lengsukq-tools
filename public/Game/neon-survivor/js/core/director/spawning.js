@@ -58,7 +58,7 @@
         const swarmCount = Math.round(20 * this.getDifficultyRules().enemyCount);
         for (let i = 0; i < swarmCount; i++) {
           const a = (i / swarmCount) * Math.PI * 2;
-          const spawnDist = Math.hypot(this.width, this.height) / 2 + 70;
+          const spawnDist = Math.sqrt(this.width * this.width + this.height * this.height) / 2 + 70;
           this.enemies.push({
             type: 'swarmer',
             x: spawnPilot.x + Math.cos(a) * spawnDist,
@@ -187,7 +187,7 @@
         if (!shouldSpawnElite && this.getNormalEnemyCount() >= MAX_NORMAL_ENEMIES) return;
 
         const angle = Math.random() * Math.PI * 2;
-        const spawnDist = Math.hypot(this.width, this.height) / 2 + 80;
+        const spawnDist = Math.sqrt(this.width * this.width + this.height * this.height) / 2 + 80;
         const sx = spawnPilot.x + Math.cos(angle) * spawnDist;
         const sy = spawnPilot.y + Math.sin(angle) * spawnDist;
 

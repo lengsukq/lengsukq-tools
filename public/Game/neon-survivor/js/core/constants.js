@@ -33,7 +33,16 @@
       dist(x1, y1, x2, y2) {
         const dx = x2 - x1;
         const dy = y2 - y1;
-        return Math.hypot(dx, dy);
+        // Math.hypot is several times slower than sqrt on mobile engines and
+        // this runs in every collision/AOE/targeting loop. Game coordinates
+        // never approach the overflow range hypot guards against.
+        return Math.sqrt(dx * dx + dy * dy);
+      },
+      /** Squared distance: use for pure radius comparisons to skip the sqrt. */
+      distSq(x1, y1, x2, y2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        return dx * dx + dy * dy;
       },
       clamp(val, min, max) {
         return Math.max(min, Math.min(max, val));

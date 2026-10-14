@@ -138,15 +138,15 @@
           x = this.touch.currentX - this.touch.startX;
           y = this.touch.currentY - this.touch.startY;
         } else if (this.gamepadMove &&
-          Math.hypot(this.gamepadMove.x,this.gamepadMove.y) > .2) {
+          (this.gamepadMove.x * this.gamepadMove.x + this.gamepadMove.y * this.gamepadMove.y) > .04) {
           x = this.gamepadMove.x; y = this.gamepadMove.y;
         } else if (typeof navigator !== 'undefined' && navigator.getGamepads) {
           const gp = navigator.getGamepads()?.[this.gamepadIndex];
           const gx = Number.isFinite(gp?.axes?.[0]) ? gp.axes[0] : 0;
           const gy = Number.isFinite(gp?.axes?.[1]) ? gp.axes[1] : 0;
-          if (Math.hypot(gx,gy) > .22) { x=gx; y=gy; }
+          if (gx * gx + gy * gy > .0484) { x=gx; y=gy; }
         }
-        const length=Math.hypot(x,y);
+        const length = Math.sqrt(x * x + y * y);
         if (Number.isFinite(length) && length>.05) return {x:x/length,y:y/length};
         const aim=Number.isFinite(this.player?.aimAngle)?this.player.aimAngle:0;
         return {x:Math.cos(aim),y:Math.sin(aim)};

@@ -54,6 +54,31 @@
         this.weaponsBar.appendChild(rowPassives);
       }
 
+      /** Mirror ship-owned dash/blink state onto the player.
+       *
+       * updateHUD() also performs this mirror, but the HUD DOM pass is
+       * throttled to protect frame time, and dash charges are gameplay state:
+       * they must never lag behind the authoritative ship object.
+       */
+      syncShipHudState() {
+        const shipId = this.player?.shipId;
+        if (shipId === 'astra') {
+          const astraState = window.NeonAstra?.state(this.player);
+          if (astraState) {
+            this.player.maxDashCharges = Math.min(4, 2 + (astraState.warpUpgrades.star_gate || 0));
+            this.player.dashCharges = astraState.blinkCharges;
+            this.player.dashRechargeTimer = astraState.blinkRecharge;
+          }
+        } else if (shipId === 'phantom') {
+          const ghostState = window.NeonPhantom?.state(this.player);
+          if (ghostState) {
+            this.player.maxDashCharges = Math.min(4, 2 + (ghostState.warpUpgrades?.charge_overflow || this.player.dashUpgrades?.charge_overflow || 0));
+            this.player.dashCharges = ghostState.dashCharges;
+            this.player.dashRechargeTimer = ghostState.dashRecharge;
+          }
+        }
+      }
+
       updateHUD() {
         const isAstra = this.player?.shipId === 'astra';
         const isPhantom = this.player?.shipId === 'phantom';

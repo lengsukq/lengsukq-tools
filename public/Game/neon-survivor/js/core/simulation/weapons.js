@@ -20,9 +20,10 @@
               const dotDmg = (35 + (this.player.level || 1) * 4.5) * burnInterval * wardScale;
               const wx = Number.isFinite(astraState.wardX) ? astraState.wardX : this.player.x;
               const wy = Number.isFinite(astraState.wardY) ? astraState.wardY : this.player.y;
+              const wardRSq = wardR * wardR;
               for (const e of this.enemies) {
                 if (!e || e.dead || e.hp <= 0 || !Number.isFinite(e.x) || !Number.isFinite(e.y)) continue;
-                if (Vec.dist(wx, wy, e.x, e.y) <= wardR) {
+                if (Vec.distSq(wx, wy, e.x, e.y) <= wardRSq) {
                   this.dealDamage(e, dotDmg, 'astra_ward_burn', false, this.player);
                 }
               }
@@ -45,7 +46,8 @@
 
             // Orbiter collision check
             for (const e of this.enemies) {
-              if (Vec.dist(ox, oy, e.x, e.y) < orb.radius + e.radius) {
+              const cut = orb.radius + e.radius;
+              if (Vec.distSq(ox, oy, e.x, e.y) < cut * cut) {
                 this.dealDamage(e, orb.damage * dt * 4, 'orbit'); // Continuous cutting damage
               }
             }

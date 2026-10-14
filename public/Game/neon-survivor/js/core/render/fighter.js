@@ -28,8 +28,10 @@
           const tint = fighter.shipId === 'phantom' ? '#cf82ff' :
             fighter.shipId === 'astra' ? '#8db8ff' : '#00f3ff';
           ctx.globalAlpha = .8 * warpPulse;
-          ctx.shadowColor = tint;
-          ctx.shadowBlur = 18;
+          if (this.shadowEnabled()) {
+            ctx.shadowColor = tint;
+            ctx.shadowBlur = 18;
+          }
           ctx.strokeStyle = tint;
           ctx.lineWidth = 2 + warpPulse * 2;
           ctx.beginPath();
@@ -47,8 +49,10 @@
         // New hulls are registered by rendererId. Legacy default geometry
         // remains as a fallback for isolated tests / missing ship module.
         if (!window.NeonShips?.drawHull?.(ctx, fighter, profile)) {
-          ctx.shadowBlur = 20;
-          ctx.shadowColor = profile.color;
+          if (this.shadowEnabled()) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = profile.color;
+          }
           ctx.fillStyle = '#0a1628';
           ctx.strokeStyle = fighter.downed ? '#ff617e' : profile.color;
           ctx.lineWidth = 2.5;

@@ -113,7 +113,7 @@
           if (!visible(e.x, e.y, margin)) return;
           ctx.save();
           ctx.translate(e.x, e.y);
-          if (e.isBoss) {
+          if (e.isBoss && this.shadowEnabled()) {
             ctx.shadowBlur = 25;
             ctx.shadowColor = e.color;
           }

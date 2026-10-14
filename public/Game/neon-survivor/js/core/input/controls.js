@@ -51,7 +51,7 @@
           this.touch.currentY = t.clientY;
           const dx = t.clientX - this.touch.startX;
           const dy = t.clientY - this.touch.startY;
-          const dist = Math.min(50, Math.hypot(dx, dy));
+          const dist = Math.min(50, Math.sqrt(dx * dx + dy * dy));
           const angle = Math.atan2(dy, dx);
           joyThumb.style.left = `calc(50% + ${Math.cos(angle) * dist}px)`;
           joyThumb.style.top = `calc(50% + ${Math.sin(angle) * dist}px)`;

@@ -190,8 +190,10 @@
           const oy = cy + Math.sin(orb.angle) * orb.distance;
           if (!visible(cx, cy, (orb.distance || 70) + (orb.radius || 10))) return;
           ctx.save();
-          ctx.shadowBlur = 16;
-          ctx.shadowColor = orb.color;
+          if (this.shadowEnabled()) {
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = orb.color;
+          }
           ctx.fillStyle = orb.color;
           ctx.beginPath();
           ctx.arc(ox, oy, orb.radius, 0, Math.PI * 2);
@@ -215,8 +217,10 @@
           ctx.lineCap = 'round';
           ctx.globalAlpha = progress * 0.85;
           ctx.strokeStyle = dtTrail.color;
-          ctx.shadowColor = dtTrail.color;
-          ctx.shadowBlur = 16;
+          if (this.shadowEnabled()) {
+            ctx.shadowColor = dtTrail.color;
+            ctx.shadowBlur = 16;
+          }
           ctx.lineWidth = 16;
           ctx.beginPath();
           ctx.moveTo(dtTrail.x1, dtTrail.y1);
@@ -244,8 +248,10 @@
           ctx.lineCap = 'round';
           ctx.globalAlpha = fade * 0.72;
           ctx.strokeStyle = mainCol;
-          ctx.shadowColor = mainCol;
-          ctx.shadowBlur = 18;
+          if (this.shadowEnabled()) {
+            ctx.shadowColor = mainCol;
+            ctx.shadowBlur = 18;
+          }
           ctx.lineWidth = 18 * fade + 4;
           ctx.beginPath();
           ctx.moveTo(sfx.x1, sfx.y1);

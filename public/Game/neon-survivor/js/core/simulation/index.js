@@ -60,6 +60,18 @@
 
         // Periodically compact gems to avoid excessive array count
         this.cleanAndCompactGems();
-        this.updateHUD();
+
+        // Ship dash/blink charges are gameplay state and must be mirrored every
+        // frame. The HUD itself is the single most expensive per-frame DOM
+        // workload in the game (getElementById storm, innerHTML rebuilds,
+        // classList writes), so the DOM pass runs at ~15Hz instead of 60-120Hz.
+        // Callers that need an immediate refresh (startNewGame, level-up) call
+        // updateHUD() directly, which stays synchronous.
+        this.syncShipHudState();
+        this.hudAccum = (this.hudAccum || 0) + dt;
+        if (this.hudAccum >= 1 / 15) {
+          this.hudAccum = 0;
+          this.updateHUD();
+        }
       }
     });

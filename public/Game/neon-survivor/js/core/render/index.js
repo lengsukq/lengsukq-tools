@@ -5,6 +5,18 @@
      * predicate are handed to each layer in core/render/*.js.
      */
     NeonCore.define(NeonSurvivorGame, class {
+      /** Whether canvas shadow blur may be used this frame.
+       *
+       * Shadow blur is the most expensive Canvas2D feature on mobile GPUs
+       * (every blurred primitive costs an extra blur pass). It stays on by
+       * default and is turned off by low-effects mode and by the adaptive
+       * quality step-down. `!== false` keeps the pre-existing behaviour for
+       * callers that never ran the settings pass.
+       */
+      shadowEnabled() {
+        return this.fxShadow !== false;
+      }
+
       render() {
         const ctx = this.ctx;
         ctx.save();

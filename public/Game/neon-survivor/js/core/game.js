@@ -342,6 +342,7 @@
         this.lastAfkY = 0;
         this.spawnTimer = 0;
         this.waveTimer = 0;
+        this.hudAccum = 0; // HUD DOM throttle accumulator; see simulation/index.js
         window.NeonRogueEndless?.reset(this);
         window.NeonShips?.runAbility?.(this.player, 'onStart', this);
 

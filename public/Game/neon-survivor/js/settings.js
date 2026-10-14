@@ -70,6 +70,10 @@
     game.cameraZoom = state.cameraZoom / 100;
     game.gamepadVibrationEnabled = state.vibration;
     game.fxLow = state.lowEffects;
+    // Canvas shadow blur costs an extra blur pass per primitive on mobile GPUs,
+    // so low-effects mode drops it entirely. Adaptive quality may lower it
+    // further at runtime; it never forces it back on.
+    game.fxShadow = !state.lowEffects;
     const dpr = Math.min(window.devicePixelRatio || 1, state.lowEffects ? 1.25 : 2);
     if (game.dpr !== dpr) {
       game.dpr = dpr;
