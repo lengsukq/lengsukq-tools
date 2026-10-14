@@ -124,6 +124,11 @@
         // on screen, and a volley is normally a single colour. Consecutive
         // same-colour bullets share one path and one fill; the run is closed
         // only when the colour changes, so there is no per-bullet allocation.
+        //
+        // Blitting a cached sprite per bullet was tried and measured slower:
+        // it turns one fill into N drawImage calls plus a cache lookup each,
+        // and modern Canvas2D already coalesces a single batched path into one
+        // GPU draw where N blits stay N draws.
         let color = null, open = false;
         ctx.globalAlpha = 1;
         for (const eb of this.enemyBullets) {
