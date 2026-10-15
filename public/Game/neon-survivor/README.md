@@ -86,9 +86,12 @@ public/Game/
     js/network/revive.js      # 对等倒地救援、全局递增坚守倒计时
     js/network/world-view.js  # 房主/房客共用原版渲染器的只读世界视图
     MANUAL.md                 # 玩家指南、机制和开发说明
+    ENEMIES.md                # 怪物图鉴：全部敌对单位类型、数值与实现说明
 ```
 
-原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 37 个模块，最大文件 457 行（另有 `js/network/schema.js` 状态契约）。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
+原有核心 `js/core.js`（7270 行、105 个方法）已按职责拆分为 `js/core/` 下的 40 个模块，最大文件 466 行（另有 `js/network/schema.js` 状态契约）。拆分是**纯代码搬移**：方法体逐字节保留，所有方法仍挂在同一个 `NeonSurvivorGame.prototype` 上，因此 `Object.create(game)` 房客视图、`game.render.call(view)`、`game[rule.method].call(source, level)` 等既有动态调用方式完全不变。拆分后 `node tests/neon-survivor-core-split.smoke.cjs`（文件与标签一致性、加载顺序、原型契约、单文件行数上限）和 `node tests/neon-survivor-script-order.smoke.cjs`（按 index.html 顺序真实加载全部脚本并启动、跑 240 帧）会守住这些约束。
+
+怪物 / 精英 / Boss 的绘制代码独立在 `js/core/render/enemy-art.js`、`boss-art.js`、`coop-boss-art.js` 中；`world.js` 只保留分派与碰撞/控制效果的通用绘制。`node tests/neon-survivor-boss-art.smoke.cjs` 会检查每种 Boss 在房主与房客两侧都真的画出了身体（历史上 `boss_mirror_bastion` 与 `boss_polarity_split` 曾完全没有身体，整个战斗只有机制叠加层），并检查精英怪旋转后不会把 `★精英` 徽章和血条一起画歪。
 
 **新增核心逻辑时**：不要重新堆进单个文件。把方法写进已有的对应模块，用 `NeonCore.define(NeonSurvivorGame, class { ... })` 挂到原型上；新文件必须加进 `index.html` 的脚本列表（`core/define.js` 最先、`core/game.js` 在定义类之前、`core/boot.js` 最后），否则一致性测试会失败。
 

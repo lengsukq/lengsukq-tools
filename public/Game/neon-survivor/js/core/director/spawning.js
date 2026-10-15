@@ -256,7 +256,25 @@
           return;
         }
 
-        // Select enemy type based on survival time
+        // Select enemy type based on survival time.
+        //
+        // ABSOLUTE THRESHOLDS OVER ONE ROLL. Each branch claims everything below
+        // its threshold that earlier branches did not already take, which is what
+        // makes the early game so swarm-heavy: at t<45 only the swarmer and the
+        // fallback drone are unlocked, so `r < 0.65` hands the swarmer 65%.
+        //
+        // The fixed bug: sniper (`r < 0.22`) and shield_pylon (`r < 0.32`) were
+        // tested in the middle of the chain, where their intervals fell entirely
+        // inside the charger (`r < 0.2`) and spitter (`r < 0.35`) bands that had
+        // already matched, so no roll could ever reach them. They now sit AFTER
+        // the swarmer and carve their mass out of the generic drone tail
+        // (`r >= 0.65`), which nothing else has claimed. Every previously-working
+        // probability is therefore unchanged: only the drone tail shrinks.
+        //
+        // Effective layout (t >= 130):
+        //   charger 20% [0,.20)  spitter 15% [.20,.35)  kamikaze 5% [.35,.40)
+        //   swarmer 25% [.40,.65)  shield_pylon 7% [.65,.72)  sniper 3% [.72,.75)
+        //   drone 25% [.75,1)
         const r = Math.random();
         if (t > 90 && r < 0.2) {
           // Purple Charger
@@ -296,42 +314,6 @@
             xpColor: '#00ff88',
             damage: Math.round(14 * dmgMult)
           });
-        } else if (t > 130 && r < 0.22) {
-          // 轨道狙击巡洋机 (Sniper Cruiser)
-          this.enemies.push({
-            type: 'sniper',
-            x: sx,
-            y: sy,
-            vx: 0,
-            vy: 0,
-            hp: Math.round(70 * hpMult),
-            maxHp: Math.round(70 * hpMult),
-            radius: 17,
-            speed: 105 * spdMult,
-            aimTimer: 1.2,
-            shootCooldown: 3.2,
-            color: '#ff00aa',
-            xpVal: 8,
-            xpColor: '#ff00aa',
-            damage: Math.round(24 * dmgMult)
-          });
-        } else if (t > 100 && r < 0.32) {
-          // 护盾信标机 (Shield Pylon Drone)
-          this.enemies.push({
-            type: 'shield_pylon',
-            x: sx,
-            y: sy,
-            vx: 0,
-            vy: 0,
-            hp: Math.round(110 * hpMult),
-            maxHp: Math.round(110 * hpMult),
-            radius: 16,
-            speed: 95 * spdMult,
-            color: '#ffea00',
-            xpVal: 9,
-            xpColor: '#ffea00',
-            damage: Math.round(12 * dmgMult)
-          });
         } else if (t > 95 && r < 0.40 && !kamikazeCapped) {
           // 纳米自爆蜘蛛 (Kamikaze Tick)：降频（95s后约5%/波）+ 降速 + 降伤 + 同屏上限
           this.enemies.push({
@@ -365,6 +347,42 @@
             xpVal: 2,
             xpColor: '#ff0055',
             damage: Math.round(10 * dmgMult)
+          });
+        } else if (t > 100 && r >= 0.65 && r < 0.72) {
+          // 护盾信标机 (Shield Pylon Drone)
+          this.enemies.push({
+            type: 'shield_pylon',
+            x: sx,
+            y: sy,
+            vx: 0,
+            vy: 0,
+            hp: Math.round(110 * hpMult),
+            maxHp: Math.round(110 * hpMult),
+            radius: 16,
+            speed: 95 * spdMult,
+            color: '#ffea00',
+            xpVal: 9,
+            xpColor: '#ffea00',
+            damage: Math.round(12 * dmgMult)
+          });
+        } else if (t > 130 && r >= 0.72 && r < 0.75) {
+          // 轨道狙击巡洋机 (Sniper Cruiser)
+          this.enemies.push({
+            type: 'sniper',
+            x: sx,
+            y: sy,
+            vx: 0,
+            vy: 0,
+            hp: Math.round(70 * hpMult),
+            maxHp: Math.round(70 * hpMult),
+            radius: 17,
+            speed: 105 * spdMult,
+            aimTimer: 1.2,
+            shootCooldown: 3.2,
+            color: '#ff00aa',
+            xpVal: 8,
+            xpColor: '#ff00aa',
+            damage: Math.round(24 * dmgMult)
           });
         } else {
           // Standard Blue Drone
