@@ -138,15 +138,19 @@
   // and the per-layer floors are all declared in schema.js, next to the caps
   // they have to agree with.
   //
-  // 34000 is measured, not guessed. A world with every layer at its declared cap
+  // 38000 is measured, not guessed. A world with every layer at its declared cap
   // and every declared field present encodes to 24.8 KB of layers plus ~4-5 KB of
-  // envelope, pilot blocks and roster: 28.9 KB for two players, 29.8 KB for four.
+  // envelope, pilot blocks and roster: 28.9 KB for two players, 29.8 KB for four
+  // -- at the OLD 105-enemy cap. The co-op party ceiling is now 190 enemies
+  // (+30 per additional pilot, see NeonLanEncounters.normalEnemyCap), which takes
+  // the same maximal world to 34,729 bytes. The old 34000 would no longer fit it
+  // at all, so the budget had to move with the cap; 38000 keeps 91.4% usage.
   // The old 18000 was less than a quarter of the 80.6 KB the declared caps asked
   // for, so the trim fired in EVERY crowded late game and silently deleted whole
   // layers -- which is how a guest ended up unable to see the enemy bullets it
   // had to dodge. The budget is still enforced by the trim, so a frame can never
   // reach the channel's own 40000 guard.
-  const SNAPSHOT_LIMIT = 34000;
+  const SNAPSHOT_LIMIT = 38000;
   function boundedSnapshot(game, ally, seq, resonance = null, receiverId = 'guest') {
     const schema = window.NeonLanSchema;
     const frame = snapshot(game, ally, seq, resonance, receiverId);
@@ -1268,7 +1272,8 @@
           this.game.renderFighter(ctx, pilot,
             {color:pilot.color || '#90d6ff',name:pilot.name || pilot.id},true);
         }
-        const boss = snapshot.enemies?.find(enemy => enemy.type === 'boss_dual_reactor');
+        const boss = snapshot.enemies?.find(enemy =>
+          window.NeonLanEncounters?.isCoopBoss(enemy.type));
         if (boss) {
           window.NeonLanEncounters?.renderBoss(ctx,
             { isGuestWorldView: true, lanCoop: this }, boss);
@@ -1295,7 +1300,7 @@
         return;
       }
       const boss = this.game.currentBoss;
-      if (boss?.type === 'boss_dual_reactor') {
+      if (window.NeonLanEncounters?.isCoopBoss(boss?.type)) {
         window.NeonLanEncounters?.renderBoss(ctx, this.game, boss);
       }
       window.NeonLanTeammates?.update(

@@ -122,7 +122,10 @@ const hostGame = {
   state: 'playing', survivalTime: 180, kills: 300,
   endlessMode: true, player: { x: 0, y: 0, level: 6, hp: 100, maxHp: 100,
     xp: 30, xpNeeded: 100, weapons: { blaster: 4 }, passives: {} },
-  enemies: Array.from({ length: 130 }, (_, n) => ({
+  // Must exceed the declared enemy cap: this fixture asserts the crowded world
+  // arrives WHOLE, so it has to produce more rows than the cap allows. The cap
+  // follows the largest co-op party (190 enemies at four pilots).
+  enemies: Array.from({ length: 200 }, (_, n) => ({
     x: n * 5, y: n * 2, hp: 100, maxHp: 100, vx: 0, vy: 0,
     color: '#eeeeee', type: 'swarmer', radius: 10
   })),

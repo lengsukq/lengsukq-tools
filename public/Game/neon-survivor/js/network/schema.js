@@ -239,7 +239,16 @@
   });
 
   const ENTITY_ARRAYS = Object.freeze([
-    array('enemies', 105, 130, 0, null, ['x', 'y', 'vx', 'vy', 'hp', 'maxHp', 'radius', 'color',
+    // The enemy ceiling follows the co-op party size: 100 normal enemies in
+    // solo, +30 per additional pilot (100/130/160/190 -- see
+    // NeonLanEncounters.normalEnemyCap). The wire cap has to cover the LARGEST
+    // party, otherwise a guest would be hit by enemies it cannot see, which is
+    // the exact fairness bug this layer is protected against. 190 normal plus up
+    // to ~10 elites plus bosses fits inside 215.
+    //
+    // Measured, not guessed: a world with every layer at its declared cap
+    // encodes to 34,729 bytes here, i.e. 91.4% of the 38,000 budget.
+    array('enemies', 190, 215, 0, null, ['x', 'y', 'vx', 'vy', 'hp', 'maxHp', 'radius', 'color',
       'type', 'isBoss', 'isElite', 'hasShield', 'arming', 'aimTimer', 'coopCapture', 'coopExposed']),
     array('bullets', 120, 140, 60, TRIM_FEEDBACK + 1, ['x', 'y', 'vx', 'vy', 'radius', 'color',
       'type', 'isLevel5']),

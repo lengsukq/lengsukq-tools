@@ -1,24 +1,60 @@
-/* Host-authoritative co-op difficulty and a co-op-only dual-reactor boss.
- * No additional server is needed; the LAN host simulates every mechanic.
+/* Host-authoritative co-op difficulty scaling, and the dispatch layer for the
+ * co-op-only bosses. No additional server is needed; the LAN host simulates
+ * every mechanic, and the boss archetypes themselves live in coop-bosses.js.
  */
 (() => {
   'use strict';
   const TUNING = Object.freeze({
     normalHp: 1.35, eliteHp: 1.45, bossHp: 1.65,
-    enemyDamage: 1.12, spawnInterval: 0.9,
-    captureRadius: 88, captureSeconds: 1.4,
-    vulnerableSeconds: 9, shieldedDamage: 0.45,
-    dualVolleyInterval: 3.6, dualVolleyWarning: 0.7,
-    maxEnemyBullets: 130
+    enemyDamage: 1.12, spawnInterval: 0.9
   });
   function active(game) {
     return Boolean(game?.lanCoop?.ally && game.lanCoop.rtc?.connected &&
       game.lanCoop.rtc.role === 'host');
   }
-  function pilots(game) {
-    return [game.player, ...((game.lanCoop?.allies?.values?.() ||
-      [game.lanCoop?.ally]))].filter(p => p && p.hp > 0 && !p.downed && !p.disconnected);
+  // --- Party scaling: the QUANTITY axis ---------------------------------------
+  // Enemy HP already scales gently with party size (see scaleByParty below).
+  // That alone made a four-pilot room EASIER than solo: team damage grows ~x4
+  // while enemy HP grows ~x2, and the normal-enemy ceiling stayed at 100 for
+  // every party size, so each pilot faced a quarter of the solo crowd.
+  //
+  // Quantity is what closes that gap, so one coefficient drives every quantity
+  // dimension -- the alive ceiling, the spawn cadence and the swarm size -- and
+  // it is derived from the SAME connected-guest count as the HP curve. Keeping
+  // them on one input is what stops the two from drifting apart.
+  //
+  // `allies` holds guests only (coop.js startHost seats 'guest', 'guest-2',
+  // 'guest-3'), so 1 connected guest means a two-pilot room. The `ally`
+  // fallback covers the legacy single-ally shape.
+  function connectedGuests(game) {
+    const allies = game?.lanCoop?.allies;
+    if (allies && allies.size) {
+      return [...allies.values()].filter(p => !p.disconnected).length;
+    }
+    return game?.lanCoop?.ally ? 1 : 0;
   }
+  /** 1.0 solo / 1.3 two pilots / 1.6 three / 1.9 four. */
+  function partyScale(game) {
+    return active(game) ? 1 + 0.3 * connectedGuests(game) : 1;
+  }
+  /** Normal-enemy alive ceiling: +30 per additional pilot. */
+  function normalEnemyCap(game) {
+    return Math.round(100 * partyScale(game));
+  }
+  /**
+   * Multiplier for the spawn interval. Scaling has to be applied AFTER the
+   * simulation's 0.16s floor, never before: a scaled floor would cap a
+   * four-pilot room at the solo spawn rate and the raised ceiling could never
+   * actually fill.
+   */
+  function spawnIntervalScale(game) {
+    return active(game) ? TUNING.spawnInterval / partyScale(game) : 1;
+  }
+  /** A wave authored for one pilot, sized for the party. */
+  function swarmCount(game, base) {
+    return Math.round(base * partyScale(game));
+  }
+  /** Enemy HP by party size. Deliberately gentle: quantity carries the rest. */
   function scaleByParty(game) {
     const joined = game.lanCoop?.allies
       ? [...game.lanCoop.allies.values()].filter(p => !p.disconnected).length : 1;
@@ -35,156 +71,65 @@
       enemy.coopScaled = true;
     }
   }
-  function createDualBoss(game, x, y, hpScale, dmgScale) {
-    return {
-      type: 'boss_dual_reactor',
-      name: '双生裁决者 · 共振要塞',
-      isBoss: true, x, y, vx: 0, vy: 0,
-      hp: Math.round(7100 * hpScale), maxHp: Math.round(7100 * hpScale),
-      radius: 52, speed: 74, color: '#72ffe0', damage: Math.round(32 * dmgScale),
-      attackTimer: 0, volleyWindup: 0,
-      coopCapture: 0, coopExposed: 0, coopScaled: false
-    };
+
+  // --- Co-op boss dispatch ----------------------------------------------------
+  // The archetypes live in coop-bosses.js, one registry loaded before this file.
+  // This module keeps the entry points the rest of the game already calls -- the
+  // simulation (enemies.js), the damage path (damage.js), the reward path
+  // (rewards.js) and the two render paths (coop.js) -- and owns the one rule
+  // that must never move:
+  //
+  //   A boss is only shielded while the encounter is ACTIVE. The moment the room
+  //   stops hosting, damage goes through untouched, so a guest that disconnects
+  //   can never leave behind a boss nobody is able to kill.
+  //
+  // Delegation is lazy (`window.NeonLanCoopBosses?.`) so this file keeps working
+  // when a test loads it on its own.
+  const bosses = () => window.NeonLanCoopBosses;
+
+  function isCoopBoss(type) {
+    return Boolean(bosses()?.isCoopBoss?.(type));
   }
-  function capturePoints(boss) {
-    return [
-      { x: boss.x - 185, y: boss.y - 20 },
-      { x: boss.x + 185, y: boss.y + 20 }
-    ];
+  function createDualBoss(game, x, y, hpScale, dmgScale) {
+    return bosses()?.createOf('boss_dual_reactor', game, x, y, hpScale, dmgScale) || null;
+  }
+  /** The co-op boss for this cycle; every second boss is a co-op encounter. */
+  function createCoopBoss(game, x, y, hpScale, dmgScale) {
+    return bosses()?.create(game, x, y, hpScale, dmgScale) || null;
+  }
+  function capturePoints(boss, partySize) {
+    return bosses()?.capturePoints(boss, partySize) || [];
   }
   function captureStatus(game, boss) {
-    const team = pilots(game);
-    if (!active(game) || team.length < 2) {
-      return { left: false, right: false, both: false };
+    if (!active(game) || !isCoopBoss(boss?.type)) {
+      return { points: [], occupied: [], count: 0, synced: false,
+        both: false, left: false, right: false };
     }
-    const [left, right] = capturePoints(boss);
-    const inside = (player, point) =>
-      Math.hypot(player.x - point.x, player.y - point.y) <= TUNING.captureRadius;
-    const leftPlayers = team.filter(p => inside(p, left));
-    const rightPlayers = team.filter(p => inside(p, right));
-    return {
-      left: leftPlayers.length > 0, right: rightPlayers.length > 0,
-      both: leftPlayers.some(p => rightPlayers.some(other => other !== p))
-    };
-  }
-  function shoot(game, boss) {
-    if (game.enemyBullets.length >= TUNING.maxEnemyBullets - 8) return;
-    const players = pilots(game).slice(0, 4);
-    for (const player of players) {
-      if (!player || player.hp <= 0) continue;
-      const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-      for (let i = -1; i <= 1; i++) {
-        const a = angle + i * 0.17;
-        game.enemyBullets.push({
-          x: boss.x, y: boss.y, vx: Math.cos(a) * 245, vy: Math.sin(a) * 245,
-          radius: 5, color: '#72ffe0', damage: 20, life: 3.3
-        });
-      }
-    }
+    return bosses().captureStatus(game, boss);
   }
   function updateBoss(game, boss, dt) {
-    if (boss.dead) return;
-    const ally = game.lanCoop?.ally;
-    if (!active(game) || !ally) {
-      boss.coopExposed = Math.max(boss.coopExposed, 1);
-      boss.coopCapture = 0;
-      return;
-    }
-    if (boss.coopExposed > 0) {
-      boss.coopExposed = Math.max(0, boss.coopExposed - dt);
-    } else {
-      const status = captureStatus(game, boss);
-      boss.coopCapture = status.both ? Math.min(TUNING.captureSeconds, boss.coopCapture + dt)
-        : Math.max(0, boss.coopCapture - dt * 1.8);
-      if (boss.coopCapture >= TUNING.captureSeconds) {
-        boss.coopCapture = 0;
-        boss.coopExposed = TUNING.vulnerableSeconds;
-        game.texts.push({ x: boss.x, y: boss.y - 80,
-          text: '双机同步解锁 · 核心暴露！', color: '#8ffff0', size: 20,
-          life: 1.5, maxLife: 1.5 });
-        game.shockwaves.push({ x: boss.x, y: boss.y, radius: 15, maxRadius: 280,
-          alpha: 1, color: '#72ffe0' });
-      }
-    }
-    if (boss.volleyWindup > 0) {
-      boss.volleyWindup -= dt;
-      if (boss.volleyWindup <= 0) {
-        boss.volleyWindup = 0;
-        shoot(game, boss);
-      }
-    } else {
-      boss.attackTimer += dt;
-      if (boss.attackTimer >= TUNING.dualVolleyInterval) {
-        boss.attackTimer = 0;
-        boss.volleyWindup = TUNING.dualVolleyWarning;
-        game.texts.push({ x: boss.x, y: boss.y - 75,
-          text: '双路锁定 · 0.7秒后齐射', color: '#ffdd78',
-          size: 16, life: 0.75, maxLife: 0.75 });
-      }
-    }
-    const targets = pilots(game);
-    const nearest = targets.sort((a, b) =>
-      Math.hypot(a.x - boss.x, a.y - boss.y) -
-      Math.hypot(b.x - boss.x, b.y - boss.y))[0];
-    if (nearest) {
-      const angle = Math.atan2(nearest.y - boss.y, nearest.x - boss.x);
-      boss.vx = Math.cos(angle) * boss.speed * 0.55;
-      boss.vy = Math.sin(angle) * boss.speed * 0.55;
-    }
+    if (!boss || boss.dead || !isCoopBoss(boss.type)) return;
+    bosses()?.update(game, boss, dt);
   }
   function modifyBossDamage(game, boss, amount) {
-    if (boss.type !== 'boss_dual_reactor' || !active(game)) return amount;
-    return amount * (boss.coopExposed > 0 ? 1.25 : TUNING.shieldedDamage);
+    if (!isCoopBoss(boss?.type) || !active(game)) return amount;
+    return amount * (bosses()?.damageMultiplier(game, boss) ?? 1);
   }
   function renderBoss(ctx, game, boss) {
-    if (boss?.dead || boss?.type !== 'boss_dual_reactor' ||
-      (!active(game) && !game.isGuestWorldView)) return;
-    const points = capturePoints(boss);
-    let status = captureStatus(game, boss);
-    if (game.isGuestWorldView) {
-      // Guest paints the SAME capture circles from the authoritative snapshot.
-      // This is a visual occupancy indicator, not a second boss simulation.
-      const host = game.lanCoop?.currentRenderState?.host;
-      const guest = game.lanCoop?.currentRenderState?.guest;
-      const inside = (p, point) => p && Math.hypot(p.x - point.x, p.y - point.y) <= TUNING.captureRadius;
-      status = { left: inside(host, points[0]) || inside(guest, points[0]),
-        right: inside(host, points[1]) || inside(guest, points[1]) };
-    }
-    ctx.save();
-    points.forEach((p, i) => {
-      const taken = i === 0 ? status.left : status.right;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, TUNING.captureRadius, 0, Math.PI * 2);
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = taken ? '#77ffcb' : '#ffb468';
-      ctx.globalAlpha = 0.75;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = taken ? '#77ffcb' : '#ffb468';
-      ctx.font = 'bold 13px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(i === 0 ? '① 房主/队友站位' : '② 另一位玩家站位', p.x, p.y - 99);
-    });
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 15px system-ui';
-    ctx.fillStyle = boss.coopExposed > 0 ? '#82ffe9' : '#ffdd98';
-    const label = boss.coopExposed > 0
-      ? `核心暴露 ${boss.coopExposed.toFixed(1)}秒`
-      : `双点同步破盾 ${Math.round(boss.coopCapture / TUNING.captureSeconds * 100)}%`;
-    ctx.fillText(label, boss.x, boss.y - 70);
-    ctx.restore();
+    if (boss?.dead || !isCoopBoss(boss?.type)) return;
+    if (!active(game) && !game.isGuestWorldView) return;
+    bosses()?.render(ctx, game, boss);
   }
   function bonusOnVictory(game, boss) {
-    if (boss.type !== 'boss_dual_reactor' || !active(game)) return;
-    const ally = game.lanCoop.ally;
-    game.player.hp = Math.min(game.player.maxHp, game.player.hp + 25);
-    ally.hp = Math.min(ally.maxHp, ally.hp + 25);
-    game.player.crystals += 35;
-    game.texts.push({ x: boss.x, y: boss.y - 95, text: '双人挑战完成 · +35晶体 / 双机修复',
-      color: '#9ffff0', size: 19, life: 2, maxLife: 2 });
+    if (!isCoopBoss(boss?.type) || !active(game)) return;
+    bosses()?.onVictory(game, boss);
   }
+
   window.NeonLanEncounters = Object.freeze({
-    TUNING, active, scaleNewEnemies, createDualBoss, capturePoints,
+    TUNING, active,
+    connectedGuests, partyScale, normalEnemyCap, spawnIntervalScale, swarmCount,
+    scaleNewEnemies,
+    isCoopBoss, createDualBoss, createCoopBoss, capturePoints,
     captureStatus, updateBoss, modifyBossDamage, renderBoss, bonusOnVictory
   });
 })();

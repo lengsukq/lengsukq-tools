@@ -5,11 +5,14 @@
         this.spawnTimer += dt;
 
         const timeMin = this.survivalTime / 60;
-        // As time advances, spawn interval accelerates from 1.25s down to 0.16s
-        const coopSpawnMultiplier = window.NeonLanEncounters?.active(this)
-          ? window.NeonLanEncounters.TUNING.spawnInterval : 1;
-        const spawnInterval = Math.max(0.16, (1.25 - timeMin * 0.12) /
-          this.getDifficultyRules().enemyCount * coopSpawnMultiplier);
+        // As time advances, spawn interval accelerates from 1.25s down to 0.16s.
+        // The co-op party scale multiplies AFTER the floor, never before: a
+        // scaled floor would pin a four-pilot room to the solo spawn rate and the
+        // raised enemy ceiling could never be reached.
+        const baseInterval = Math.max(0.16, (1.25 - timeMin * 0.12) /
+          this.getDifficultyRules().enemyCount);
+        const spawnInterval = baseInterval *
+          (window.NeonLanEncounters?.spawnIntervalScale(this) ?? 1);
 
         // Boss spawn at 3 minutes (180s), and periodically in endless mode
         if (this.survivalTime >= 180 && !this.bossSpawned) {
@@ -42,7 +45,10 @@
       }
 
       spawnSwarmRush() {
-        if (this.getNormalEnemyCount() >= 90) return;
+        // The swarm respects the same party-scaled ceiling as the wave spawner,
+        // so a four-pilot room is not blocked at the solo limit.
+        const normalCap = window.NeonLanEncounters?.normalEnemyCap(this) ?? 100;
+        if (this.getNormalEnemyCount() >= normalCap - 10) return;
         const spawnPilot = this.getActiveSpawnPilot();
         this.sound.playBossAlert();
         this.texts.push({
@@ -55,7 +61,9 @@
           maxLife: 2.2
         });
         const hpMult = this.getAdaptiveScaling() * (this.difficulty >= 3 ? 1.20 : 1);
-        const swarmCount = Math.round(20 * this.getDifficultyRules().enemyCount);
+        const swarmCount = window.NeonLanEncounters?.swarmCount(
+          this, 20 * this.getDifficultyRules().enemyCount) ??
+          Math.round(20 * this.getDifficultyRules().enemyCount);
         for (let i = 0; i < swarmCount; i++) {
           const a = (i / swarmCount) * Math.PI * 2;
           const spawnDist = Math.sqrt(this.width * this.width + this.height * this.height) / 2 + 70;
@@ -164,7 +172,8 @@
 
       spawnEnemyWave() {
         const spawnPilot = this.getActiveSpawnPilot();
-        const MAX_NORMAL_ENEMIES = 100;
+        // +30 per additional pilot in co-op (100 / 130 / 160 / 190); 100 in solo.
+        const MAX_NORMAL_ENEMIES = window.NeonLanEncounters?.normalEnemyCap(this) ?? 100;
         const eliteHpScale = this.difficulty >= 3 ? 1.20 : 1;
         // Cull distant normal enemies. BOSSES AND ELITES ARE NEVER CULLED!
         for (let i = this.enemies.length - 1; i >= 0; i--) {

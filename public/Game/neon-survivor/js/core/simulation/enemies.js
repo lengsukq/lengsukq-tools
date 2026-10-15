@@ -257,7 +257,8 @@
                 }
               }
             }
-            if (e.type === 'boss_dual_reactor' && window.NeonLanEncounters?.active(this)) {
+            if (window.NeonLanEncounters?.isCoopBoss(e.type) &&
+                window.NeonLanEncounters?.active(this)) {
               window.NeonLanEncounters.updateBoss(this, e, dt);
             } else if (e.type === 'boss_nexus') {
               e.attackTimer += dt;

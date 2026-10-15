@@ -25,9 +25,17 @@
         let boss = null;
         const bossNameEl = document.getElementById('boss-name');
 
-        if (window.NeonLanEncounters?.active(this) && this.bossCycle % 2 === 0) {
-          boss = window.NeonLanEncounters.createDualBoss(this, bx, by, hpScale, dmgScale);
-          if (bossNameEl) bossNameEl.textContent = '双生裁决者 · 共振要塞 (DUAL REACTOR)';
+        // Every second boss in a co-op room is a co-op encounter. They rotate
+        // through the registry in coop-bosses.js: positional synchronisation
+        // (dual reactor), then the flank pincer (mirror bastion), then polarity
+        // pairing (polarity split). A missing registry falls through to the
+        // solo roster rather than pushing a null boss.
+        const coopBoss = window.NeonLanEncounters?.active(this) && this.bossCycle % 2 === 0
+          ? window.NeonLanEncounters.createCoopBoss(this, bx, by, hpScale, dmgScale) : null;
+        if (coopBoss) {
+          boss = coopBoss;
+          if (bossNameEl) bossNameEl.textContent =
+            window.NeonLanCoopBosses?.forCycle?.(this.bossCycle)?.label || '联机专属 Boss';
         } else if (this.bossCycle % 3 === 1) {
           // BOSS 1: 雷暴行者·极性核心 (STORM NEXUS)
           boss = {
